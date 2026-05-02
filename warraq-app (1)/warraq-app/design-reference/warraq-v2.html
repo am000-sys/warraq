@@ -1,0 +1,1046 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>وَرَّاق — تحويل الكتب العربية إلى نصوص</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: #F5F2EB;
+  color: #0D1B2A;
+  font-family: 'Tajawal', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  direction: rtl;
+}
+
+:root {
+  --navy:   #0D1B2A;
+  --navy2:  #122236;
+  --navy3:  #1a3050;
+  --gold:   #D4AF37;
+  --gold2:  #e8c84a;
+  --gold3:  rgba(212,175,55,0.12);
+  --cream:  #F5F2EB;
+  --cream2: #EDE9DF;
+  --white:  #FFFFFF;
+  --gray:   #6B7280;
+  --gray2:  #9CA3AF;
+  --border: rgba(13,27,42,0.10);
+  --border-gold: rgba(212,175,55,0.25);
+
+  --r-btn: 6px;
+  --r-card: 16px;
+  --r-nav: 12px;
+
+  --shadow-card: 0 2px 12px rgba(13,27,42,0.08);
+  --shadow-gold: 0 4px 20px rgba(212,175,55,0.20);
+}
+
+/* ── Utilities ── */
+.container { max-width: 1160px; margin: 0 auto; padding: 0 28px; }
+
+.btn-gold {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--gold);
+  color: var(--navy);
+  border: none; border-radius: var(--r-btn);
+  padding: 12px 26px;
+  font-family: 'Tajawal', sans-serif;
+  font-size: 15px; font-weight: 500;
+  cursor: pointer;
+  box-shadow: var(--shadow-gold);
+  transition: all 0.18s ease;
+  text-decoration: none; white-space: nowrap;
+}
+.btn-gold:hover { background: var(--gold2); transform: translateY(-1px); box-shadow: 0 6px 24px rgba(212,175,55,0.30); }
+
+.btn-outline {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent;
+  color: var(--white);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: var(--r-btn);
+  padding: 12px 26px;
+  font-family: 'Tajawal', sans-serif;
+  font-size: 15px; font-weight: 400;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-decoration: none; white-space: nowrap;
+}
+.btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+
+.btn-outline-dark {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent;
+  color: var(--navy);
+  border: 1px solid var(--border);
+  border-radius: var(--r-btn);
+  padding: 12px 26px;
+  font-family: 'Tajawal', sans-serif;
+  font-size: 15px; font-weight: 400;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  text-decoration: none; white-space: nowrap;
+}
+.btn-outline-dark:hover { border-color: var(--gold); color: var(--navy); }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--gold3);
+  border: 1px solid var(--border-gold);
+  border-radius: 4px;
+  padding: 4px 12px;
+  font-size: 12px; font-weight: 500; color: #8B6914;
+  letter-spacing: 0.02em;
+  font-family: 'Tajawal', sans-serif;
+}
+
+.card {
+  background: var(--white);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--border);
+  padding: 28px;
+}
+
+@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+@keyframes pulse-gold { 0%,100%{opacity:1} 50%{opacity:0.6} }
+@keyframes scan { 0%{transform:translateY(0)} 100%{transform:translateY(120px)} }
+@keyframes fade-up { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+/* ══════════════════════════
+   LOGO SVG COMPONENT
+   كتاب مفتوح + إطار مسح + نصوص
+══════════════════════════ */
+function WarraqLogo({ size = 1, dark = false, showText = true, showTagline = false }) {
+  const gold = '#D4AF37';
+  const fg = dark ? '#ffffff' : '#0D1B2A';
+  const w = 48 * size, h = 48 * size;
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12 * size }}>
+      {/* Icon mark */}
+      <svg width={w} height={h} viewBox="0 0 48 48" fill="none">
+        {/* Scanning frame corners */}
+        <path d="M4 14 L4 4 L14 4" stroke={gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M34 4 L44 4 L44 14" stroke={gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M44 34 L44 44 L34 44" stroke={gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+        <path d="M14 44 L4 44 L4 34" stroke={gold} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+        {/* Open book */}
+        <path d="M24 36 C20 34 13 33 8 34 L8 14 C13 13 20 14 24 16 C28 14 35 13 40 14 L40 34 C35 33 28 34 24 36Z" fill="none" stroke={gold} strokeWidth="1.8" strokeLinejoin="round"/>
+        {/* Book spine center line */}
+        <line x1="24" y1="16" x2="24" y2="36" stroke={gold} strokeWidth="1.5"/>
+        {/* Left page text lines */}
+        <line x1="11" y1="20" x2="21" y2="19.5" stroke={dark ? 'rgba(255,255,255,0.5)' : 'rgba(13,27,42,0.35)'} strokeWidth="1.2" strokeLinecap="round"/>
+        <line x1="11" y1="24" x2="21" y2="23.5" stroke={dark ? 'rgba(255,255,255,0.5)' : 'rgba(13,27,42,0.35)'} strokeWidth="1.2" strokeLinecap="round"/>
+        <line x1="11" y1="28" x2="19" y2="27.6" stroke={dark ? 'rgba(255,255,255,0.5)' : 'rgba(13,27,42,0.35)'} strokeWidth="1.2" strokeLinecap="round"/>
+        {/* Right page text lines */}
+        <line x1="27" y1="19.5" x2="37" y2="20" stroke={gold} strokeWidth="1.4" strokeLinecap="round"/>
+        <line x1="27" y1="23.5" x2="37" y2="24" stroke={gold} strokeWidth="1.2" strokeLinecap="round" opacity="0.6"/>
+        <line x1="27" y1="27.6" x2="35" y2="28" stroke={gold} strokeWidth="1.2" strokeLinecap="round" opacity="0.4"/>
+      </svg>
+
+      {/* Text */}
+      {showText && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <span style={{
+            fontFamily: 'Tajawal, sans-serif',
+            fontSize: 24 * size, fontWeight: 500,
+            color: fg, letterSpacing: '-0.02em', lineHeight: 1.1,
+          }}>وَرَّاق</span>
+          {showTagline && (
+            <span style={{ fontSize: 10 * size, color: gold, fontFamily: 'Inter, sans-serif', letterSpacing: '0.12em', textTransform: 'uppercase', fontWeight: 400 }}>Warraq</span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ══════════════════════════
+   NAV
+══════════════════════════ */
+function Nav({ onNavigate, page }) {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const h = () => setScrolled(window.scrollY > 60);
+    window.addEventListener('scroll', h);
+    return () => window.removeEventListener('scroll', h);
+  }, []);
+
+  return (
+    <header style={{
+      position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
+      background: scrolled ? 'rgba(13,27,42,0.97)' : 'transparent',
+      backdropFilter: scrolled ? 'blur(12px)' : 'none',
+      borderBottom: scrolled ? '1px solid rgba(212,175,55,0.12)' : 'none',
+      transition: 'all 0.3s ease',
+    }}>
+      <div className="container" style={{ height: 68, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <a href="#" onClick={e => { e.preventDefault(); onNavigate('landing'); }}>
+          <WarraqLogo size={0.85} dark={true} showText={true} showTagline={true} />
+        </a>
+        <nav style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
+          {[
+            { label: 'المميزات', key: 'features' },
+            { label: 'كيف يعمل', key: 'how' },
+            { label: 'الأسعار', key: 'pricing' },
+            { label: 'API', key: 'api' },
+          ].map(item => (
+            <a key={item.key} href="#" onClick={e => { e.preventDefault(); onNavigate(item.key === 'pricing' ? 'pricing' : 'landing'); }}
+              style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', textDecoration: 'none', fontFamily: 'Tajawal, sans-serif', fontWeight: 400, transition: 'color 0.15s' }}
+              onMouseEnter={e => e.target.style.color='#D4AF37'}
+              onMouseLeave={e => e.target.style.color='rgba(255,255,255,0.7)'}
+            >{item.label}</a>
+          ))}
+        </nav>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <button className="btn-outline" style={{ fontSize: 14, padding: '9px 20px' }} onClick={() => onNavigate('login')}>تسجيل الدخول</button>
+          <button className="btn-gold" style={{ fontSize: 14, padding: '9px 20px' }} onClick={() => onNavigate('register')}>ابدأ مجاناً</button>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/* ══════════════════════════
+   HERO
+══════════════════════════ */
+function Hero({ onNavigate }) {
+  return (
+    <section style={{
+      minHeight: '100vh',
+      background: `linear-gradient(160deg, #0D1B2A 0%, #122236 50%, #1a2f4a 100%)`,
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      textAlign: 'center',
+      padding: '120px 28px 80px',
+      position: 'relative', overflow: 'hidden',
+    }}>
+      {/* Background texture */}
+      <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse 80% 50% at 50% -10%, rgba(212,175,55,0.08) 0%, transparent 60%)', pointerEvents: 'none' }}></div>
+
+      {/* Floating grid dots */}
+      {[...Array(20)].map((_,i) => (
+        <div key={i} style={{
+          position: 'absolute',
+          width: 2, height: 2, borderRadius: '50%',
+          background: 'rgba(212,175,55,0.3)',
+          left: `${5 + (i % 10) * 10}%`,
+          top: `${10 + Math.floor(i / 10) * 40}%`,
+          animation: `pulse-gold ${2 + (i % 3) * 0.7}s ease-in-out infinite`,
+          animationDelay: `${i * 0.15}s`,
+        }}></div>
+      ))}
+
+      {/* Eyebrow */}
+      <div className="badge" style={{ marginBottom: 36, background: 'rgba(212,175,55,0.1)', borderColor: 'rgba(212,175,55,0.3)', color: '#D4AF37' }}>
+        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#D4AF37', flexShrink: 0, display: 'inline-block', animation: 'pulse-gold 2s ease-in-out infinite' }}></span>
+        مدعوم بـ Claude Vision من Anthropic
+      </div>
+
+      {/* Headline */}
+      <h1 style={{
+        fontFamily: 'Tajawal, sans-serif',
+        fontSize: 'clamp(38px, 6vw, 72px)',
+        fontWeight: 300,
+        color: '#ffffff',
+        lineHeight: 1.15,
+        letterSpacing: '-0.02em',
+        maxWidth: 780,
+        marginBottom: 28,
+      }}>
+        التراث العربي،<br/>
+        <span style={{ color: '#D4AF37' }}>نصاً قابلاً للبحث</span>
+      </h1>
+
+      {/* Sub */}
+      <p style={{ fontSize: 18, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7, maxWidth: 520, marginBottom: 44, fontWeight: 300 }}>
+        حوِّل الكتب العربية المصوّرة — من المخطوطات القديمة إلى المطبوعات الحديثة — إلى نصوص رقمية دقيقة في دقائق.
+      </p>
+
+      {/* CTA Row */}
+      <div style={{ display: 'flex', gap: 14, marginBottom: 52, flexWrap: 'wrap', justifyContent: 'center' }}>
+        <button className="btn-gold" style={{ fontSize: 16, padding: '14px 32px' }} onClick={() => onNavigate('register')}>
+          ابدأ مجاناً — ٥٠ صفحة
+        </button>
+        <button className="btn-outline" style={{ fontSize: 16, padding: '14px 32px' }} onClick={() => onNavigate('dashboard')}>
+          شاهد العرض التجريبي ←
+        </button>
+      </div>
+
+      {/* Trust badges */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 28, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 72 }}>
+        {[
+          { icon: '★★★★★', text: 'دقة ٩٨٪+ في العربية' },
+          { sep: true },
+          { icon: '★★★★★', text: 'دعم المخطوطات القديمة' },
+          { sep: true },
+          { icon: '🔒', text: 'بياناتك آمنة ومشفرة' },
+        ].map((t, i) => t.sep
+          ? <div key={i} style={{ width: 1, height: 16, background: 'rgba(255,255,255,0.15)' }}></div>
+          : <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{ color: '#D4AF37', fontSize: 12, letterSpacing: 2 }}>{t.icon}</span>
+              <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', fontFamily: 'Tajawal, sans-serif' }}>{t.text}</span>
+            </div>
+        )}
+      </div>
+
+      {/* Book mockup */}
+      <BookMockup />
+    </section>
+  );
+}
+
+/* ══════════════════════════
+   BOOK MOCKUP
+   كتاب → سهم → نص
+══════════════════════════ */
+function BookMockup() {
+  const [scanY, setScanY] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setScanY(y => (y >= 120 ? 0 : y + 2)), 30);
+    return () => clearInterval(t);
+  }, []);
+
+  return (
+    <div style={{ width: '100%', maxWidth: 860, position: 'relative' }}>
+      <div style={{
+        background: 'rgba(255,255,255,0.04)',
+        border: '1px solid rgba(212,175,55,0.15)',
+        borderRadius: 20,
+        padding: '32px 28px 0',
+        backdropFilter: 'blur(8px)',
+        overflow: 'hidden',
+        boxShadow: '0 32px 80px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06)',
+      }}>
+        {/* Browser chrome */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20 }}>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#c97b84' }}></div>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#D4AF37' }}></div>
+          <div style={{ width: 10, height: 10, borderRadius: '50%', background: '#4a9d5a' }}></div>
+          <div style={{ flex: 1, marginRight: 16, background: 'rgba(255,255,255,0.08)', borderRadius: 6, height: 24, display: 'flex', alignItems: 'center', padding: '0 12px' }}>
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif', direction: 'ltr' }}>app.warraq.sa/jobs/J-1001</span>
+          </div>
+        </div>
+
+        {/* Two-column layout: book scan + extracted text */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 48px 1fr', gap: 0, minHeight: 260, alignItems: 'stretch' }}>
+          {/* Left: scanned book page */}
+          <div style={{ background: 'rgba(245,242,235,0.06)', borderRadius: '12px 0 0 0', padding: 20, position: 'relative', overflow: 'hidden' }}>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', marginBottom: 14, fontFamily: 'Tajawal, sans-serif' }}>الصفحة الأصلية</div>
+            {/* Page simulation */}
+            <div style={{ background: '#F5F2EB', borderRadius: 8, padding: '16px 14px', position: 'relative', overflow: 'hidden' }}>
+              {/* Scan line animation */}
+              <div style={{ position: 'absolute', right: 0, left: 0, height: 2, top: scanY, background: 'rgba(212,175,55,0.6)', boxShadow: '0 0 8px rgba(212,175,55,0.8)', transition: 'top 0.03s linear' }}></div>
+              {/* Simulated Arabic text lines */}
+              {[100,85,92,78,88,95,70,83,90,75].map((w, i) => (
+                <div key={i} style={{ height: 7, background: i % 3 === 0 ? 'rgba(13,27,42,0.3)' : 'rgba(13,27,42,0.12)', borderRadius: 2, marginBottom: 8, width: `${w}%` }}></div>
+              ))}
+              {/* Book fold shadow */}
+              <div style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 3, background: 'linear-gradient(to right, rgba(0,0,0,0.15), transparent)' }}></div>
+            </div>
+          </div>
+
+          {/* Center arrow */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 6 }}>
+            <div style={{ width: 1, flex: 1, background: 'rgba(212,175,55,0.15)' }}></div>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(212,175,55,0.12)', border: '1px solid rgba(212,175,55,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <span style={{ color: '#D4AF37', fontSize: 14 }}>←</span>
+            </div>
+            <div style={{ width: 1, flex: 1, background: 'rgba(212,175,55,0.15)' }}></div>
+          </div>
+
+          {/* Right: extracted text */}
+          <div style={{ background: 'rgba(212,175,55,0.03)', borderRadius: '0 12px 0 0', padding: 20, borderRight: '1px solid rgba(212,175,55,0.1)' }}>
+            <div style={{ fontSize: 11, color: 'rgba(212,175,55,0.7)', marginBottom: 14, fontFamily: 'Tajawal, sans-serif', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span>النص المستخرج</span>
+              <span style={{ background: 'rgba(212,175,55,0.15)', color: '#D4AF37', padding: '2px 8px', borderRadius: 4, fontSize: 10 }}>٩٨٪ دقة</span>
+            </div>
+            <div style={{ fontFamily: 'Tajawal, sans-serif', fontSize: 13, color: 'rgba(255,255,255,0.8)', lineHeight: 2.2, direction: 'rtl' }}>
+              <span style={{ color: '#D4AF37' }}>بسم الله</span> الرحمن الرحيم
+              <br/>قال الإمام ابن تيمية رحمه
+              <br/>الله في فتاواه الكبرى أن
+              <br/><span style={{ color: 'rgba(255,255,255,0.4)' }}>الواجب على المسلم...</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom status bar */}
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', padding: '12px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 0 }}>
+          <div style={{ display: 'flex', gap: 20 }}>
+            {[
+              { label: 'النموذج', val: 'Claude Sonnet' },
+              { label: 'الصفحات', val: '١٢ / ٢٤٠' },
+              { label: 'الوقت المتبقي', val: '٣ دقائق' },
+            ].map((s, i) => (
+              <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontFamily: 'Tajawal, sans-serif' }}>{s.label}:</span>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', fontFamily: 'Tajawal, sans-serif' }}>{s.val}</span>
+              </div>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: '#D4AF37', animation: 'pulse-gold 1.2s ease-in-out infinite' }}></div>
+            <span style={{ fontSize: 11, color: '#D4AF37', fontFamily: 'Tajawal, sans-serif' }}>جارٍ المعالجة</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom fade */}
+      <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 60, background: 'linear-gradient(to top, #1a2f4a, transparent)', pointerEvents: 'none', borderRadius: '0 0 20px 20px' }}></div>
+    </div>
+  );
+}
+
+/* ══════════════════════════
+   STATS BAND
+══════════════════════════ */
+function StatsBand() {
+  return (
+    <div style={{ background: '#0D1B2A', borderTop: '1px solid rgba(212,175,55,0.12)', borderBottom: '1px solid rgba(212,175,55,0.12)' }}>
+      <div className="container">
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 0 }}>
+          {[
+            { num: '+٤م', label: 'صفحة جرى تحويلها' },
+            { num: '٩٨٪', label: 'متوسط الدقة' },
+            { num: '+١٢٠٠', label: 'باحث يستخدم المنصة' },
+            { num: '٣ث', label: 'لكل صفحة' },
+          ].map((s, i) => (
+            <div key={i} style={{ padding: '40px 28px', textAlign: 'center', borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+              <div style={{ fontFamily: 'Tajawal, sans-serif', fontSize: 44, fontWeight: 300, color: '#D4AF37', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 8 }}>{s.num}</div>
+              <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', fontFamily: 'Tajawal, sans-serif' }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════
+   FEATURES
+══════════════════════════ */
+function Features() {
+  const feats = [
+    { icon: '✦', title: 'دعم كامل للخطوط العربية', desc: 'نسخ، ثلث، ديواني، رقعة، كوفي — يتعامل مع كل أشكال الخط العربي بما في ذلك المشكول.' },
+    { icon: '⚡', title: 'معالجة سريعة', desc: 'صفحة كاملة في ٣ ثوانٍ. معالجة متوازية للكتب الضخمة عبر نظام طوابير ذكي.' },
+    { icon: '◈', title: 'نماذج متعددة', desc: 'Haiku للسرعة، Sonnet للتوازن، Opus لأصعب المخطوطات — اختر ما يناسب مشروعك.' },
+    { icon: '↓', title: 'تصدير متعدد الصيغ', desc: 'TXT وMarkdown وDOCX وJSON — كل نتائجك جاهزة للاستخدام في أدوات البحث.' },
+    { icon: '◎', title: 'API للمطورين', desc: 'ادمج وَرَّاق في تطبيقاتك عبر RESTful API بسيطة. Bearer Token جاهز في دقيقة.' },
+    { icon: '⊞', title: 'إدارة الفرق', desc: 'حسابات مؤسسية مع أدوار متعددة وفوترة مركزية. مثالي للمكتبات ودور الأرشفة.' },
+  ];
+
+  return (
+    <section style={{ padding: '100px 0', background: 'var(--cream)' }}>
+      <div className="container">
+        <div style={{ textAlign: 'center', marginBottom: 64 }}>
+          <div className="badge" style={{ marginBottom: 20 }}>المميزات</div>
+          <h2 style={{ fontFamily: 'Tajawal, sans-serif', fontSize: 'clamp(28px,4vw,46px)', fontWeight: 300, color: 'var(--navy)', letterSpacing: '-0.02em', lineHeight: 1.2, marginBottom: 16 }}>
+            كل ما يحتاجه الباحث
+          </h2>
+          <p style={{ fontSize: 17, color: 'var(--gray)', lineHeight: 1.7, maxWidth: 460, margin: '0 auto' }}>
+            من المخطوط الأصلي إلى نص رقمي قابل للبحث والتحرير.
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20 }}>
+          {feats.map((f, i) => (
+            <div key={i} className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16, transition: 'all 0.2s', cursor: 'default' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor='rgba(212,175,55,0.4)'; e.currentTarget.style.boxShadow='0 4px 24px rgba(212,175,55,0.12)'; e.currentTarget.style.transform='translateY(-2px)'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor='var(--border)'; e.currentTarget.style.boxShadow='var(--shadow-card)'; e.currentTarget.style.transform='translateY(0)'; }}
+            >
+              <div style={{ width: 40, height: 40, background: 'rgba(212,175,55,0.08)', border: '1px solid rgba(212,175,55,0.2)', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, color: 'var(--gold)' }}>{f.icon}</div>
+              <div style={{ fontFamily: 'Tajawal, sans-serif', fontSize: 17, fontWeight: 500, color: 'var(--navy)' }}>{f.title}</div>
+              <div style={{ fontSize: 14, color: 'var(--gray)', lineHeight: 1.7 }}>{f.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════
+   HOW IT WORKS
+══════════════════════════ */
+function HowItWorks() {
+  const [active, setActive] = useState(0);
+  const steps = [
+    { title: 'ارفع ملفاتك', desc: 'PDF أو صور PNG/JPG/TIFF. حجم يصل إلى ٥٠٠ ميجابايت لكل وظيفة. رفع مجمّع مدعوم.', visual: 'upload' },
+    { title: 'اختر النموذج', desc: 'ثلاثة نماذج من Claude Vision بمستويات دقة مختلفة. Opus للمخطوطات الصعبة.', visual: 'model' },
+    { title: 'انتظر المعالجة', desc: 'معالجة تلقائية في الخلفية مع شريط تقدم حي. إشعار بالبريد فور الانتهاء.', visual: 'process' },
+    { title: 'صدِّر النتائج', desc: 'حمِّل النص بصيغ متعددة أو ادمجه مباشرة في تطبيقاتك عبر API.', visual: 'export' },
+  ];
+
+  return (
+    <section style={{ padding: '100px 0', background: 'var(--white)' }}>
+      <div className="container">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 72, alignItems: 'center' }}>
+          {/* Steps */}
+          <div>
+            <div className="badge" style={{ marginBottom: 20 }}>كيف يعمل</div>
+            <h2 style={{ fontFamily: 'Tajawal, sans-serif', fontSize: 'clamp(26px,3.5vw,42px)', fontWeight: 300, color: 'var(--navy)', letterSpacing: '-0.02em', lineHeight: 1.2, marginBottom: 40 }}>
+              أربع خطوات<br/>إلى النص
+            </h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {steps.map((s, i) => (
+                <div key={i} onClick={() => setActive(i)} style={{ display: 'flex', gap: 18, padding: '18px 16px', borderRadius: 12, cursor: 'pointer', background: active === i ? 'rgba(212,175,55,0.06)' : 'transparent', border: active === i ? '1px solid rgba(212,175,55,0.2)' : '1px solid transparent', transition: 'all 0.2s' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 500, background: active === i ? 'var(--gold)' : 'var(--cream2)', color: active === i ? 'var(--navy)' : 'var(--gray)', transition: 'all 0.2s', border: active === i ? 'none' : '1px solid var(--border)' }}>{i + 1}</div>
+                  <div>
+                    <div style={{ fontFamily: 'Tajawal, sans-serif', fontSize: 16, fontWeight: 500, color: active === i ? 'var(--navy)' : 'var(--gray)', marginBottom: 4, transition: 'color 0.2s' }}>{s.title}</div>
+                    {active === i && <div style={{ fontSize: 14, color: 'var(--gray)', lineHeight: 1.7 }}>{s.desc}</div>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Visual */}
+          <div className="card" style={{ minHeight: 360, display: 'flex', flexDirection: 'column', justifyContent: 'center', border: '1px solid rgba(212,175,55,0.15)', background: 'var(--cream)' }}>
+            <StepVisual step={active} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function StepVisual({ step }) {
+  if (step === 0) return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, padding: 24 }}>
+      <div style={{ width: 72, height: 90, background: 'var(--white)', borderRadius: 8, border: '2px dashed rgba(212,175,55,0.4)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        <span style={{ fontSize: 28 }}>📄</span>
+        <div style={{ fontSize: 10, color: 'var(--gray)', fontFamily: 'Tajawal, sans-serif' }}>PDF · PNG</div>
+      </div>
+      <div style={{ fontSize: 13, color: 'var(--gray)', fontFamily: 'Tajawal, sans-serif' }}>اسحب الملفات هنا أو اضغط للاختيار</div>
+      <div style={{ display: 'flex', gap: 8 }}>
+        {['PDF','PNG','JPG','TIFF'].map(f => <span key={f} className="badge" style={{ fontSize: 11 }}>{f}</span>)}
+      </div>
+    </div>
+  );
+  if (step === 1) return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 24 }}>
+      {[
+        { name: 'Claude Haiku', tag: 'سريع', active: false },
+        { name: 'Claude Sonnet', tag: 'موصى به', active: true },
+        { name: 'Claude Opus', tag: 'أدق', active: false },
+      ].map((m, i) => (
+        <div key={i} style={{ padding: '14px 16px', borderRadius: 10, border: `1.5px solid ${m.active ? 'var(--gold)' : 'var(--border)'}`, background: m.active ? 'rgba(212,175,55,0.05)' : 'var(--white)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 14, fontWeight: m.active ? 500 : 400, color: 'var(--navy)', fontFamily: 'Tajawal, sans-serif' }}>{m.name}</span>
+          <span className="badge" style={{ fontSize: 10 }}>{m.tag}</span>
+        </div>
+      ))}
+    </div>
+  );
+  if (step === 2) return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 24 }}>
+      {[{p:'صفحة ١',pct:100},{p:'صفحة ٢',pct:100},{p:'صفحة ٣',pct:68},{p:'صفحة ٤',pct:0}].map((pg,i) => (
+        <div key={i}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontFamily: 'Tajawal, sans-serif', marginBottom: 4 }}>
+            <span style={{ color: 'var(--navy)' }}>{pg.p}</span>
+            <span style={{ color: pg.pct===100?'var(--gold)':'var(--gray)' }}>{pg.pct===100?'✓ مكتملة':pg.pct>0?'جارٍ المعالجة':'في الانتظار'}</span>
+          </div>
+          <div style={{ height: 4, background: 'var(--cream2)', borderRadius: 2 }}>
+            <div style={{ height: '100%', width: `${pg.pct}%`, background: pg.pct===100?'var(--gold)':'rgba(212,175,55,0.4)', borderRadius: 2 }}></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, padding: 24 }}>
+      {[{f:'TXT',d:'نص خام'},{f:'MD',d:'Markdown'},{f:'DOCX',d:'Word'},{f:'JSON',d:'API'}].map((x,i) => (
+        <div key={i} style={{ padding: '14px', background: 'var(--white)', borderRadius: 10, border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--navy)', marginBottom: 2, fontFamily: 'Inter, sans-serif' }}>{x.f}</div>
+          <div style={{ fontSize: 12, color: 'var(--gray)', fontFamily: 'Tajawal, sans-serif' }}>{x.d}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ══════════════════════════
+   TESTIMONIALS
+══════════════════════════ */
+function Testimonials() {
+  const items = [
+    { q: 'وَرَّاق وفّر عليّ أشهراً من العمل اليدوي. حوّلت ٨٠٠ صفحة من الرسائل المخطوطة في يومين بدقة لم أتوقعها.', n: 'د. نورة العتيبي', r: 'باحثة تراث · جامعة الملك سعود', i: 'ن' },
+    { q: 'دقة مذهلة مع النصوص العربية القديمة. النتائج تفوق توقعاتي خاصة مع النسخ المشكول والمخطوطات النادرة.', n: 'أ. محمد الغامدي', r: 'محقق مخطوطات · دار الوثائق الوطنية', i: 'م' },
+    { q: 'استخدمنا الـ API لبناء نظام أرشفة كامل للمكتبة. التوثيق واضح والاستجابة سريعة جداً.', n: 'سارة البلوشي', r: 'مطورة · مكتبة المخطوطات الرقمية', i: 'س' },
+    { q: 'الخطط المرنة مناسبة للمشاريع الصغيرة. أنصح به لكل من يعمل في رقمنة التراث العربي الإسلامي.', n: 'عبدالله الزهراني', r: 'طالب دكتوراه · جامعة الملك عبدالعزيز', i: 'ع' },
+  ];
+  return (
+    <section style={{ padding: '100px 0', background: 'var(--navy)', overflow: 'hidden' }}>
+      <div className="container" style={{ marginBottom: 48 }}>
+        <div className="badge" style={{ background: 'rgba(212,175,55,0.1)', borderColor: 'rgba(212,175,55,0.25)', color: '#D4AF37', marginBottom: 20 }}>شهادات المستخدمين</div>
+        <h2 style={{ fontFamily: 'Tajawal, sans-serif', fontSize: 'clamp(26px,3.5vw,42px)', fontWeight: 300, color: '#ffffff', letterSpacing: '-0.02em' }}>ثقة الباحثين</h2>
+      </div>
+      <div style={{ display: 'flex', gap: 20, padding: '8px 28px', overflowX: 'auto', scrollbarWidth: 'none', maxWidth: 1160, margin: '0 auto' }}>
+        {items.map((t, i) => (
+          <div key={i} style={{ flex: '0 0 300px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(212,175,55,0.12)', borderRadius: 16, padding: 24, backdropFilter: 'blur(8px)' }}>
+            <div style={{ color: '#D4AF37', fontSize: 28, marginBottom: 12, lineHeight: 1 }}>"</div>
+            <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.7)', lineHeight: 1.7, fontFamily: 'Tajawal, sans-serif', marginBottom: 20 }}>{t.q}</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(212,175,55,0.15)', border: '1px solid rgba(212,175,55,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#D4AF37', fontWeight: 500, flexShrink: 0 }}>{t.i}</div>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: '#fff', fontFamily: 'Tajawal, sans-serif' }}>{t.n}</div>
+                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'Tajawal, sans-serif' }}>{t.r}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════
+   PRICING SECTION
+══════════════════════════ */
+function PricingSection({ onNavigate }) {
+  const [billing, setBilling] = useState('monthly');
+  const plans = [
+    { tier: 'مجاني', price: { monthly: 0, yearly: 0 }, features: ['٥٠ صفحة / شهر', 'Claude Haiku', 'تصدير TXT و MD', 'دعم بالبريد'], cta: 'ابدأ مجاناً' },
+    { tier: 'احترافي', price: { monthly: 49, yearly: 39 }, badge: 'الأكثر شيوعاً', features: ['١٠٠٠ صفحة / شهر', 'Haiku + Sonnet', 'جميع صيغ التصدير', 'API كاملة', 'دعم أولوية'], cta: 'اشترك الآن', featured: true },
+    { tier: 'مؤسسي', price: { monthly: 199, yearly: 159 }, features: ['صفحات غير محدودة', 'جميع النماذج', 'إدارة فريق + SSO', 'مدير حساب مخصص', 'SLA 99.9٪'], cta: 'تواصل معنا' },
+  ];
+  return (
+    <section style={{ padding: '100px 0', background: 'var(--cream)' }}>
+      <div className="container">
+        <div style={{ textAlign: 'center', marginBottom: 56 }}>
+          <div className="badge" style={{ marginBottom: 20 }}>الأسعار</div>
+          <h2 style={{ fontFamily: 'Tajawal, sans-serif', fontSize: 'clamp(28px,4vw,46px)', fontWeight: 300, color: 'var(--navy)', letterSpacing: '-0.02em', marginBottom: 16 }}>ابدأ مجاناً</h2>
+          <p style={{ fontSize: 16, color: 'var(--gray)', marginBottom: 28 }}>بدون بطاقة ائتمانية · ترقية في أي وقت</p>
+          <div style={{ display: 'inline-flex', background: 'var(--white)', border: '1px solid var(--border)', borderRadius: 8, padding: 4 }}>
+            {[{k:'monthly',l:'شهري'},{k:'yearly',l:'سنوي — وفّر ٢٠٪'}].map(b => (
+              <button key={b.k} onClick={() => setBilling(b.k)} style={{ padding: '8px 22px', border: 'none', borderRadius: 6, background: billing === b.k ? 'var(--navy)' : 'transparent', color: billing === b.k ? '#fff' : 'var(--gray)', fontSize: 13, fontWeight: billing === b.k ? 500 : 400, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'Tajawal, sans-serif' }}>{b.l}</button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 20, maxWidth: 900, margin: '0 auto' }}>
+          {plans.map((plan, i) => (
+            <div key={i} style={{ background: plan.featured ? 'var(--navy)' : 'var(--white)', borderRadius: 16, padding: 28, border: plan.featured ? '1px solid rgba(212,175,55,0.3)' : '1px solid var(--border)', position: 'relative', boxShadow: plan.featured ? '0 8px 32px rgba(13,27,42,0.2)' : 'var(--shadow-card)', textAlign: 'right' }}>
+              {plan.badge && <div style={{ position: 'absolute', top: -11, right: 24, background: 'var(--gold)', color: 'var(--navy)', fontSize: 11, fontWeight: 500, padding: '3px 12px', borderRadius: 4, fontFamily: 'Tajawal, sans-serif' }}>{plan.badge}</div>}
+              <div style={{ fontSize: 12, color: plan.featured ? 'rgba(255,255,255,0.4)' : 'var(--gray)', fontFamily: 'Tajawal, sans-serif', marginBottom: 14, letterSpacing: '0.05em' }}>{plan.tier}</div>
+              <div style={{ fontFamily: 'Tajawal, sans-serif', fontSize: 46, fontWeight: 300, color: plan.featured ? '#fff' : 'var(--navy)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 4 }}>
+                {plan.price[billing] === 0 ? '٠' : plan.price[billing]}
+              </div>
+              <div style={{ fontSize: 13, color: plan.featured ? 'rgba(255,255,255,0.4)' : 'var(--gray)', fontFamily: 'Tajawal, sans-serif', marginBottom: 24 }}>ريال / شهر</div>
+              <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+                {plan.features.map((f, j) => (
+                  <li key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: plan.featured ? 'rgba(255,255,255,0.7)' : 'var(--gray)', fontFamily: 'Tajawal, sans-serif' }}>
+                    <span style={{ color: 'var(--gold)', fontWeight: 600, flexShrink: 0 }}>✓</span>{f}
+                  </li>
+                ))}
+              </ul>
+              <button onClick={() => onNavigate('register')} style={{ width: '100%', padding: '12px', borderRadius: 6, border: plan.featured ? 'none' : '1px solid var(--border)', background: plan.featured ? 'var(--gold)' : 'transparent', color: plan.featured ? 'var(--navy)' : 'var(--navy)', fontSize: 14, fontWeight: 500, cursor: 'pointer', fontFamily: 'Tajawal, sans-serif', transition: 'all 0.18s' }}
+                onMouseEnter={e => { if (!plan.featured) e.currentTarget.style.borderColor='var(--gold)'; }}
+                onMouseLeave={e => { if (!plan.featured) e.currentTarget.style.borderColor='var(--border)'; }}
+              >{plan.cta}</button>
+            </div>
+          ))}
+        </div>
+        <p style={{ textAlign: 'center', marginTop: 28, fontSize: 12, color: 'var(--gray2)', fontFamily: 'Tajawal, sans-serif' }}>
+          جميع الأسعار شاملة ضريبة القيمة المضافة · يُقبل mada و Visa و Apple Pay و STC Pay
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════
+   CTA BAND
+══════════════════════════ */
+function CTABand({ onNavigate }) {
+  return (
+    <section style={{ padding: '100px 0', background: 'var(--navy)', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse 60% 60% at 50% 100%, rgba(212,175,55,0.08) 0%, transparent 70%)', pointerEvents: 'none' }}></div>
+      <div className="container" style={{ position: 'relative' }}>
+        <div style={{ marginBottom: 28 }}>
+          <WarraqLogo size={1.2} dark={true} showText={true} showTagline={false} />
+        </div>
+        <h2 style={{ fontFamily: 'Tajawal, sans-serif', fontSize: 'clamp(30px,4.5vw,52px)', fontWeight: 300, color: '#fff', letterSpacing: '-0.02em', lineHeight: 1.2, marginBottom: 20, maxWidth: 600, margin: '0 auto 20px' }}>
+          التراث العربي يستحق<br/><span style={{ color: '#D4AF37' }}>أن يُقرأ رقمياً</span>
+        </h2>
+        <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.5)', marginBottom: 40, lineHeight: 1.6, fontFamily: 'Tajawal, sans-serif' }}>
+          انضم إلى أكثر من ١٢٠٠ باحث يستخدمون وَرَّاق يومياً.
+        </p>
+        <button className="btn-gold" style={{ fontSize: 16, padding: '16px 36px' }} onClick={() => onNavigate('register')}>
+          ابدأ مجاناً — ٥٠ صفحة
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/* ══════════════════════════
+   FOOTER
+══════════════════════════ */
+function Footer({ onNavigate }) {
+  return (
+    <footer style={{ background: '#080f17', padding: '64px 0 32px' }}>
+      <div className="container">
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: 48, marginBottom: 48 }}>
+          <div>
+            <WarraqLogo size={0.9} dark={true} showText={true} showTagline={true} />
+            <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)', lineHeight: 1.7, fontFamily: 'Tajawal, sans-serif', marginTop: 16, maxWidth: 260 }}>
+              منصة متخصصة في تحويل الكتب العربية المصوّرة إلى نصوص رقمية، مدعومة بأحدث نماذج الذكاء الاصطناعي.
+            </p>
+          </div>
+          {[
+            { title: 'المنتج', links: ['المميزات','الأسعار','API','التوثيق'] },
+            { title: 'الشركة', links: ['من نحن','المدونة','وظائف'] },
+            { title: 'الدعم', links: ['مركز المساعدة','تواصل معنا','حالة الخدمة'] },
+          ].map((col, i) => (
+            <div key={i}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: 'rgba(255,255,255,0.35)', fontFamily: 'Tajawal, sans-serif', marginBottom: 16, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{col.title}</div>
+              <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {col.links.map((l, j) => (
+                  <li key={j}><a href="#" style={{ fontSize: 13, color: 'rgba(255,255,255,0.45)', textDecoration: 'none', fontFamily: 'Tajawal, sans-serif', transition: 'color 0.15s' }}
+                    onMouseEnter={e => e.target.style.color='#D4AF37'}
+                    onMouseLeave={e => e.target.style.color='rgba(255,255,255,0.45)'}
+                  >{l}</a></li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+        <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 28, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', fontFamily: 'Tajawal, sans-serif' }}>© ٢٠٢٦ وَرَّاق · جميع الحقوق محفوظة</span>
+          <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.25)', fontFamily: 'Tajawal, sans-serif' }}>صُنع بـ ♥ لخدمة التراث العربي</span>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+/* ══════════════════════════
+   AUTH PAGE
+══════════════════════════ */
+function AuthPage({ mode, onNavigate }) {
+  const [tab, setTab] = useState(mode);
+  const [loading, setLoading] = useState(false);
+  const handleSubmit = e => {
+    e.preventDefault();
+    setLoading(true);
+    setTimeout(() => { setLoading(false); onNavigate('dashboard'); }, 1200);
+  };
+  return (
+    <div style={{ minHeight: '100vh', background: `linear-gradient(160deg, #0D1B2A, #122236)`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ width: '100%', maxWidth: 420 }}>
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <a href="#" onClick={e => { e.preventDefault(); onNavigate('landing'); }}>
+            <WarraqLogo size={1} dark={true} showText={true} showTagline={true} />
+          </a>
+        </div>
+        <div style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(212,175,55,0.15)', borderRadius: 16, padding: 32, backdropFilter: 'blur(12px)' }}>
+          <div style={{ display: 'flex', background: 'rgba(0,0,0,0.2)', borderRadius: 8, padding: 4, marginBottom: 28 }}>
+            {[{k:'login',l:'تسجيل الدخول'},{k:'register',l:'حساب جديد'}].map(t => (
+              <button key={t.k} onClick={() => setTab(t.k)} style={{ flex: 1, padding: '9px', border: 'none', borderRadius: 6, background: tab === t.k ? 'rgba(212,175,55,0.15)' : 'transparent', color: tab === t.k ? '#D4AF37' : 'rgba(255,255,255,0.5)', fontWeight: tab === t.k ? 500 : 400, cursor: 'pointer', fontSize: 14, fontFamily: 'Tajawal, sans-serif', transition: 'all 0.2s' }}>{t.l}</button>
+            ))}
+          </div>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {tab === 'register' && (
+              <div>
+                <label style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: 6, fontFamily: 'Tajawal, sans-serif' }}>الاسم الكامل</label>
+                <input type="text" placeholder="أحمد محمد" style={{ width: '100%', padding: '11px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, fontSize: 15, fontFamily: 'Tajawal, sans-serif', color: '#fff', outline: 'none', direction: 'rtl' }} />
+              </div>
+            )}
+            <div>
+              <label style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', display: 'block', marginBottom: 6, fontFamily: 'Tajawal, sans-serif' }}>البريد الإلكتروني</label>
+              <input type="email" placeholder="ahmed@example.com" style={{ width: '100%', padding: '11px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, fontSize: 15, fontFamily: 'Tajawal, sans-serif', color: '#fff', outline: 'none', direction: 'ltr', textAlign: 'right' }} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)', fontFamily: 'Tajawal, sans-serif' }}>كلمة المرور</label>
+                {tab === 'login' && <a href="#" style={{ fontSize: 12, color: '#D4AF37', textDecoration: 'none', fontFamily: 'Tajawal, sans-serif' }}>نسيت كلمة المرور؟</a>}
+              </div>
+              <input type="password" placeholder="••••••••" style={{ width: '100%', padding: '11px 14px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, fontSize: 15, color: '#fff', outline: 'none', direction: 'ltr' }} />
+            </div>
+            <button type="submit" className="btn-gold" style={{ width: '100%', justifyContent: 'center', padding: '13px', marginTop: 4, opacity: loading ? 0.7 : 1 }}>
+              {loading ? '...' : (tab === 'login' ? 'تسجيل الدخول' : 'إنشاء الحساب')}
+            </button>
+          </form>
+          <div style={{ margin: '20px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }}></div>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)', fontFamily: 'Tajawal, sans-serif' }}>أو</span>
+            <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.08)' }}></div>
+          </div>
+          <button style={{ width: '100%', padding: '11px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 8, color: '#fff', fontSize: 14, cursor: 'pointer', fontFamily: 'Tajawal, sans-serif', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+            المتابعة مع Google
+          </button>
+        </div>
+        <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: 'rgba(255,255,255,0.35)', fontFamily: 'Tajawal, sans-serif' }}>
+          {tab === 'login' ? 'ليس لديك حساب؟ ' : 'لديك حساب؟ '}
+          <a href="#" onClick={e => { e.preventDefault(); setTab(tab==='login'?'register':'login'); }} style={{ color: '#D4AF37', textDecoration: 'none' }}>
+            {tab === 'login' ? 'أنشئ حساباً' : 'سجّل الدخول'}
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════
+   DASHBOARD
+══════════════════════════ */
+function Dashboard({ onNavigate }) {
+  const [section, setSection] = useState('home');
+  const navItems = [
+    { k: 'home', l: 'لوحة التحكم', ico: '⊞' },
+    { k: 'upload', l: 'رفع ملف', ico: '↑' },
+    { k: 'jobs', l: 'الوظائف', ico: '≡' },
+    { k: 'results', l: 'النتائج', ico: '◫' },
+    { k: 'api', l: 'مفاتيح API', ico: '◎' },
+    { k: 'billing', l: 'الفوترة', ico: '⬡' },
+    { k: 'settings', l: 'الإعدادات', ico: '⚙' },
+  ];
+  const jobs = [
+    { name: 'الفتاوى_الكبرى.pdf', pages: 240, status: 'مكتملة', model: 'Sonnet', date: 'اليوم' },
+    { name: 'تاريخ_المدينة.pdf', pages: 180, status: 'معالجة', model: 'Haiku', date: 'اليوم' },
+    { name: 'رسالة_ماجستير.pdf', pages: 95, status: 'مكتملة', model: 'Sonnet', date: 'أمس' },
+    { name: 'مخطوطة_قديمة.jpg', pages: 12, status: 'مكتملة', model: 'Opus', date: 'أمس' },
+  ];
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--cream)', direction: 'rtl' }}>
+      {/* Sidebar */}
+      <div style={{ width: 228, background: 'var(--navy)', display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 10 }}>
+        <div style={{ padding: '22px 20px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+          <a href="#" onClick={e => { e.preventDefault(); onNavigate('landing'); }}>
+            <WarraqLogo size={0.75} dark={true} showText={true} showTagline={false} />
+          </a>
+        </div>
+        <nav style={{ flex: 1, padding: '14px 10px', display: 'flex', flexDirection: 'column', gap: 2 }}>
+          {navItems.map(item => (
+            <button key={item.k} onClick={() => setSection(item.k)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 8, border: 'none', background: section === item.k ? 'rgba(212,175,55,0.12)' : 'transparent', color: section === item.k ? '#D4AF37' : 'rgba(255,255,255,0.45)', fontWeight: section === item.k ? 500 : 400, cursor: 'pointer', fontSize: 14, fontFamily: 'Tajawal, sans-serif', textAlign: 'right', width: '100%', transition: 'all 0.15s', borderRight: section === item.k ? '2px solid #D4AF37' : '2px solid transparent' }}>
+              <span style={{ fontSize: 15, flexShrink: 0 }}>{item.ico}</span>
+              {item.l}
+            </button>
+          ))}
+        </nav>
+        <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'rgba(212,175,55,0.15)', border: '1px solid rgba(212,175,55,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, color: '#D4AF37', flexShrink: 0 }}>أ</div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: '#fff', fontFamily: 'Tajawal, sans-serif' }}>أحمد العلي</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', fontFamily: 'Tajawal, sans-serif' }}>الخطة المجانية</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main */}
+      <div style={{ flex: 1, marginRight: 228, padding: '36px', overflowY: 'auto' }}>
+        {section === 'home' && (
+          <>
+            <div style={{ marginBottom: 32 }}>
+              <h1 style={{ fontFamily: 'Tajawal, sans-serif', fontSize: 28, fontWeight: 400, color: 'var(--navy)', letterSpacing: '-0.01em', marginBottom: 6 }}>مساء الخير، أحمد 👋</h1>
+              <p style={{ fontSize: 14, color: 'var(--gray)', fontFamily: 'Tajawal, sans-serif' }}>لديك <span style={{ color: 'var(--gold)', fontWeight: 500 }}>٣٢</span> صفحة متبقية من حصتك الشهرية</p>
+            </div>
+            {/* Stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 16, marginBottom: 24 }}>
+              {[
+                { l: 'الصفحات المعالجة', v: '١٨', sub: 'من ٥٠ هذا الشهر' },
+                { l: 'الوظائف المكتملة', v: '٤', sub: 'آخر ٣٠ يوم' },
+                { l: 'معدل الدقة', v: '٩٧٪', sub: 'متوسط الجلسة' },
+                { l: 'وقت المعالجة', v: '٢.٤ث', sub: 'لكل صفحة' },
+              ].map((s, i) => (
+                <div key={i} className="card" style={{ borderRadius: 12 }}>
+                  <div style={{ fontSize: 12, color: 'var(--gray)', fontFamily: 'Tajawal, sans-serif', marginBottom: 8 }}>{s.l}</div>
+                  <div style={{ fontSize: 30, fontWeight: 300, fontFamily: 'Tajawal, sans-serif', color: 'var(--navy)', letterSpacing: '-0.02em', marginBottom: 4 }}>{s.v}</div>
+                  <div style={{ fontSize: 11, color: 'var(--gray2)', fontFamily: 'Tajawal, sans-serif' }}>{s.sub}</div>
+                </div>
+              ))}
+            </div>
+            {/* Usage */}
+            <div className="card" style={{ borderRadius: 12, marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--navy)', fontFamily: 'Tajawal, sans-serif' }}>الحصة الشهرية</span>
+                <span style={{ fontSize: 12, background: 'rgba(212,175,55,0.1)', color: '#8B6914', border: '1px solid rgba(212,175,55,0.2)', padding: '3px 10px', borderRadius: 4, fontFamily: 'Tajawal, sans-serif' }}>١٨ / ٥٠ صفحة</span>
+              </div>
+              <div style={{ height: 6, background: 'var(--cream2)', borderRadius: 3 }}>
+                <div style={{ height: '100%', width: '36%', background: 'var(--gold)', borderRadius: 3, transition: 'width 0.8s ease' }}></div>
+              </div>
+              <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 12, color: 'var(--gray)', fontFamily: 'Tajawal, sans-serif' }}>يتجدد في ١ يونيو</span>
+                <button className="btn-gold" style={{ fontSize: 12, padding: '7px 16px' }} onClick={() => onNavigate('pricing')}>ترقية الخطة</button>
+              </div>
+            </div>
+            {/* Recent jobs */}
+            <div className="card" style={{ borderRadius: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--navy)', fontFamily: 'Tajawal, sans-serif' }}>آخر الوظائف</span>
+                <button className="btn-gold" style={{ fontSize: 12, padding: '7px 16px' }} onClick={() => setSection('upload')}>+ جديد</button>
+              </div>
+              {jobs.map((job, i) => (
+                <div key={i} onClick={() => setSection('results')} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 10px', borderRadius: 8, cursor: 'pointer', transition: 'background 0.15s', borderBottom: i < jobs.length - 1 ? '1px solid var(--cream2)' : 'none' }}
+                  onMouseEnter={e => e.currentTarget.style.background='var(--cream)'}
+                  onMouseLeave={e => e.currentTarget.style.background='transparent'}
+                >
+                  <div style={{ width: 36, height: 36, background: 'var(--cream)', border: '1px solid var(--border)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+                    {job.name.includes('.pdf') ? '📄' : '🖼'}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--navy)', fontFamily: 'Tajawal, sans-serif', marginBottom: 2 }}>{job.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--gray2)', fontFamily: 'Tajawal, sans-serif' }}>{job.pages} صفحة · {job.model} · {job.date}</div>
+                  </div>
+                  <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 4, background: job.status==='مكتملة'?'rgba(212,175,55,0.1)':'rgba(74,157,90,0.1)', color: job.status==='مكتملة'?'#8B6914':'#2d7a3f', fontFamily: 'Tajawal, sans-serif', fontWeight: 500 }}>
+                    {job.status}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {section === 'upload' && <UploadSection />}
+        {section !== 'home' && section !== 'upload' && (
+          <div style={{ textAlign: 'center', padding: '100px 0' }}>
+            <div style={{ fontSize: 48, marginBottom: 16 }}>⚙</div>
+            <p style={{ color: 'var(--gray)', fontFamily: 'Tajawal, sans-serif', fontSize: 16 }}>
+              قسم {navItems.find(n => n.k === section)?.l} — قيد التطوير
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function UploadSection() {
+  const [dragging, setDragging] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [model, setModel] = useState('sonnet');
+  return (
+    <div>
+      <h1 style={{ fontFamily: 'Tajawal, sans-serif', fontSize: 26, fontWeight: 400, color: 'var(--navy)', marginBottom: 28 }}>رفع ملف جديد</h1>
+      <div onDragOver={e=>{e.preventDefault();setDragging(true)}} onDragLeave={()=>setDragging(false)} onDrop={e=>{e.preventDefault();setDragging(false);setFiles(f=>[...f,...Array.from(e.dataTransfer.files)])}} onClick={()=>document.getElementById('fi').click()}
+        style={{ border: `2px dashed ${dragging?'var(--gold)':'var(--border)'}`, borderRadius: 16, padding: '52px 24px', textAlign: 'center', background: dragging?'rgba(212,175,55,0.03)':'var(--white)', cursor: 'pointer', transition: 'all 0.2s', marginBottom: 20 }}>
+        <div style={{ fontSize: 44, marginBottom: 16 }}>📂</div>
+        <p style={{ fontFamily: 'Tajawal, sans-serif', fontSize: 16, fontWeight: 500, color: 'var(--navy)', marginBottom: 8 }}>اسحب ملفاتك هنا أو اضغط للاختيار</p>
+        <p style={{ fontFamily: 'Tajawal, sans-serif', fontSize: 13, color: 'var(--gray)' }}>PDF · PNG · JPG · TIFF · حتى ٥٠٠ ميجابايت</p>
+        <input id="fi" type="file" multiple style={{ display: 'none' }} onChange={e=>setFiles(f=>[...f,...Array.from(e.target.files)])} />
+      </div>
+      {files.length > 0 && (
+        <div className="card" style={{ borderRadius: 12, marginBottom: 20 }}>
+          {files.map((f,i) => (
+            <div key={i} style={{ display:'flex',alignItems:'center',gap:10,padding:'8px 0',borderBottom:i<files.length-1?'1px solid var(--cream2)':'none' }}>
+              <span style={{ fontSize: 18 }}>📄</span>
+              <span style={{ flex:1, fontSize:13, color:'var(--navy)', fontFamily:'Tajawal,sans-serif' }}>{f.name||'ملف.pdf'}</span>
+              <button onClick={()=>setFiles(files.filter((_,j)=>j!==i))} style={{background:'none',border:'none',cursor:'pointer',color:'var(--gray2)',fontSize:18}}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="card" style={{ borderRadius: 12, marginBottom: 20 }}>
+        <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--navy)', fontFamily: 'Tajawal, sans-serif', marginBottom: 14 }}>اختر النموذج</div>
+        {[{k:'haiku',l:'Claude Haiku',d:'سريع وفعّال',t:'مجاني'},{k:'sonnet',l:'Claude Sonnet',d:'متوازن · موصى به',t:'احترافي'},{k:'opus',l:'Claude Opus',d:'أعلى دقة للمخطوطات',t:'مؤسسي'}].map(m => (
+          <label key={m.k} style={{ display:'flex',alignItems:'center',gap:12,padding:'13px 14px',border:`1.5px solid ${model===m.k?'var(--gold)':'var(--border)'}`,borderRadius:10,cursor:'pointer',background:model===m.k?'rgba(212,175,55,0.04)':'transparent',marginBottom:8,transition:'all 0.15s' }}>
+            <input type="radio" name="model" checked={model===m.k} onChange={()=>setModel(m.k)} style={{ accentColor:'var(--gold)', flexShrink:0 }} />
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:14, fontWeight:500, color:'var(--navy)', fontFamily:'Tajawal,sans-serif' }}>{m.l}</div>
+              <div style={{ fontSize:12, color:'var(--gray)', fontFamily:'Tajawal,sans-serif' }}>{m.d}</div>
+            </div>
+            <span style={{ fontSize:10, background:'rgba(212,175,55,0.1)', color:'#8B6914', padding:'2px 8px', borderRadius:4, fontFamily:'Tajawal,sans-serif', border:'1px solid rgba(212,175,55,0.2)' }}>{m.t}</span>
+          </label>
+        ))}
+      </div>
+      <button className="btn-gold" style={{ fontSize:15, padding:'13px 32px', opacity: files.length===0?0.5:1 }} disabled={files.length===0}>
+        {files.length > 0 ? `ابدأ المعالجة (${files.length} ملف)` : 'ابدأ المعالجة'}
+      </button>
+    </div>
+  );
+}
+
+/* ══════════════════════════
+   DEMO NAV
+══════════════════════════ */
+function DemoNav({ page, onNavigate }) {
+  const pages = [
+    { k: 'landing', l: 'الرئيسية' },
+    { k: 'login', l: 'دخول' },
+    { k: 'pricing', l: 'الأسعار' },
+    { k: 'dashboard', l: 'لوحة التحكم' },
+  ];
+  return (
+    <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 6, zIndex: 200, background: '#0D1B2A', borderRadius: 100, padding: '6px', boxShadow: '0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px rgba(212,175,55,0.15)' }}>
+      {pages.map(p => (
+        <button key={p.k} onClick={() => onNavigate(p.k)} style={{ padding: '8px 18px', border: 'none', borderRadius: 100, background: page === p.k ? 'var(--gold)' : 'transparent', color: page === p.k ? 'var(--navy)' : 'rgba(255,255,255,0.5)', fontSize: 13, fontWeight: page === p.k ? 500 : 400, cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'Tajawal, sans-serif', whiteSpace: 'nowrap' }}>{p.l}</button>
+      ))}
+    </div>
+  );
+}
+
+/* ══════════════════════════
+   PRICING PAGE
+══════════════════════════ */
+function PricingPage({ onNavigate }) {
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--cream)' }}>
+      <Nav onNavigate={onNavigate} page="pricing" />
+      <div style={{ paddingTop: 100 }}>
+        <PricingSection onNavigate={onNavigate} />
+      </div>
+      <Footer onNavigate={onNavigate} />
+    </div>
+  );
+}
+
+/* ══════════════════════════
+   LANDING PAGE
+══════════════════════════ */
+function LandingPage({ onNavigate }) {
+  return (
+    <>
+      <Nav onNavigate={onNavigate} page="landing" />
+      <main>
+        <Hero onNavigate={onNavigate} />
+        <StatsBand />
+        <Features />
+        <HowItWorks />
+        <Testimonials />
+        <PricingSection onNavigate={onNavigate} />
+        <CTABand onNavigate={onNavigate} />
+      </main>
+      <Footer onNavigate={onNavigate} />
+    </>
+  );
+}
+
+/* ══════════════════════════
+   ROOT
+══════════════════════════ */
+function App() {
+  const [page, setPage] = useState('landing');
+  const navigate = p => { setPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  return (
+    <>
+      {page === 'landing' && <LandingPage onNavigate={navigate} />}
+      {(page === 'login' || page === 'register') && <AuthPage mode={page} onNavigate={navigate} />}
+      {page === 'pricing' && <PricingPage onNavigate={navigate} />}
+      {page === 'dashboard' && <Dashboard onNavigate={navigate} />}
+      <DemoNav page={page} onNavigate={navigate} />
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

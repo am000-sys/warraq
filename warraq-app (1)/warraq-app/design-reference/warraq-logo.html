@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>وَرَّاق — استعراض الشعارات</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; font-family: 'IBM Plex Sans Arabic', sans-serif; background: #f7f7f7; color: #000; -webkit-font-smoothing: antialiased; }
+  #root { height: 100%; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const C = {
+  fog: '#f7f7f7',
+  snow: '#ffffff',
+  carbon: '#000000',
+  stone: '#636363',
+  pebble: '#949494',
+  border: '#e8e8e8',
+  slate: '#242433',
+  tangerine: '#f69251',
+};
+
+/* ══════════════════════════════════════════
+   LOGO DIRECTION 1 — "التحوّل"
+   يدوي → رقمي، خط عربي يذوب في بيكسلات
+══════════════════════════════════════════ */
+function Logo1({ size = 1, dark = false }) {
+  const s = size;
+  const fg = dark ? '#fff' : C.carbon;
+  const sub = dark ? 'rgba(255,255,255,0.4)' : C.pebble;
+  return (
+    <svg width={260 * s} height={80 * s} viewBox="0 0 260 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Arabic word "وَرَّاق" rendered as path-like strokes fading into pixels */}
+      {/* Left side: pixel grid (digital) */}
+      {[0,1,2,3,4,5,6].map(row =>
+        [0,1,2,3,4].map(col => {
+          const opacity = Math.random() > 0.35 ? (0.15 + col * 0.12) : 0;
+          return (
+            <rect
+              key={`${row}-${col}`}
+              x={5 + col * 8}
+              y={18 + row * 6}
+              width={5} height={4}
+              rx={1}
+              fill={C.tangerine}
+              opacity={opacity * (col / 4)}
+            />
+          );
+        })
+      )}
+      {/* Gradient fade line */}
+      <line x1="50" y1="15" x2="50" y2="65" stroke={C.border} strokeWidth="1" strokeDasharray="2 2" />
+
+      {/* Arabic logotype */}
+      <text
+        x="130"
+        y="52"
+        textAnchor="middle"
+        fontFamily="'IBM Plex Sans Arabic', sans-serif"
+        fontSize={38 * s}
+        fontWeight="300"
+        fill={fg}
+        letterSpacing="-1"
+      >وَرَّاق</text>
+
+      {/* Orange dot — accent over the ر */}
+      <circle cx="152" cy="17" r={4 * s} fill={C.tangerine} />
+
+      {/* Tagline */}
+      <text x="130" y="70" textAnchor="middle" fontFamily="'IBM Plex Sans Arabic', sans-serif" fontSize={10} fill={sub} letterSpacing="0.5">تحويل التراث إلى نص</text>
+    </svg>
+  );
+}
+
+/* ══════════════════════════════════════════
+   LOGO DIRECTION 2 — "الوَرَّاق الكلاسيكي"
+   أيقونة ورقة + اسم
+══════════════════════════════════════════ */
+function Logo2({ size = 1, dark = false }) {
+  const s = size;
+  const fg = dark ? '#fff' : C.carbon;
+  const sub = dark ? 'rgba(255,255,255,0.4)' : C.pebble;
+  const bg = dark ? 'rgba(246,146,81,0.18)' : 'rgba(246,146,81,0.08)';
+  return (
+    <svg width={220 * s} height={80 * s} viewBox="0 0 220 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Document icon */}
+      <rect x="8" y="10" width="36" height="46" rx="4" fill={bg} stroke={C.tangerine} strokeWidth="1.5"/>
+      {/* Folded corner */}
+      <path d="M35 10 L44 19 L35 19 Z" fill={C.tangerine} opacity="0.6"/>
+      <line x1="35" y1="10" x2="35" y2="19" stroke={C.tangerine} strokeWidth="1.5"/>
+      <line x1="35" y1="19" x2="44" y2="19" stroke={C.tangerine} strokeWidth="1.5"/>
+      {/* Text lines inside doc */}
+      <line x1="14" y1="28" x2="34" y2="28" stroke={C.tangerine} strokeWidth="1.5" strokeLinecap="round"/>
+      <line x1="14" y1="34" x2="38" y2="34" stroke={fg} strokeWidth="1" strokeLinecap="round" opacity="0.3"/>
+      <line x1="14" y1="39" x2="32" y2="39" stroke={fg} strokeWidth="1" strokeLinecap="round" opacity="0.2"/>
+      <line x1="14" y1="44" x2="36" y2="44" stroke={fg} strokeWidth="1" strokeLinecap="round" opacity="0.2"/>
+      {/* Small orange dot bottom right of icon */}
+      <circle cx="38" cy="50" r="3" fill={C.tangerine}/>
+
+      {/* Arabic logotype */}
+      <text
+        x="115"
+        y="48"
+        textAnchor="middle"
+        fontFamily="'IBM Plex Sans Arabic', sans-serif"
+        fontSize={34 * s}
+        fontWeight="300"
+        fill={fg}
+        letterSpacing="-0.5"
+      >وَرَّاق</text>
+
+      {/* Divider */}
+      <line x1="60" y1="25" x2="60" y2="55" stroke={C.border} strokeWidth="1"/>
+
+      {/* Tagline */}
+      <text x="115" y="64" textAnchor="middle" fontFamily="'IBM Plex Sans Arabic', sans-serif" fontSize={9} fill={sub} letterSpacing="0.8">WARRAQ · منصة OCR العربية</text>
+    </svg>
+  );
+}
+
+/* ══════════════════════════════════════════
+   LOGO DIRECTION 3 — "النقطة والسطر"
+   لوغوتايب خالص + نقطة برتقالية
+══════════════════════════════════════════ */
+function Logo3({ size = 1, dark = false }) {
+  const s = size;
+  const fg = dark ? '#fff' : C.carbon;
+  const sub = dark ? 'rgba(255,255,255,0.35)' : C.stone;
+  return (
+    <svg width={200 * s} height={72 * s} viewBox="0 0 200 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+      {/* Main wordmark */}
+      <text
+        x="100"
+        y="46"
+        textAnchor="middle"
+        fontFamily="'IBM Plex Sans Arabic', sans-serif"
+        fontSize={40 * s}
+        fontWeight="300"
+        fill={fg}
+        letterSpacing="-1"
+      >وَرَّاق</text>
+      {/* Single orange dot — strategic placement above the شدّة of ر */}
+      <circle cx="118" cy="14" r={5 * s} fill={C.tangerine}/>
+      {/* Underline — thin rule */}
+      <line x1="20" y1="56" x2="180" y2="56" stroke={C.border} strokeWidth="1"/>
+      {/* Tagline */}
+      <text x="100" y="68" textAnchor="middle" fontFamily="'Inter', sans-serif" fontSize={8.5} fill={sub} letterSpacing="2" style={{textTransform:'uppercase'}}>Arabic OCR Platform</text>
+    </svg>
+  );
+}
+
+/* ══════════════════════════════════════════
+   LOGO 3 — VARIANT B (no tagline, compact)
+══════════════════════════════════════════ */
+function Logo3B({ size = 1, dark = false }) {
+  const s = size;
+  const fg = dark ? '#fff' : C.carbon;
+  return (
+    <svg width={160 * s} height={56 * s} viewBox="0 0 160 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <text
+        x="80"
+        y="42"
+        textAnchor="middle"
+        fontFamily="'IBM Plex Sans Arabic', sans-serif"
+        fontSize={38 * s}
+        fontWeight="300"
+        fill={fg}
+        letterSpacing="-1"
+      >وَرَّاق</text>
+      <circle cx="97" cy="10" r={5 * s} fill={C.tangerine}/>
+    </svg>
+  );
+}
+
+/* ══════════════════════════════════════════
+   LOGO 3 — VARIANT C (pill/badge form)
+══════════════════════════════════════════ */
+function Logo3C({ size = 1, dark = false }) {
+  const s = size;
+  const fg = dark ? '#fff' : C.carbon;
+  const bg = dark ? 'rgba(255,255,255,0.06)' : C.snow;
+  const border = dark ? 'rgba(255,255,255,0.1)' : C.border;
+  return (
+    <svg width={160 * s} height={56 * s} viewBox="0 0 160 56" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="1" y="1" width="158" height="54" rx="27" fill={bg} stroke={border} strokeWidth="1"/>
+      <text
+        x="82"
+        y="36"
+        textAnchor="middle"
+        fontFamily="'IBM Plex Sans Arabic', sans-serif"
+        fontSize={28 * s}
+        fontWeight="400"
+        fill={fg}
+        letterSpacing="-0.5"
+      >وَرَّاق</text>
+      <circle cx="97" cy="13" r={4 * s} fill={C.tangerine}/>
+    </svg>
+  );
+}
+
+/* ══════════════════════════════════════════
+   FAVICON / ICON MARK
+══════════════════════════════════════════ */
+function IconMark({ size = 40, dark = false }) {
+  const bg = dark ? C.slate : C.snow;
+  const fg = dark ? '#fff' : C.carbon;
+  return (
+    <svg width={size} height={size} viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="40" height="40" rx="10" fill={bg}/>
+      <text x="20" y="27" textAnchor="middle" fontFamily="'IBM Plex Sans Arabic', sans-serif" fontSize="22" fontWeight="300" fill={fg}>و</text>
+      <circle cx="27" cy="9" r="5" fill={C.tangerine}/>
+    </svg>
+  );
+}
+
+/* ══════════════════════════════════════════
+   PRESENTATION CARD
+══════════════════════════════════════════ */
+function LogoCard({ label, note, children, wide = false }) {
+  return (
+    <div style={{
+      background: C.snow,
+      borderRadius: 20,
+      overflow: 'hidden',
+      boxShadow: 'rgba(24,24,37,0.10) 0px 2px 8px -2px',
+      display: 'flex', flexDirection: 'column',
+      gridColumn: wide ? 'span 2' : 'span 1',
+    }}>
+      {/* Preview area */}
+      <div style={{
+        background: C.fog,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '48px 32px', minHeight: 180,
+        borderBottom: `1px solid ${C.border}`,
+      }}>
+        {children}
+      </div>
+      {/* Label */}
+      <div style={{ padding: '16px 20px' }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: C.carbon, marginBottom: 4, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{label}</div>
+        {note && <div style={{ fontSize: 12, color: C.stone, lineHeight: 1.5, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{note}</div>}
+      </div>
+    </div>
+  );
+}
+
+function DarkCard({ label, note, children }) {
+  return (
+    <div style={{
+      background: C.slate,
+      borderRadius: 20,
+      overflow: 'hidden',
+      boxShadow: 'rgba(24,24,37,0.18) 0px 4px 16px -4px',
+      display: 'flex', flexDirection: 'column',
+    }}>
+      <div style={{
+        background: C.slate,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        padding: '48px 32px', minHeight: 180,
+        borderBottom: '1px solid rgba(255,255,255,0.08)',
+      }}>
+        {children}
+      </div>
+      <div style={{ padding: '16px 20px' }}>
+        <div style={{ fontSize: 13, fontWeight: 500, color: '#fff', marginBottom: 4, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{label}</div>
+        {note && <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', lineHeight: 1.5, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{note}</div>}
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   SECTION HEADER
+══════════════════════════════════════════ */
+function SectionTitle({ num, ar, en, rec }) {
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <div style={{ width: 32, height: 32, borderRadius: '50%', background: rec ? C.tangerine : C.fog, border: `1.5px solid ${rec ? C.tangerine : C.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 500, color: rec ? '#fff' : C.stone, flexShrink: 0, fontFamily: 'Inter, sans-serif' }}>{num}</div>
+        <div>
+          <span style={{ fontSize: 22, fontWeight: 300, color: C.carbon, fontFamily: 'IBM Plex Sans Arabic, sans-serif', letterSpacing: '-0.02em' }}>{ar}</span>
+          <span style={{ fontSize: 13, color: C.pebble, marginRight: 10, fontFamily: 'Inter, sans-serif', letterSpacing: '0.05em', textTransform: 'uppercase' }}>{en}</span>
+          {rec && <span style={{ fontSize: 11, fontWeight: 500, background: 'rgba(246,146,81,0.12)', color: C.tangerine, padding: '2px 10px', borderRadius: 100, marginRight: 8, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>توصيتي</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════
+   MAIN APP
+══════════════════════════════════════════ */
+function App() {
+  const [activeDir, setActiveDir] = useState(3);
+
+  return (
+    <div style={{ minHeight: '100vh', background: C.fog, direction: 'rtl', paddingBottom: 80 }}>
+
+      {/* ── Top nav ── */}
+      <div style={{ background: C.snow, borderBottom: `1px solid ${C.border}`, padding: '0 32px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'sticky', top: 0, zIndex: 50 }}>
+        <span style={{ fontSize: 15, fontWeight: 500, color: C.carbon, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>
+          وَرَّاق<span style={{ color: C.tangerine }}>.</span>
+          <span style={{ fontSize: 12, color: C.pebble, marginRight: 12, fontWeight: 400 }}>استعراض الشعارات</span>
+        </span>
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[1,2,3].map(n => (
+            <button key={n} onClick={() => setActiveDir(n)} style={{ padding: '6px 16px', borderRadius: 100, border: 'none', background: activeDir === n ? C.tangerine : C.fog, color: activeDir === n ? '#fff' : C.stone, fontSize: 13, fontWeight: activeDir === n ? 500 : 400, cursor: 'pointer', fontFamily: 'IBM Plex Sans Arabic, sans-serif', transition: 'all 0.15s' }}>
+              اتجاه {['الأول','الثاني','الثالث'][n-1]}
+            </button>
+          ))}
+          <button onClick={() => setActiveDir(0)} style={{ padding: '6px 16px', borderRadius: 100, border: 'none', background: activeDir === 0 ? C.slate : C.fog, color: activeDir === 0 ? '#fff' : C.stone, fontSize: 13, cursor: 'pointer', fontFamily: 'IBM Plex Sans Arabic, sans-serif', transition: 'all 0.15s' }}>
+            الكل
+          </button>
+        </div>
+      </div>
+
+      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '48px 24px' }}>
+
+        {/* ═══ DIRECTION 1 ═══ */}
+        {(activeDir === 1 || activeDir === 0) && (
+          <div style={{ marginBottom: 64 }}>
+            <SectionTitle num="١" ar="التحوّل" en="Transformation" />
+            <p style={{ fontSize: 14, color: C.stone, lineHeight: 1.7, maxWidth: 560, marginBottom: 32, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>
+              فكرة مفاهيمية: شبكة بيكسلات برتقالية تمثّل الرقمي، تتدرّج نحو الاسم العربي المكتوب بخط خفيف. يجسّد الخدمة بصرياً — من الصورة إلى النص.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              <LogoCard label="الشعار الكامل — خلفية فاتحة" note="الحجم الافتراضي للموقع والهيدر">
+                <Logo1 size={1} dark={false} />
+              </LogoCard>
+              <DarkCard label="الشعار الكامل — خلفية داكنة" note="للاستخدام في الفوتر والأقسام الداكنة">
+                <Logo1 size={1} dark={true} />
+              </DarkCard>
+              <LogoCard label="حجم مصغّر" note="للاستخدام في الناف والتطبيقات">
+                <Logo1 size={0.75} dark={false} />
+              </LogoCard>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ DIRECTION 2 ═══ */}
+        {(activeDir === 2 || activeDir === 0) && (
+          <div style={{ marginBottom: 64 }}>
+            <SectionTitle num="٢" ar="الوَرَّاق الكلاسيكي" en="Classic Warraq" />
+            <p style={{ fontSize: 14, color: C.stone, lineHeight: 1.7, maxWidth: 560, marginBottom: 32, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>
+              أيقونة وثيقة/ورقة (Document) مع طيّة الزاوية الكلاسيكية، مصحوبة بالاسم. تربط مباشرة بين فكرة "الورقة المادية" وخدمة التحويل الرقمي.
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              <LogoCard label="الشعار الكامل — فاتح" note="أيقونة الوثيقة + الاسم">
+                <Logo2 size={1} dark={false} />
+              </LogoCard>
+              <DarkCard label="الشعار الكامل — داكن" note="للأسطح الداكنة">
+                <Logo2 size={1} dark={true} />
+              </DarkCard>
+              <LogoCard label="حجم مصغّر" note="٠.٨ من الحجم الأصلي">
+                <Logo2 size={0.8} dark={false} />
+              </LogoCard>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ DIRECTION 3 ═══ */}
+        {(activeDir === 3 || activeDir === 0) && (
+          <div style={{ marginBottom: 64 }}>
+            <SectionTitle num="٣" ar="النقطة والسطر" en="Dot & Line" rec={true} />
+            <p style={{ fontSize: 14, color: C.stone, lineHeight: 1.7, maxWidth: 560, marginBottom: 32, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>
+              لوغوتايب خالص. الاسم بخط خفيف جداً مع نقطة برتقالية واحدة فوق الشدّة — تحاكي نقطة الحرف العربي، وتتطابق مع منطق Dialog (لون واحد يقول كل شيء).
+            </p>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 16 }}>
+              <LogoCard label="الشعار الكامل — فاتح" note="الاسم + شعار السطر + وصف">
+                <Logo3 size={1} dark={false} />
+              </LogoCard>
+              <DarkCard label="الشعار الكامل — داكن">
+                <Logo3 size={1} dark={true} />
+              </DarkCard>
+              <LogoCard label="بدون وصف — مضغوط" note="للناف وأماكن الساحة المحدودة">
+                <Logo3B size={1} dark={false} />
+              </LogoCard>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 16 }}>
+              <LogoCard label="الشكل الحبّة / Pill" note="للبادجات وأزرار إظهار الماركة">
+                <Logo3C size={1} dark={false} />
+              </LogoCard>
+              <DarkCard label="الشكل الحبّة — داكن">
+                <Logo3C size={1} dark={true} />
+              </DarkCard>
+              <LogoCard label="Favicon / أيقونة التطبيق" note="حرف الواو مع النقطة البرتقالية">
+                <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
+                  <IconMark size={64} dark={false} />
+                  <IconMark size={40} dark={false} />
+                  <IconMark size={28} dark={false} />
+                  <IconMark size={20} dark={false} />
+                </div>
+              </LogoCard>
+            </div>
+
+            {/* Context previews */}
+            <div style={{ marginTop: 32, marginBottom: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: C.carbon, fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 16 }}>معاينة في السياق الحقيقي</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                {/* Nav preview */}
+                <div style={{ background: C.snow, borderRadius: 16, overflow: 'hidden', boxShadow: 'rgba(24,24,37,0.08) 0px 2px 8px -2px' }}>
+                  <div style={{ background: C.fog, padding: '8px 16px', borderBottom: `1px solid ${C.border}`, fontSize: 10, color: C.pebble, fontFamily: 'Inter, sans-serif', textTransform: 'uppercase', letterSpacing: '0.08em' }}>شريط التنقل</div>
+                  <div style={{ padding: '0 20px', height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <Logo3B size={0.7} dark={false} />
+                    <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+                      {['المميزات','الأسعار','API'].map(l => (
+                        <span key={l} style={{ fontSize: 13, color: C.stone, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{l}</span>
+                      ))}
+                      <div style={{ background: C.tangerine, borderRadius: 28, padding: '8px 16px', fontSize: 12, fontWeight: 500, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>ابدأ مجاناً</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Email/card preview */}
+                <div style={{ background: C.snow, borderRadius: 16, overflow: 'hidden', boxShadow: 'rgba(24,24,37,0.08) 0px 2px 8px -2px' }}>
+                  <div style={{ background: C.fog, padding: '8px 16px', borderBottom: `1px solid ${C.border}`, fontSize: 10, color: C.pebble, fontFamily: 'Inter, sans-serif', textTransform: 'uppercase', letterSpacing: '0.08em' }}>بريد إلكتروني / كارت</div>
+                  <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'flex-end' }}>
+                    <Logo3B size={0.8} dark={false} />
+                    <div style={{ height: 1, background: C.border, width: '100%' }}></div>
+                    <div style={{ fontSize: 12, color: C.stone, fontFamily: 'IBM Plex Sans Arabic, sans-serif', lineHeight: 1.6, textAlign: 'right' }}>
+                      مرحباً، وظيفة OCR رقم J-1001 اكتملت بنجاح.
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dark footer preview */}
+                <div style={{ background: C.slate, borderRadius: 16, overflow: 'hidden', boxShadow: 'rgba(24,24,37,0.18) 0px 4px 16px -4px' }}>
+                  <div style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.08)', fontSize: 10, color: 'rgba(255,255,255,0.3)', fontFamily: 'Inter, sans-serif', textTransform: 'uppercase', letterSpacing: '0.08em' }}>الفوتر</div>
+                  <div style={{ padding: '28px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <Logo3 size={0.75} dark={true} />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-end' }}>
+                      {['المميزات','الأسعار','التوثيق'].map(l => (
+                        <span key={l} style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{l}</span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Loading screen / splash */}
+                <div style={{ background: '#0e0e1a', borderRadius: 16, overflow: 'hidden', boxShadow: 'rgba(24,24,37,0.3) 0px 4px 24px -4px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 16, minHeight: 160 }}>
+                  <div style={{ padding: '8px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)', fontSize: 10, color: 'rgba(255,255,255,0.2)', fontFamily: 'Inter, sans-serif', textTransform: 'uppercase', letterSpacing: '0.08em', alignSelf: 'stretch', textAlign: 'right' }}>شاشة التحميل</div>
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16, padding: '24px' }}>
+                    <IconMark size={52} dark={true} />
+                    <LoadingDots />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Size scale */}
+            <div style={{ marginTop: 32 }}>
+              <div style={{ fontSize: 13, fontWeight: 500, color: C.carbon, fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 16 }}>مقياس الأحجام</div>
+              <div style={{ background: C.snow, borderRadius: 16, padding: '32px', display: 'flex', alignItems: 'flex-end', gap: 32, boxShadow: 'rgba(24,24,37,0.06) 0px 2px 8px -2px', flexWrap: 'wrap' }}>
+                {[
+                  { s: 0.45, label: 'Favicon 16px' },
+                  { s: 0.55, label: 'App 20px' },
+                  { s: 0.7, label: 'Nav 28px' },
+                  { s: 0.85, label: 'Header 34px' },
+                  { s: 1.0, label: 'Hero 40px' },
+                  { s: 1.3, label: 'Cover 52px' },
+                ].map(({ s, label }) => (
+                  <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12 }}>
+                    <Logo3B size={s} dark={false} />
+                    <span style={{ fontSize: 10, color: C.pebble, fontFamily: 'Inter, sans-serif', letterSpacing: '0.03em' }}>{label}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ═══ COMPARISON (show all) ═══ */}
+        {activeDir === 0 && (
+          <div style={{ marginTop: 32 }}>
+            <div style={{ height: 1, background: C.border, marginBottom: 48 }}></div>
+            <SectionTitle num="◎" ar="مقارنة سريعة" en="Quick Comparison" />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16 }}>
+              {[
+                { Logo: Logo1, title: 'التحوّل', pros: ['مفاهيمي قوي','يشرح الخدمة بصرياً'], cons: ['معقّد نسبياً','يصعب في أحجام صغيرة'] },
+                { Logo: Logo2, title: 'الوثيقة الكلاسيكية', pros: ['واضح ومباشر','يحيل للكتب والأرشيف'] , cons: ['أيقونة الملف شائعة جداً','ثقيل بجانب الاسم'] },
+                { Logo: Logo3, title: 'النقطة والسطر', pros: ['أبسط وأذكى','يعمل بكل الأحجام','يتطابق مع Dialog'], cons: ['لا أيقونة — يعتمد على قوة الاسم'] },
+              ].map(({ Logo, title, pros, cons }, i) => (
+                <div key={i} style={{ background: C.snow, borderRadius: 20, overflow: 'hidden', boxShadow: 'rgba(24,24,37,0.08) 0px 2px 8px -2px', ...(i === 2 ? { border: `2px solid ${C.tangerine}` } : {}) }}>
+                  {i === 2 && <div style={{ background: C.tangerine, padding: '6px 0', textAlign: 'center', fontSize: 11, fontWeight: 500, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>★ التوصية</div>}
+                  <div style={{ background: C.fog, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '36px', borderBottom: `1px solid ${C.border}` }}>
+                    <Logo size={0.9} />
+                  </div>
+                  <div style={{ padding: '20px' }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: C.carbon, fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 12 }}>{title}</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {pros.map((p, j) => <div key={j} style={{ fontSize: 12, color: '#3a7d4b', fontFamily: 'IBM Plex Sans Arabic, sans-serif', display: 'flex', gap: 6 }}><span>✓</span>{p}</div>)}
+                      {cons.map((c, j) => <div key={j} style={{ fontSize: 12, color: '#9b4a4a', fontFamily: 'IBM Plex Sans Arabic, sans-serif', display: 'flex', gap: 6 }}><span>–</span>{c}</div>)}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+/* Animated loading dots */
+function LoadingDots() {
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setActive(a => (a + 1) % 3), 400);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div style={{ display: 'flex', gap: 6 }}>
+      {[0,1,2].map(i => (
+        <div key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: i === active ? C.tangerine : 'rgba(255,255,255,0.15)', transition: 'background 0.3s' }}></div>
+      ))}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

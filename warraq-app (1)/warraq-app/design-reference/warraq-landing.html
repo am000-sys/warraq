@@ -1,0 +1,1784 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>وَرَّاق — تحويل الكتب العربية إلى نصوص</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=IBM+Plex+Sans+Arabic:wght@300;400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="warraq-tokens.css">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<style>
+/* ── Page-level overrides ── */
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@300,400&display=swap');
+
+body { direction: rtl; }
+
+/* NAV */
+.nav-wrap {
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  width: calc(100% - 48px); max-width: 1160px;
+  z-index: 100;
+}
+.nav {
+  background: var(--color-snow);
+  border-radius: var(--r-nav);
+  box-shadow: var(--shadow-nav);
+  padding: 0 var(--sp-24);
+  height: 60px;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: var(--sp-24);
+}
+.nav-logo {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 20px; font-weight: 500;
+  color: var(--color-carbon);
+  letter-spacing: -0.02em;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.nav-logo span { color: var(--color-tangerine); }
+.nav-links {
+  display: flex; align-items: center; gap: var(--sp-32);
+  list-style: none;
+}
+.nav-links a {
+  font-size: 14px; font-weight: 400; color: var(--color-stone);
+  letter-spacing: -0.01em; text-decoration: none;
+  transition: color 0.15s;
+}
+.nav-links a:hover { color: var(--color-carbon); }
+.nav-right { display: flex; align-items: center; gap: var(--sp-12); }
+.nav-login {
+  font-size: 14px; font-weight: 500; color: var(--color-carbon);
+  text-decoration: none; padding: 8px 16px;
+  border-radius: var(--r-btn); transition: background 0.15s;
+}
+.nav-login:hover { background: var(--color-fog); }
+
+/* HERO */
+.hero {
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center;
+  padding: 120px var(--sp-24) var(--sp-80);
+  position: relative; overflow: hidden;
+}
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--color-snow);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-badge);
+  padding: 6px 14px;
+  font-size: 13px; font-weight: 500; color: var(--color-graphite);
+  margin-bottom: var(--sp-32);
+}
+.hero-eyebrow .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--color-tangerine);
+  flex-shrink: 0;
+}
+.hero h1 {
+  font-family: 'IBM Plex Sans Arabic', 'Satoshi', sans-serif;
+  font-size: clamp(40px, 6vw, 70px);
+  font-weight: 300;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: var(--color-carbon);
+  max-width: 800px;
+  margin-bottom: var(--sp-24);
+}
+.hero h1 em { font-style: normal; color: var(--color-stone); }
+.hero-sub {
+  font-size: clamp(16px, 2vw, 20px);
+  color: var(--color-stone);
+  line-height: 1.6;
+  max-width: 520px;
+  margin-bottom: var(--sp-40);
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-weight: 400;
+}
+.hero-cta-row {
+  display: flex; align-items: center; gap: var(--sp-16);
+  margin-bottom: var(--sp-40);
+  flex-wrap: wrap; justify-content: center;
+}
+.hero-trust {
+  display: flex; align-items: center; gap: var(--sp-24);
+  flex-wrap: wrap; justify-content: center;
+}
+.trust-item {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--color-stone);
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+.stars { color: var(--color-tangerine); letter-spacing: 2px; }
+
+/* BROWSER MOCKUP */
+.hero-mockup {
+  margin-top: var(--sp-64);
+  width: 100%; max-width: 900px;
+  position: relative;
+}
+.mockup-card {
+  background: var(--color-snow);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card), 0 20px 60px rgba(0,0,0,0.06);
+  overflow: hidden;
+}
+.mockup-bar {
+  background: var(--color-fog);
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding: 12px 16px;
+  display: flex; align-items: center; gap: 8px;
+}
+.mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
+.mockup-body {
+  display: grid; grid-template-columns: 220px 1fr;
+  min-height: 340px;
+}
+.mockup-sidebar {
+  background: var(--color-fog);
+  border-left: 1px solid var(--color-border-subtle);
+  padding: 20px 16px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.mock-nav-item {
+  height: 32px; border-radius: 8px;
+  display: flex; align-items: center; padding: 0 12px; gap: 8px;
+  font-size: 13px;
+}
+.mock-nav-item.active {
+  background: var(--color-snow);
+  box-shadow: var(--shadow-card);
+  color: var(--color-carbon); font-weight: 500;
+}
+.mock-nav-item:not(.active) { color: var(--color-stone); }
+.mock-icon { width: 14px; height: 14px; border-radius: 3px; background: var(--color-pebble); flex-shrink: 0; }
+.mock-icon.orange { background: var(--color-tangerine); }
+.mockup-main { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.mock-header { display: flex; justify-content: space-between; align-items: center; }
+.mock-title { font-size: 14px; font-weight: 500; color: var(--color-carbon); }
+.mock-badge-small {
+  background: rgba(246,146,81,0.12);
+  color: var(--color-tangerine);
+  font-size: 11px; font-weight: 500;
+  padding: 3px 10px; border-radius: 100px;
+}
+.mock-page-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.mock-page {
+  background: var(--color-fog);
+  border-radius: 8px;
+  aspect-ratio: 3/4;
+  position: relative; overflow: hidden;
+}
+.mock-page.done::after {
+  content: '✓';
+  position: absolute; top: 6px; right: 6px;
+  width: 16px; height: 16px;
+  background: var(--color-tangerine);
+  color: white; font-size: 9px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.mock-lines { padding: 10px; display: flex; flex-direction: column; gap: 4px; }
+.mock-line {
+  height: 4px; background: var(--color-border);
+  border-radius: 2px;
+}
+.mock-text-preview {
+  background: var(--color-fog);
+  border-radius: 12px;
+  padding: 16px;
+}
+.mock-text-line {
+  height: 10px; background: var(--color-border); border-radius: 3px;
+  margin-bottom: 8px;
+}
+.mock-text-line:last-child { width: 60%; margin-bottom: 0; }
+.mockup-fade {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 80px;
+  background: linear-gradient(to top, rgba(247,247,247,0.8), transparent);
+  pointer-events: none;
+}
+
+/* FEATURES SECTION */
+.section { padding: var(--sp-96) var(--sp-24); }
+.section-label {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--color-fog);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-badge);
+  padding: 4px 12px;
+  font-size: 12px; font-weight: 500; color: var(--color-graphite);
+  margin-bottom: var(--sp-20);
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+.section-heading {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: clamp(30px, 4vw, 50px);
+  font-weight: 300;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+  color: var(--color-carbon);
+  margin-bottom: var(--sp-16);
+}
+.section-sub {
+  font-size: 17px; color: var(--color-stone); line-height: 1.6;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  max-width: 480px;
+}
+
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-24);
+  margin-top: var(--sp-64);
+}
+.feature-card {
+  background: var(--color-snow);
+  border-radius: var(--r-card);
+  padding: var(--sp-32);
+  box-shadow: var(--shadow-card);
+  display: flex; flex-direction: column; gap: var(--sp-16);
+  transition: box-shadow 0.2s;
+}
+.feature-card:hover { box-shadow: rgba(24,24,37,0.16) 0px 4px 12px -2px; }
+.feature-icon {
+  width: 44px; height: 44px;
+  background: var(--color-fog);
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px;
+}
+.feature-title {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 18px; font-weight: 500; color: var(--color-carbon);
+  letter-spacing: -0.01em;
+}
+.feature-desc {
+  font-size: 14px; color: var(--color-stone); line-height: 1.6;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+
+/* STATS BAND */
+.stats-band {
+  background: var(--color-snow);
+  border-top: 1px solid var(--color-border-subtle);
+  border-bottom: 1px solid var(--color-border-subtle);
+  padding: var(--sp-48) var(--sp-24);
+}
+.stats-row {
+  max-width: var(--max-w); margin: 0 auto;
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: var(--color-border-subtle);
+}
+.stat-cell {
+  background: var(--color-snow);
+  padding: var(--sp-32) var(--sp-24);
+  text-align: center;
+}
+.stat-num {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 42px; font-weight: 300; color: var(--color-carbon);
+  letter-spacing: -0.03em; line-height: 1;
+  margin-bottom: 8px;
+}
+.stat-num span { color: var(--color-tangerine); }
+.stat-label {
+  font-size: 13px; color: var(--color-stone);
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+
+/* HOW IT WORKS */
+.how-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: var(--sp-64);
+  align-items: center;
+  margin-top: var(--sp-64);
+}
+.how-steps { display: flex; flex-direction: column; gap: var(--sp-32); }
+.how-step { display: flex; gap: var(--sp-20); align-items: flex-start; }
+.step-num {
+  width: 36px; height: 36px; flex-shrink: 0;
+  background: var(--color-fog);
+  border: 1px solid var(--color-border);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 500; color: var(--color-stone);
+}
+.step-num.active {
+  background: var(--color-tangerine);
+  border-color: var(--color-tangerine);
+  color: var(--color-snow);
+}
+.step-content { flex: 1; }
+.step-title {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 16px; font-weight: 500; color: var(--color-carbon);
+  margin-bottom: 6px;
+}
+.step-desc {
+  font-size: 14px; color: var(--color-stone); line-height: 1.6;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+.how-visual {
+  background: var(--color-snow);
+  border-radius: var(--r-card);
+  padding: var(--sp-32);
+  box-shadow: var(--shadow-card);
+  min-height: 360px;
+  display: flex; flex-direction: column; gap: var(--sp-16);
+}
+
+/* TESTIMONIALS */
+.testimonials-section {
+  padding: var(--sp-96) 0;
+  overflow: hidden;
+}
+.testimonials-header {
+  padding: 0 var(--sp-24);
+  max-width: var(--max-w); margin: 0 auto var(--sp-48);
+}
+.testimonials-track {
+  display: flex; gap: var(--sp-24);
+  padding: var(--sp-16) var(--sp-24);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.testimonials-track::-webkit-scrollbar { display: none; }
+.testimonial-card {
+  flex: 0 0 320px;
+  background: var(--color-snow);
+  border-radius: var(--r-card);
+  padding: var(--sp-24);
+  box-shadow: var(--shadow-card);
+}
+.t-quote {
+  font-size: 14px; color: var(--color-midnight);
+  line-height: 1.65;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  margin-bottom: var(--sp-20);
+}
+.t-author { display: flex; align-items: center; gap: var(--sp-12); }
+.t-avatar {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: var(--color-fog);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 500; color: var(--color-stone);
+  flex-shrink: 0;
+}
+.t-name { font-size: 14px; font-weight: 500; color: var(--color-carbon); }
+.t-role { font-size: 12px; color: var(--color-stone); }
+
+/* PRICING PREVIEW */
+.pricing-preview {
+  padding: var(--sp-96) var(--sp-24);
+  text-align: center;
+}
+.pricing-cards {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: var(--sp-24); margin-top: var(--sp-48);
+  max-width: 900px; margin-left: auto; margin-right: auto;
+}
+.pricing-card {
+  background: var(--color-snow);
+  border-radius: var(--r-card);
+  padding: var(--sp-32);
+  box-shadow: var(--shadow-card);
+  text-align: right;
+  position: relative;
+}
+.pricing-card.featured {
+  background: var(--color-deep-slate);
+  color: var(--color-snow);
+}
+.pricing-badge-top {
+  position: absolute; top: -12px; right: 24px;
+  background: var(--color-tangerine);
+  color: var(--color-carbon);
+  font-size: 11px; font-weight: 500;
+  padding: 3px 12px; border-radius: 100px;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+.pricing-tier {
+  font-size: 12px; font-weight: 500; color: var(--color-stone);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  margin-bottom: var(--sp-16);
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+.pricing-card.featured .pricing-tier { color: rgba(255,255,255,0.5); }
+.pricing-price {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 40px; font-weight: 300; color: var(--color-carbon);
+  letter-spacing: -0.03em; line-height: 1; margin-bottom: 4px;
+}
+.pricing-card.featured .pricing-price { color: var(--color-snow); }
+.pricing-period {
+  font-size: 13px; color: var(--color-stone); margin-bottom: var(--sp-24);
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+.pricing-card.featured .pricing-period { color: rgba(255,255,255,0.5); }
+.pricing-features {
+  list-style: none; display: flex; flex-direction: column; gap: 10px;
+  margin-bottom: var(--sp-32);
+}
+.pricing-features li {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--color-stone);
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+.pricing-card.featured .pricing-features li { color: rgba(255,255,255,0.7); }
+.check { color: var(--color-tangerine); font-weight: 600; }
+.pricing-card.featured .check { color: var(--color-tangerine); }
+
+/* FOOTER */
+.footer {
+  background: var(--color-snow);
+  border-top: 1px solid var(--color-border-subtle);
+  padding: var(--sp-64) var(--sp-24) var(--sp-40);
+}
+.footer-grid {
+  max-width: var(--max-w); margin: 0 auto;
+  display: grid; grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: var(--sp-48); margin-bottom: var(--sp-48);
+}
+.footer-brand-name {
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  font-size: 22px; font-weight: 500; color: var(--color-carbon);
+  letter-spacing: -0.02em; margin-bottom: var(--sp-12);
+}
+.footer-brand-name span { color: var(--color-tangerine); }
+.footer-desc {
+  font-size: 14px; color: var(--color-stone); line-height: 1.6;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  max-width: 280px;
+}
+.footer-col-title {
+  font-size: 13px; font-weight: 500; color: var(--color-carbon);
+  margin-bottom: var(--sp-16);
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+.footer-links { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+.footer-links a {
+  font-size: 13px; color: var(--color-stone); text-decoration: none;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  transition: color 0.15s;
+}
+.footer-links a:hover { color: var(--color-carbon); }
+.footer-bottom {
+  max-width: var(--max-w); margin: 0 auto;
+  padding-top: var(--sp-32); border-top: 1px solid var(--color-border-subtle);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.footer-copy {
+  font-size: 12px; color: var(--color-pebble);
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+}
+
+/* Divider */
+.divider { height: 1px; background: var(--color-border-subtle); }
+
+/* Page nav links */
+.page-nav-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 16px;
+  background: var(--color-fog);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font-size: 12px; color: var(--color-stone);
+  text-decoration: none; cursor: pointer;
+  font-family: 'IBM Plex Sans Arabic', sans-serif;
+  transition: background 0.15s;
+}
+.page-nav-link:hover { background: var(--color-snow); color: var(--color-carbon); }
+
+.demo-nav {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 8px; z-index: 200;
+  background: var(--color-snow);
+  border-radius: 100px;
+  padding: 8px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+}
+
+@media (max-width: 768px) {
+  .features-grid, .pricing-cards { grid-template-columns: 1fr; }
+  .how-grid { grid-template-columns: 1fr; }
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  .footer-grid { grid-template-columns: 1fr 1fr; }
+  .nav-links { display: none; }
+}
+</style>
+</head>
+<body>
+
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "arabicFont": "IBM Plex Sans Arabic",
+  "accentColor": "#f69251",
+  "headingWeight": "300",
+  "showEnglish": false
+}/*EDITMODE-END*/;
+
+/* ─── NAV ─── */
+function Nav({ onNavigate }) {
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const h = () => setScrolled(window.scrollY > 40);
+    window.addEventListener('scroll', h);
+    return () => window.removeEventListener('scroll', h);
+  }, []);
+  return (
+    <div className="nav-wrap">
+      <nav className="nav" style={{ boxShadow: scrolled ? '0 4px 24px rgba(0,0,0,0.10)' : 'var(--shadow-nav)' }}>
+        <a href="#" className="nav-logo">وَرَّاق<span>.</span></a>
+        <ul className="nav-links">
+          <li><a href="#">المميزات</a></li>
+          <li><a href="#">كيف يعمل</a></li>
+          <li><a href="#" onClick={e => { e.preventDefault(); onNavigate('pricing'); }}>الأسعار</a></li>
+          <li><a href="#">API</a></li>
+        </ul>
+        <div className="nav-right">
+          <a href="#" className="nav-login" onClick={e => { e.preventDefault(); onNavigate('login'); }}>تسجيل الدخول</a>
+          <button className="btn-primary" style={{ fontSize: 13, padding: '10px 20px' }} onClick={() => onNavigate('register')}>ابدأ مجاناً</button>
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+/* ─── BROWSER MOCKUP ─── */
+function BrowserMockup() {
+  return (
+    <div className="hero-mockup">
+      <div className="mockup-card">
+        <div className="mockup-bar">
+          <div className="mockup-dot" style={{ background: '#c97b84' }}></div>
+          <div className="mockup-dot" style={{ background: '#f69251' }}></div>
+          <div className="mockup-dot" style={{ background: '#8b8b8b' }}></div>
+          <div style={{ flex: 1, marginRight: 12 }}>
+            <div style={{ background: '#f0f0f0', borderRadius: 6, height: 22, display: 'flex', alignItems: 'center', padding: '0 10px', fontSize: 11, color: '#949494', direction: 'ltr' }}>
+              app.warraq.sa/dashboard
+            </div>
+          </div>
+        </div>
+        <div className="mockup-body">
+          <div className="mockup-sidebar">
+            {[
+              { label: 'لوحة التحكم', active: false },
+              { label: 'الوظائف', active: true },
+              { label: 'النتائج', active: false },
+              { label: 'الفوترة', active: false },
+            ].map((item, i) => (
+              <div key={i} className={`mock-nav-item${item.active ? ' active' : ''}`}>
+                <div className={`mock-icon${item.active ? ' orange' : ''}`}></div>
+                <span style={{ fontSize: 12, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{item.label}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mockup-main">
+            <div className="mock-header">
+              <span className="mock-title" style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>وظائف OCR الأخيرة</span>
+              <span className="mock-badge-small">٤ جديد</span>
+            </div>
+            <div className="mock-page-grid">
+              {[true, true, true, false].map((done, i) => (
+                <div key={i} className={`mock-page${done ? ' done' : ''}`}>
+                  <div className="mock-lines">
+                    {[90, 75, 85, 60, 80, 70].map((w, j) => (
+                      <div key={j} className="mock-line" style={{ width: `${w}%` }}></div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="mock-text-preview">
+              <div style={{ fontSize: 11, color: '#949494', marginBottom: 10, fontFamily: 'IBM Plex Sans Arabic, sans-serif', direction: 'rtl' }}>معاينة النص المستخرج</div>
+              {[100, 88, 94, 72].map((w, i) => (
+                <div key={i} className="mock-text-line" style={{ width: `${w}%` }}></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+      <div className="mockup-fade"></div>
+    </div>
+  );
+}
+
+/* ─── HERO ─── */
+function Hero({ onNavigate }) {
+  return (
+    <section className="hero">
+      <div className="hero-eyebrow">
+        <div className="dot"></div>
+        <span style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>مدعوم بـ Claude Vision</span>
+      </div>
+      <h1>
+        التراث العربي،<br />
+        <em>نصاً قابلاً للبحث</em>
+      </h1>
+      <p className="hero-sub">
+        حوِّل الكتب العربية المصوّرة إلى نصوص دقيقة في دقائق. 
+        دقة استثنائية في اللغة العربية، من المخطوطات إلى المطبوعات الحديثة.
+      </p>
+      <div className="hero-cta-row">
+        <button className="btn-primary" style={{ fontSize: 15, padding: '14px 28px' }} onClick={() => onNavigate('register')}>
+          ابدأ مجاناً — ٥٠ صفحة
+        </button>
+        <button className="btn-ghost" style={{ fontSize: 15, padding: '14px 28px' }} onClick={() => onNavigate('dashboard')}>
+          شاهد العرض التجريبي
+        </button>
+      </div>
+      <div className="hero-trust">
+        <div className="trust-item">
+          <span className="stars">★★★★★</span>
+          <span>دقة ٩٨٪+ في العربية الحديثة</span>
+        </div>
+        <div className="trust-item" style={{ color: '#d0d0d0' }}>·</div>
+        <div className="trust-item">
+          <span className="stars">★★★★★</span>
+          <span>يدعم المخطوطات والنسخ القديمة</span>
+        </div>
+      </div>
+      <BrowserMockup />
+    </section>
+  );
+}
+
+/* ─── STATS ─── */
+function Stats() {
+  return (
+    <div className="stats-band">
+      <div className="stats-row">
+        {[
+          { num: '٤م', label: 'صفحة جرى تحويلها' },
+          { num: '٩٨', label: 'دقة متوسطة %' },
+          { num: '١٢٠٠+', label: 'باحث يستخدم المنصة' },
+          { num: '٣', label: 'ثوانٍ لكل صفحة' },
+        ].map((s, i) => (
+          <div key={i} className="stat-cell">
+            <div className="stat-num">{s.num}<span>+</span></div>
+            <div className="stat-label">{s.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── FEATURES ─── */
+function Features() {
+  const features = [
+    { icon: '📄', title: 'دعم كامل للعربية', desc: 'يتعامل مع النصوص المنسوخة بالخط العربي في أشكالها المختلفة: نسخ، ثلث، ديواني، رقعة، وكوفي.' },
+    { icon: '⚡', title: 'معالجة سريعة', desc: 'استخراج نص صفحة كاملة في ٣ ثوانٍ أو أقل. معالجة متوازية للكتب الضخمة.' },
+    { icon: '🔍', title: 'نص قابل للبحث', desc: 'النص المستخرج قابل للبحث والنسخ والتحرير فور المعالجة. تصدير بصيغ TXT و MD و DOCX.' },
+    { icon: '📚', title: 'رفع مجمّع', desc: 'ارفع مئات الصفحات دفعة واحدة. وظائف خلفية تُعالج ملفاتك دون انتظار.' },
+    { icon: '🔑', title: 'API للمطورين', desc: 'ادمج وَرَّاق في تطبيقاتك عبر API بسيطة. مصادقة Bearer Token جاهزة.' },
+    { icon: '🏢', title: 'حسابات المؤسسات', desc: 'إدارة فريق بالكامل. أدوار متعددة: مالك، مشرف، عضو. فوترة مركزية.' },
+  ];
+  return (
+    <section className="section" style={{ background: 'var(--color-fog)' }}>
+      <div className="container">
+        <div style={{ textAlign: 'center' }}>
+          <div className="section-label">المميزات</div>
+          <h2 className="section-heading" style={{ maxWidth: 600, margin: '0 auto var(--sp-16)' }}>
+            كل ما يحتاجه الباحث
+          </h2>
+          <p className="section-sub" style={{ textAlign: 'center', maxWidth: 480, margin: '0 auto' }}>
+            من المخطوط الأصلي إلى نص رقمي قابل للبحث، دون تنازل عن الدقة.
+          </p>
+        </div>
+        <div className="features-grid">
+          {features.map((f, i) => (
+            <div key={i} className="feature-card">
+              <div className="feature-icon">{f.icon}</div>
+              <div className="feature-title">{f.title}</div>
+              <div className="feature-desc">{f.desc}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── HOW IT WORKS ─── */
+function HowItWorks() {
+  const [activeStep, setActiveStep] = useState(0);
+  const steps = [
+    { title: 'ارفع ملفاتك', desc: 'PDF أو صور بصيغ PNG/JPG. حجم يصل إلى ٥٠٠ ميجابايت لكل وظيفة.' },
+    { title: 'اختر النموذج', desc: 'Haiku للسرعة، Sonnet للدقة، Opus للمخطوطات الصعبة.' },
+    { title: 'انتظر المعالجة', desc: 'الذكاء الاصطناعي يستخرج النص صفحة بصفحة. إشعار فور الانتهاء.' },
+    { title: 'صدِّر النص', desc: 'حمِّل النتائج بصيغ متعددة أو ادمجها في مشروعك عبر API.' },
+  ];
+  return (
+    <section className="section" style={{ background: 'var(--color-snow)' }}>
+      <div className="container">
+        <div className="how-grid">
+          <div>
+            <div className="section-label">كيف يعمل</div>
+            <h2 className="section-heading">أربع خطوات<br />إلى النص</h2>
+            <div className="how-steps">
+              {steps.map((s, i) => (
+                <div
+                  key={i}
+                  className="how-step"
+                  style={{ cursor: 'pointer', opacity: activeStep === i ? 1 : 0.6, transition: 'opacity 0.2s' }}
+                  onClick={() => setActiveStep(i)}
+                >
+                  <div className={`step-num${activeStep === i ? ' active' : ''}`}>{i + 1}</div>
+                  <div className="step-content">
+                    <div className="step-title">{s.title}</div>
+                    <div className="step-desc">{s.desc}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="how-visual">
+            <div style={{ fontSize: 13, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 16 }}>
+              الخطوة {activeStep + 1} من ٤
+            </div>
+            {/* Visual representation */}
+            {activeStep === 0 && (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+                <div style={{ width: 80, height: 100, background: 'var(--color-fog)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>📄</div>
+                <div style={{ height: 2, width: 40, background: 'var(--color-tangerine)', borderRadius: 1 }}></div>
+                <div style={{ fontSize: 13, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>اسحب ملفاتك هنا</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+                  {['PDF', 'PNG', 'JPG', 'TIFF'].map(f => (
+                    <span key={f} className="badge" style={{ fontSize: 11 }}>{f}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {activeStep === 1 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {[
+                  { name: 'Haiku', desc: 'سريع • رخيص', active: false },
+                  { name: 'Sonnet', desc: 'متوازن • موصى به', active: true },
+                  { name: 'Opus', desc: 'أدق • للمخطوطات', active: false },
+                ].map((m, i) => (
+                  <div key={i} style={{ padding: 16, borderRadius: 12, border: `1px solid ${m.active ? 'var(--color-tangerine)' : 'var(--color-border)'}`, background: m.active ? 'rgba(246,146,81,0.04)' : 'var(--color-fog)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>
+                      <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-carbon)' }}>{m.name}</div>
+                      <div style={{ fontSize: 12, color: 'var(--color-stone)' }}>{m.desc}</div>
+                    </div>
+                    {m.active && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--color-tangerine)' }}></div>}
+                  </div>
+                ))}
+              </div>
+            )}
+            {activeStep === 2 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ fontSize: 13, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>معالجة: كتاب_الفتاوى.pdf</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {[
+                    { page: 'صفحة ١', status: 'مكتملة', pct: 100 },
+                    { page: 'صفحة ٢', status: 'مكتملة', pct: 100 },
+                    { page: 'صفحة ٣', status: 'جارٍ المعالجة', pct: 65 },
+                    { page: 'صفحة ٤', status: 'في الانتظار', pct: 0 },
+                  ].map((p, i) => (
+                    <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>
+                        <span style={{ color: 'var(--color-carbon)' }}>{p.page}</span>
+                        <span style={{ color: p.pct === 100 ? 'var(--color-tangerine)' : 'var(--color-stone)' }}>{p.status}</span>
+                      </div>
+                      <div style={{ height: 4, background: 'var(--color-fog)', borderRadius: 2 }}>
+                        <div style={{ height: '100%', width: `${p.pct}%`, background: p.pct === 100 ? 'var(--color-tangerine)' : 'var(--color-border)', borderRadius: 2, transition: 'width 0.5s' }}></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {activeStep === 3 && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 13, color: 'var(--color-stone)' }}>تصدير بصيغة:</div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {[
+                    { fmt: 'TXT', desc: 'نص خام' },
+                    { fmt: 'MD', desc: 'Markdown' },
+                    { fmt: 'DOCX', desc: 'Word' },
+                    { fmt: 'JSON', desc: 'للمطورين' },
+                  ].map((f, i) => (
+                    <div key={i} style={{ padding: '12px 14px', background: 'var(--color-fog)', borderRadius: 10, border: '1px solid var(--color-border)' }}>
+                      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-carbon)', marginBottom: 2 }}>{f.fmt}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{f.desc}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ─── TESTIMONIALS ─── */
+function Testimonials() {
+  const items = [
+    { quote: 'وَرَّاق وفّر عليّ أشهراً من العمل اليدوي. حوّلت ٨٠٠ صفحة من الرسائل المخطوطة في يومين.', name: 'د. نورة العتيبي', role: 'باحثة في التراث، جامعة الملك سعود', initial: 'ن' },
+    { quote: 'دقة مذهلة في النصوص العربية القديمة. النتائج تفوق توقعاتي خاصة مع النسخ المشكول.', name: 'أ. محمد الغامدي', role: 'محقق مخطوطات، دار الوثائق الوطنية', initial: 'م' },
+    { quote: 'استخدمنا الـ API لبناء نظام أرشفة كامل. التوثيق ممتاز والاستجابة سريعة جداً.', name: 'سارة البلوشي', role: 'مطورة، مكتبة المخطوطات الرقمية', initial: 'س' },
+    { quote: 'الخطط المرنة مناسبة للمشاريع الصغيرة. أنصح به لكل من يعمل في رقمنة التراث.', name: 'عبدالله الزهراني', role: 'طالب دكتوراه، جامعة الملك عبدالعزيز', initial: 'ع' },
+    { quote: 'ميزة المعالجة المجمّعة أنقذتنا. رفعنا ٢٠٠٠ صفحة وشغّلناها ليلاً، استيقظنا والنتائج جاهزة.', name: 'رنا الجابر', role: 'مديرة التوثيق، مؤسسة التراث', initial: 'ر' },
+  ];
+  return (
+    <section className="testimonials-section" style={{ background: 'var(--color-fog)' }}>
+      <div className="testimonials-header">
+        <div className="section-label">شهادات المستخدمين</div>
+        <h2 className="section-heading">ثقة الباحثين</h2>
+      </div>
+      <div className="testimonials-track">
+        {items.map((t, i) => (
+          <div key={i} className="testimonial-card">
+            <p className="t-quote">"{t.quote}"</p>
+            <div className="t-author">
+              <div className="t-avatar">{t.initial}</div>
+              <div>
+                <div className="t-name">{t.name}</div>
+                <div className="t-role">{t.role}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ─── PRICING PREVIEW ─── */
+function PricingPreview({ onNavigate }) {
+  return (
+    <section className="pricing-preview" style={{ background: 'var(--color-snow)' }}>
+      <div className="container">
+        <div className="section-label" style={{ display: 'inline-flex' }}>الأسعار</div>
+        <h2 className="section-heading">ابدأ مجاناً</h2>
+        <p className="section-sub" style={{ margin: '0 auto var(--sp-48)', maxWidth: 400 }}>
+          خطط مرنة تناسب الباحث الفرد والمؤسسات الكبرى.
+        </p>
+        <div className="pricing-cards">
+          {[
+            {
+              tier: 'مجاني', price: '٠', period: 'ريال / شهر',
+              features: ['٥٠ صفحة / شهر', 'نموذج Haiku', 'تصدير TXT', 'دعم بالبريد'],
+              cta: 'ابدأ مجاناً', featured: false,
+            },
+            {
+              tier: 'احترافي', price: '٤٩', period: 'ريال / شهر',
+              badge: 'الأكثر شيوعاً',
+              features: ['١٠٠٠ صفحة / شهر', 'جميع النماذج', 'تصدير كل الصيغ', 'API', 'دعم أولوية'],
+              cta: 'اشترك الآن', featured: true,
+            },
+            {
+              tier: 'مؤسسي', price: 'مخصص', period: '',
+              features: ['صفحات غير محدودة', 'نموذج Opus', 'تقارير مؤسسية', 'تكامل SSO', 'مدير حساب مخصص'],
+              cta: 'تواصل معنا', featured: false,
+            },
+          ].map((plan, i) => (
+            <div key={i} className={`pricing-card${plan.featured ? ' featured' : ''}`}>
+              {plan.badge && <div className="pricing-badge-top">{plan.badge}</div>}
+              <div className="pricing-tier">{plan.tier}</div>
+              <div className="pricing-price">{plan.price}</div>
+              {plan.period && <div className="pricing-period">{plan.period}</div>}
+              <ul className="pricing-features">
+                {plan.features.map((f, j) => (
+                  <li key={j}><span className="check">✓</span> {f}</li>
+                ))}
+              </ul>
+              <button
+                className={plan.featured ? 'btn-primary' : 'btn-ghost'}
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => onNavigate(plan.featured ? 'register' : 'pricing')}
+              >
+                {plan.cta}
+              </button>
+            </div>
+          ))}
+        </div>
+        <p style={{ marginTop: 32, fontSize: 13, color: 'var(--color-pebble)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>
+          جميع الأسعار شاملة ضريبة القيمة المضافة · يُقبل mada و Visa و Apple Pay
+        </p>
+      </div>
+    </section>
+  );
+}
+
+/* ─── CTA BAND ─── */
+function CTABand({ onNavigate }) {
+  return (
+    <section style={{ padding: 'var(--sp-96) var(--sp-24)', background: 'var(--color-deep-slate)', textAlign: 'center' }}>
+      <div className="container">
+        <div style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 13, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.05em', marginBottom: 20, textTransform: 'uppercase' }}>
+          ابدأ اليوم
+        </div>
+        <h2 style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 'clamp(32px,5vw,56px)', fontWeight: 300, color: '#fff', letterSpacing: '-0.02em', lineHeight: 1.2, marginBottom: 20, maxWidth: 600, margin: '0 auto 20px' }}>
+          التراث العربي يستحق<br />أن يُقرأ رقمياً
+        </h2>
+        <p style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 17, color: 'rgba(255,255,255,0.55)', marginBottom: 40, lineHeight: 1.6 }}>
+          انضم إلى أكثر من ١٢٠٠ باحث يستخدمون وَرَّاق يومياً.
+        </p>
+        <button className="btn-primary" style={{ fontSize: 16, padding: '16px 36px' }} onClick={() => onNavigate('register')}>
+          ابدأ مجاناً — ٥٠ صفحة
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/* ─── FOOTER ─── */
+function Footer({ onNavigate }) {
+  return (
+    <footer className="footer">
+      <div className="footer-grid">
+        <div>
+          <div className="footer-brand-name">وَرَّاق<span>.</span></div>
+          <p className="footer-desc">
+            منصة متخصصة في تحويل الكتب العربية المصوّرة إلى نصوص رقمية بدقة عالية، مدعومة بأحدث نماذج الذكاء الاصطناعي.
+          </p>
+        </div>
+        {[
+          { title: 'المنتج', links: [{ label: 'المميزات', href: '#' }, { label: 'الأسعار', onClick: () => onNavigate('pricing') }, { label: 'API', href: '#' }, { label: 'التوثيق', href: '#' }] },
+          { title: 'الشركة', links: [{ label: 'من نحن', href: '#' }, { label: 'المدونة', href: '#' }, { label: 'وظائف', href: '#' }] },
+          { title: 'الدعم', links: [{ label: 'مركز المساعدة', href: '#' }, { label: 'تواصل معنا', href: '#' }, { label: 'حالة الخدمة', href: '#' }] },
+        ].map((col, i) => (
+          <div key={i}>
+            <div className="footer-col-title">{col.title}</div>
+            <ul className="footer-links">
+              {col.links.map((l, j) => (
+                <li key={j}>
+                  <a href={l.href || '#'} onClick={l.onClick ? (e) => { e.preventDefault(); l.onClick(); } : undefined}>{l.label}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+      <div className="footer-bottom">
+        <span className="footer-copy">© ٢٠٢٦ وَرَّاق · جميع الحقوق محفوظة</span>
+        <span className="footer-copy">صُنع بـ ♥ لخدمة التراث العربي</span>
+      </div>
+    </footer>
+  );
+}
+
+/* ─── LANDING PAGE ─── */
+function LandingPage({ onNavigate }) {
+  return (
+    <>
+      <Nav onNavigate={onNavigate} />
+      <main>
+        <Hero onNavigate={onNavigate} />
+        <Stats />
+        <Features />
+        <HowItWorks />
+        <Testimonials />
+        <PricingPreview onNavigate={onNavigate} />
+        <CTABand onNavigate={onNavigate} />
+      </main>
+      <Footer onNavigate={onNavigate} />
+    </>
+  );
+}
+
+/* ─── AUTH PAGES ─── */
+function AuthPage({ mode, onNavigate }) {
+  const [tab, setTab] = useState(mode);
+  const [email, setEmail] = useState('');
+  const [pass, setPass] = useState('');
+  const [name, setName] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      onNavigate('dashboard');
+    }, 1200);
+  };
+
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--color-fog)', padding: '24px' }}>
+      <div style={{ width: '100%', maxWidth: 420 }}>
+        {/* Logo */}
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <a href="#" onClick={e => { e.preventDefault(); onNavigate('landing'); }} style={{ textDecoration: 'none' }}>
+            <span style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 28, fontWeight: 500, color: 'var(--color-carbon)' }}>
+              وَرَّاق<span style={{ color: 'var(--color-tangerine)' }}>.</span>
+            </span>
+          </a>
+        </div>
+        {/* Card */}
+        <div className="card" style={{ borderRadius: 24 }}>
+          {/* Tabs */}
+          <div style={{ display: 'flex', background: 'var(--color-fog)', borderRadius: 12, padding: 4, marginBottom: 32 }}>
+            {[{ key: 'login', label: 'تسجيل الدخول' }, { key: 'register', label: 'حساب جديد' }].map(t => (
+              <button key={t.key} onClick={() => setTab(t.key)} style={{ flex: 1, padding: '10px', border: 'none', borderRadius: 9, background: tab === t.key ? 'var(--color-snow)' : 'transparent', color: tab === t.key ? 'var(--color-carbon)' : 'var(--color-stone)', fontWeight: tab === t.key ? 500 : 400, cursor: 'pointer', fontSize: 14, boxShadow: tab === t.key ? 'var(--shadow-card)' : 'none', transition: 'all 0.2s', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {tab === 'register' && (
+              <div>
+                <label style={{ fontSize: 13, color: 'var(--color-stone)', display: 'block', marginBottom: 6, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>الاسم الكامل</label>
+                <input
+                  type="text" value={name} onChange={e => setName(e.target.value)}
+                  placeholder="أحمد محمد العلي"
+                  style={{ width: '100%', padding: '12px 14px', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 15, fontFamily: 'IBM Plex Sans Arabic, sans-serif', background: 'var(--color-fog)', color: 'var(--color-carbon)', outline: 'none', direction: 'rtl' }}
+                />
+              </div>
+            )}
+            <div>
+              <label style={{ fontSize: 13, color: 'var(--color-stone)', display: 'block', marginBottom: 6, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>البريد الإلكتروني</label>
+              <input
+                type="email" value={email} onChange={e => setEmail(e.target.value)}
+                placeholder="ahmed@example.com"
+                style={{ width: '100%', padding: '12px 14px', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 15, fontFamily: 'IBM Plex Sans Arabic, sans-serif', background: 'var(--color-fog)', color: 'var(--color-carbon)', outline: 'none', direction: 'ltr', textAlign: 'right' }}
+              />
+            </div>
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                <label style={{ fontSize: 13, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>كلمة المرور</label>
+                {tab === 'login' && <a href="#" style={{ fontSize: 12, color: 'var(--color-tangerine)', textDecoration: 'none', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>نسيت كلمة المرور؟</a>}
+              </div>
+              <input
+                type="password" value={pass} onChange={e => setPass(e.target.value)}
+                placeholder="••••••••"
+                style={{ width: '100%', padding: '12px 14px', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 15, background: 'var(--color-fog)', color: 'var(--color-carbon)', outline: 'none', direction: 'ltr' }}
+              />
+            </div>
+            {tab === 'register' && (
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <input type="checkbox" id="terms" style={{ marginTop: 3, accentColor: 'var(--color-tangerine)' }} />
+                <label htmlFor="terms" style={{ fontSize: 12, color: 'var(--color-stone)', lineHeight: 1.5, fontFamily: 'IBM Plex Sans Arabic, sans-serif', cursor: 'pointer' }}>
+                  أوافق على <a href="#" style={{ color: 'var(--color-tangerine)', textDecoration: 'none' }}>شروط الاستخدام</a> وسياسة الخصوصية
+                </label>
+              </div>
+            )}
+            <button type="submit" className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '14px', fontSize: 15, marginTop: 8, opacity: loading ? 0.7 : 1 }}>
+              {loading ? '...' : (tab === 'login' ? 'تسجيل الدخول' : 'إنشاء الحساب')}
+            </button>
+          </form>
+
+          <div style={{ margin: '24px 0', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ flex: 1, height: 1, background: 'var(--color-border-subtle)' }}></div>
+            <span style={{ fontSize: 12, color: 'var(--color-pebble)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>أو</span>
+            <div style={{ flex: 1, height: 1, background: 'var(--color-border-subtle)' }}></div>
+          </div>
+
+          <button className="btn-ghost" style={{ width: '100%', justifyContent: 'center', gap: 10 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+            <span style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>المتابعة مع Google</span>
+          </button>
+        </div>
+
+        <p style={{ textAlign: 'center', marginTop: 24, fontSize: 13, color: 'var(--color-pebble)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>
+          {tab === 'login' ? 'ليس لديك حساب؟ ' : 'لديك حساب؟ '}
+          <a href="#" onClick={e => { e.preventDefault(); setTab(tab === 'login' ? 'register' : 'login'); }} style={{ color: 'var(--color-tangerine)', textDecoration: 'none', fontWeight: 500 }}>
+            {tab === 'login' ? 'أنشئ حساباً' : 'سجّل الدخول'}
+          </a>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* ─── PRICING PAGE ─── */
+function PricingPage({ onNavigate }) {
+  const [billing, setBilling] = useState('monthly');
+  const plans = [
+    { tier: 'مجاني', price: { monthly: 0, yearly: 0 }, unit: 'ريال/شهر', features: ['٥٠ صفحة / شهر', 'نموذج Claude Haiku', 'تصدير TXT و MD', 'دعم بالبريد', '١ مستخدم'], cta: 'ابدأ مجاناً', featured: false },
+    { tier: 'احترافي', price: { monthly: 49, yearly: 39 }, unit: 'ريال/شهر', badge: 'الأكثر شيوعاً', features: ['١٠٠٠ صفحة / شهر', 'Claude Haiku + Sonnet', 'تصدير كل الصيغ', 'API كاملة', 'دعم أولوية', 'حتى ٣ مستخدمين'], cta: 'ابدأ التجربة', featured: true },
+    { tier: 'مؤسسي', price: { monthly: 199, yearly: 159 }, unit: 'ريال/شهر', features: ['صفحات غير محدودة', 'جميع النماذج حتى Opus', 'تقارير متقدمة', 'SSO + إدارة الفريق', 'مدير حساب مخصص', 'SLA ٩٩.٩٪'], cta: 'تواصل معنا', featured: false },
+  ];
+  return (
+    <div style={{ minHeight: '100vh', background: 'var(--color-fog)' }}>
+      <Nav onNavigate={onNavigate} />
+      <div style={{ paddingTop: 120, paddingBottom: 80, paddingLeft: 24, paddingRight: 24 }}>
+        <div style={{ textAlign: 'center', marginBottom: 64 }}>
+          <div className="section-label" style={{ display: 'inline-flex', marginBottom: 20 }}>الأسعار</div>
+          <h1 style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 'clamp(36px,5vw,56px)', fontWeight: 300, letterSpacing: '-0.02em', lineHeight: 1.15, marginBottom: 16 }}>
+            سعر عادل، قيمة استثنائية
+          </h1>
+          <p style={{ fontSize: 17, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 32 }}>
+            ابدأ مجاناً بدون بطاقة ائتمانية.
+          </p>
+          {/* Toggle */}
+          <div style={{ display: 'inline-flex', background: 'var(--color-snow)', border: '1px solid var(--color-border)', borderRadius: 100, padding: 4 }}>
+            {[{ key: 'monthly', label: 'شهري' }, { key: 'yearly', label: 'سنوي · وفّر ٢٠٪' }].map(b => (
+              <button key={b.key} onClick={() => setBilling(b.key)} style={{ padding: '8px 20px', border: 'none', borderRadius: 100, background: billing === b.key ? 'var(--color-tangerine)' : 'transparent', color: billing === b.key ? 'white' : 'var(--color-stone)', fontSize: 13, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>
+                {b.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 24, maxWidth: 960, margin: '0 auto' }}>
+          {plans.map((plan, i) => (
+            <div key={i} style={{ background: plan.featured ? 'var(--color-deep-slate)' : 'var(--color-snow)', borderRadius: 24, padding: 32, boxShadow: 'var(--shadow-card)', position: 'relative', textAlign: 'right' }}>
+              {plan.badge && (
+                <div style={{ position: 'absolute', top: -12, right: 24, background: 'var(--color-tangerine)', color: 'black', fontSize: 11, fontWeight: 500, padding: '3px 12px', borderRadius: 100, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{plan.badge}</div>
+              )}
+              <div style={{ fontSize: 12, fontWeight: 500, color: plan.featured ? 'rgba(255,255,255,0.4)' : 'var(--color-stone)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 16, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{plan.tier}</div>
+              <div style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 44, fontWeight: 300, color: plan.featured ? '#fff' : 'var(--color-carbon)', letterSpacing: '-0.03em', lineHeight: 1, marginBottom: 4 }}>
+                {plan.price[billing] === 0 ? '٠' : plan.price[billing]}
+              </div>
+              <div style={{ fontSize: 13, color: plan.featured ? 'rgba(255,255,255,0.4)' : 'var(--color-stone)', marginBottom: 28, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{plan.unit}</div>
+              <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
+                {plan.features.map((f, j) => (
+                  <li key={j} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: plan.featured ? 'rgba(255,255,255,0.7)' : 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>
+                    <span style={{ color: 'var(--color-tangerine)', fontWeight: 600 }}>✓</span> {f}
+                  </li>
+                ))}
+              </ul>
+              <button className={plan.featured ? 'btn-primary' : 'btn-ghost'} style={{ width: '100%', justifyContent: 'center' }} onClick={() => onNavigate('register')}>
+                {plan.cta}
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* FAQ */}
+        <div style={{ maxWidth: 640, margin: '80px auto 0', textAlign: 'right' }}>
+          <h2 style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 28, fontWeight: 300, marginBottom: 32, letterSpacing: '-0.01em' }}>أسئلة شائعة</h2>
+          {[
+            { q: 'هل يمكنني ترقية خطتي لاحقاً؟', a: 'نعم، يمكنك الترقية أو التخفيض في أي وقت. الفرق يُحتسب تلقائياً.' },
+            { q: 'ما صيغ الدفع المقبولة؟', a: 'نقبل mada، Visa، Mastercard، Apple Pay، وSTC Pay عبر Stripe وTap Payments.' },
+            { q: 'هل بياناتي آمنة؟', a: 'نعم. ملفاتك مشفرة أثناء النقل والتخزين. لا نشارك بياناتك مع أي طرف ثالث.' },
+            { q: 'ماذا يحدث عند تجاوز حصة الصفحات؟', a: 'يمكنك شراء صفحات إضافية (PAYG) دون الترقية للخطة التالية.' },
+          ].map((faq, i) => (
+            <FaqItem key={i} {...faq} featured={false} />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FaqItem({ q, a }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={{ borderBottom: '1px solid var(--color-border-subtle)', padding: '20px 0' }}>
+      <button onClick={() => setOpen(!open)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'right' }}>
+        <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--color-carbon)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{q}</span>
+        <span style={{ color: 'var(--color-tangerine)', fontSize: 18, transform: open ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s', flexShrink: 0, marginRight: 16 }}>+</span>
+      </button>
+      {open && <p style={{ marginTop: 12, fontSize: 14, color: 'var(--color-stone)', lineHeight: 1.6, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{a}</p>}
+    </div>
+  );
+}
+
+/* ─── DASHBOARD ─── */
+function Dashboard({ onNavigate }) {
+  const [activeSection, setActiveSection] = useState('dashboard');
+
+  const navItems = [
+    { key: 'dashboard', label: 'لوحة التحكم', icon: '⊞' },
+    { key: 'upload', label: 'رفع ملف', icon: '↑' },
+    { key: 'jobs', label: 'الوظائف', icon: '≡' },
+    { key: 'results', label: 'النتائج', icon: '◫' },
+    { key: 'billing', label: 'الفوترة', icon: '◎' },
+    { key: 'settings', label: 'الإعدادات', icon: '⚙' },
+  ];
+
+  const recentJobs = [
+    { name: 'الفتاوى_الكبرى.pdf', pages: 240, status: 'مكتملة', date: 'اليوم', progress: 100 },
+    { name: 'تاريخ_المدينة.pdf', pages: 180, status: 'معالجة', date: 'اليوم', progress: 62 },
+    { name: 'رسالة_ماجستير.pdf', pages: 95, status: 'مكتملة', date: 'أمس', progress: 100 },
+    { name: 'مخطوطة_عربية.jpg', pages: 12, status: 'مكتملة', date: 'أمس', progress: 100 },
+  ];
+
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--color-fog)', direction: 'rtl' }}>
+      {/* Sidebar */}
+      <div style={{ width: 220, background: 'var(--color-snow)', borderLeft: '1px solid var(--color-border-subtle)', display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 10 }}>
+        <div style={{ padding: '24px 20px', borderBottom: '1px solid var(--color-border-subtle)' }}>
+          <a href="#" onClick={e => { e.preventDefault(); onNavigate('landing'); }} style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 20, fontWeight: 500, color: 'var(--color-carbon)', textDecoration: 'none' }}>
+            وَرَّاق<span style={{ color: 'var(--color-tangerine)' }}>.</span>
+          </a>
+        </div>
+        <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {navItems.map(item => (
+            <button key={item.key} onClick={() => setActiveSection(item.key)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, border: 'none', background: activeSection === item.key ? 'var(--color-fog)' : 'transparent', color: activeSection === item.key ? 'var(--color-carbon)' : 'var(--color-stone)', fontWeight: activeSection === item.key ? 500 : 400, cursor: 'pointer', fontSize: 14, fontFamily: 'IBM Plex Sans Arabic, sans-serif', textAlign: 'right', width: '100%', transition: 'all 0.15s' }}>
+              <span style={{ fontSize: 16, color: activeSection === item.key ? 'var(--color-tangerine)' : 'var(--color-pebble)', flexShrink: 0 }}>{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        {/* User info */}
+        <div style={{ padding: '16px 20px', borderTop: '1px solid var(--color-border-subtle)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--color-fog)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 500, color: 'var(--color-stone)', flexShrink: 0 }}>أ</div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-carbon)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>أحمد العلي</div>
+              <div style={{ fontSize: 11, color: 'var(--color-pebble)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>الخطة المجانية</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main content */}
+      <div style={{ flex: 1, marginRight: 220, padding: '32px', overflow: 'auto' }}>
+        {activeSection === 'dashboard' && (
+          <>
+            <div style={{ marginBottom: 32 }}>
+              <h1 style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 28, fontWeight: 400, color: 'var(--color-carbon)', letterSpacing: '-0.01em', marginBottom: 6 }}>مساء الخير، أحمد 👋</h1>
+              <p style={{ fontSize: 14, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>لديك ٣٢ صفحة متبقية من حصتك الشهرية</p>
+            </div>
+
+            {/* Stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 32 }}>
+              {[
+                { label: 'الصفحات المعالجة', value: '١٨', sub: 'من ٥٠ هذا الشهر' },
+                { label: 'الوظائف المكتملة', value: '٤', sub: 'آخر ٣٠ يوم' },
+                { label: 'معدل الدقة', value: '٩٧٪', sub: 'متوسط الجلسة' },
+                { label: 'وقت المعالجة', value: '٢.٤ث', sub: 'متوسط لكل صفحة' },
+              ].map((stat, i) => (
+                <div key={i} className="card" style={{ borderRadius: 16 }}>
+                  <div style={{ fontSize: 12, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 8 }}>{stat.label}</div>
+                  <div style={{ fontSize: 28, fontWeight: 400, fontFamily: 'IBM Plex Sans Arabic, sans-serif', color: 'var(--color-carbon)', letterSpacing: '-0.02em', marginBottom: 4 }}>{stat.value}</div>
+                  <div style={{ fontSize: 11, color: 'var(--color-pebble)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{stat.sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Usage bar */}
+            <div className="card" style={{ borderRadius: 16, marginBottom: 24 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-carbon)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>استخدام الحصة الشهرية</span>
+                <span className="badge" style={{ fontSize: 11 }}>١٨ / ٥٠ صفحة</span>
+              </div>
+              <div style={{ height: 6, background: 'var(--color-fog)', borderRadius: 3 }}>
+                <div style={{ height: '100%', width: '36%', background: 'var(--color-tangerine)', borderRadius: 3 }}></div>
+              </div>
+              <div style={{ marginTop: 12, display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>يتجدد في ١ يونيو</span>
+                <button className="btn-primary" style={{ fontSize: 12, padding: '6px 14px' }} onClick={() => onNavigate('pricing')}>ترقية الخطة</button>
+              </div>
+            </div>
+
+            {/* Recent jobs */}
+            <div className="card" style={{ borderRadius: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-carbon)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>آخر الوظائف</span>
+                <button className="btn-ghost" style={{ fontSize: 12, padding: '6px 14px' }} onClick={() => setActiveSection('upload')}>+ وظيفة جديدة</button>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                {recentJobs.map((job, i) => (
+                  <div key={i} onClick={() => setActiveSection('results')} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px', borderRadius: 10, cursor: 'pointer', transition: 'background 0.15s' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--color-fog)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <div style={{ width: 36, height: 36, background: 'var(--color-fog)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, flexShrink: 0 }}>
+                      {job.name.includes('.pdf') ? '📄' : '🖼'}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-carbon)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 2 }}>{job.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-pebble)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{job.pages} صفحة · {job.date}</div>
+                    </div>
+                    <div style={{ textAlign: 'left' }}>
+                      <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 100, fontSize: 11, fontWeight: 500, background: job.status === 'مكتملة' ? 'rgba(246,146,81,0.1)' : 'rgba(72,71,88,0.08)', color: job.status === 'مكتملة' ? 'var(--color-tangerine)' : 'var(--color-graphite)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>
+                        {job.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeSection === 'upload' && <UploadPage onNavigate={() => setActiveSection('jobs')} />}
+        {activeSection === 'results' && <ResultsPage />}
+        {activeSection === 'jobs' && <JobsPage onNavigate={() => setActiveSection('results')} />}
+        {activeSection === 'billing' && <BillingPage onNavigate={onNavigate} />}
+        {activeSection === 'settings' && <SettingsPage />}
+      </div>
+    </div>
+  );
+}
+
+/* ─── UPLOAD PAGE ─── */
+function UploadPage({ onNavigate }) {
+  const [dragging, setDragging] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [model, setModel] = useState('sonnet');
+  const [uploading, setUploading] = useState(false);
+  const [uploaded, setUploaded] = useState(false);
+
+  const handleDrop = (e) => {
+    e.preventDefault(); setDragging(false);
+    const dropped = Array.from(e.dataTransfer.files);
+    setFiles(prev => [...prev, ...dropped]);
+  };
+
+  const handleFileInput = (e) => {
+    const selected = Array.from(e.target.files);
+    setFiles(prev => [...prev, ...selected]);
+  };
+
+  const handleUpload = () => {
+    setUploading(true);
+    setTimeout(() => { setUploading(false); setUploaded(true); }, 2000);
+    setTimeout(() => { if (onNavigate) onNavigate(); }, 3000);
+  };
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 28, fontWeight: 400, color: 'var(--color-carbon)', letterSpacing: '-0.01em', marginBottom: 28 }}>رفع ملف جديد</h1>
+
+      {/* Drop zone */}
+      <div
+        onDragOver={e => { e.preventDefault(); setDragging(true); }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={handleDrop}
+        style={{ border: `2px dashed ${dragging ? 'var(--color-tangerine)' : 'var(--color-border)'}`, borderRadius: 20, padding: '48px 24px', textAlign: 'center', background: dragging ? 'rgba(246,146,81,0.03)' : 'var(--color-snow)', transition: 'all 0.2s', marginBottom: 24, cursor: 'pointer' }}
+        onClick={() => document.getElementById('file-input').click()}
+      >
+        <div style={{ fontSize: 40, marginBottom: 16 }}>📂</div>
+        <p style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 16, fontWeight: 500, color: 'var(--color-carbon)', marginBottom: 8 }}>اسحب ملفاتك هنا أو اضغط للاختيار</p>
+        <p style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 13, color: 'var(--color-stone)' }}>يدعم PDF · PNG · JPG · TIFF · حتى ٥٠٠ ميجابايت</p>
+        <input id="file-input" type="file" multiple accept=".pdf,.png,.jpg,.jpeg,.tiff" onChange={handleFileInput} style={{ display: 'none' }} />
+      </div>
+
+      {/* Files list */}
+      {files.length > 0 && (
+        <div className="card" style={{ borderRadius: 16, marginBottom: 24 }}>
+          <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 12 }}>{files.length} ملف مختار</div>
+          {files.map((f, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: i < files.length - 1 ? '1px solid var(--color-border-subtle)' : 'none' }}>
+              <span style={{ fontSize: 18 }}>{f.name?.includes('.pdf') ? '📄' : '🖼'}</span>
+              <span style={{ flex: 1, fontSize: 13, color: 'var(--color-carbon)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{f.name || 'ملف.pdf'}</span>
+              <span style={{ fontSize: 11, color: 'var(--color-pebble)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{f.size ? `${(f.size / 1024 / 1024).toFixed(1)} MB` : '2.4 MB'}</span>
+              <button onClick={() => setFiles(files.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-pebble)', fontSize: 16 }}>×</button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Model selection */}
+      <div className="card" style={{ borderRadius: 16, marginBottom: 24 }}>
+        <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-carbon)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 16 }}>اختر نموذج المعالجة</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {[
+            { key: 'haiku', label: 'Claude Haiku', desc: 'سريع وفعّال • مناسب للكتب الحديثة', tag: 'مجاني' },
+            { key: 'sonnet', label: 'Claude Sonnet', desc: 'متوازن بين الدقة والسرعة • موصى به', tag: 'احترافي' },
+            { key: 'opus', label: 'Claude Opus', desc: 'أعلى دقة • مثالي للمخطوطات والنصوص القديمة', tag: 'مؤسسي' },
+          ].map(m => (
+            <label key={m.key} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', border: `1px solid ${model === m.key ? 'var(--color-tangerine)' : 'var(--color-border)'}`, borderRadius: 12, cursor: 'pointer', background: model === m.key ? 'rgba(246,146,81,0.04)' : 'transparent', transition: 'all 0.15s' }}>
+              <input type="radio" name="model" value={m.key} checked={model === m.key} onChange={() => setModel(m.key)} style={{ accentColor: 'var(--color-tangerine)', flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-carbon)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{m.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{m.desc}</div>
+              </div>
+              <span className="badge" style={{ fontSize: 10 }}>{m.tag}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <button
+        className="btn-primary"
+        style={{ fontSize: 15, padding: '14px 32px', opacity: files.length === 0 ? 0.5 : 1 }}
+        disabled={files.length === 0 || uploading || uploaded}
+        onClick={handleUpload}
+      >
+        {uploaded ? '✓ تم رفع الوظيفة' : uploading ? 'جارٍ الرفع...' : `ابدأ المعالجة${files.length > 0 ? ` (${files.length} ملف)` : ''}`}
+      </button>
+    </div>
+  );
+}
+
+/* ─── JOBS PAGE ─── */
+function JobsPage({ onNavigate }) {
+  const jobs = [
+    { id: 'J-١٠٠١', name: 'الفتاوى_الكبرى.pdf', pages: 240, status: 'مكتملة', model: 'Sonnet', date: '٢ مايو ٢٠٢٦', progress: 100 },
+    { id: 'J-١٠٠٢', name: 'تاريخ_المدينة.pdf', pages: 180, status: 'معالجة', model: 'Haiku', date: '٢ مايو ٢٠٢٦', progress: 62 },
+    { id: 'J-١٠٠٣', name: 'رسالة_ماجستير.pdf', pages: 95, status: 'مكتملة', model: 'Sonnet', date: '١ مايو ٢٠٢٦', progress: 100 },
+    { id: 'J-١٠٠٤', name: 'مخطوطة_قديمة.jpg', pages: 12, status: 'مكتملة', model: 'Opus', date: '٣٠ أبريل ٢٠٢٦', progress: 100 },
+    { id: 'J-١٠٠٥', name: 'كتاب_التاريخ.pdf', pages: 320, status: 'فشلت', model: 'Haiku', date: '٢٩ أبريل ٢٠٢٦', progress: 0 },
+  ];
+  const statusColor = { 'مكتملة': 'var(--color-tangerine)', 'معالجة': '#4285f4', 'فشلت': '#c97b84', 'في الانتظار': 'var(--color-ash)' };
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 28 }}>
+        <h1 style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 28, fontWeight: 400, color: 'var(--color-carbon)', letterSpacing: '-0.01em' }}>الوظائف</h1>
+        <button className="btn-primary" style={{ fontSize: 13 }}>+ وظيفة جديدة</button>
+      </div>
+      <div className="card" style={{ borderRadius: 16, padding: 0, overflow: 'hidden' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', direction: 'rtl' }}>
+          <thead>
+            <tr style={{ background: 'var(--color-fog)', borderBottom: '1px solid var(--color-border-subtle)' }}>
+              {['المعرف', 'الملف', 'الصفحات', 'النموذج', 'الحالة', 'التاريخ', ''].map(h => (
+                <th key={h} style={{ padding: '12px 16px', textAlign: 'right', fontSize: 12, fontWeight: 500, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', whiteSpace: 'nowrap' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {jobs.map((job, i) => (
+              <tr key={i} style={{ borderBottom: '1px solid var(--color-border-subtle)', transition: 'background 0.15s', cursor: 'pointer' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--color-fog)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                onClick={onNavigate}
+              >
+                <td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--color-pebble)', fontFamily: 'monospace' }}>{job.id}</td>
+                <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--color-carbon)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontWeight: 500 }}>{job.name}</td>
+                <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{job.pages}</td>
+                <td style={{ padding: '14px 16px' }}><span className="badge" style={{ fontSize: 11 }}>{job.model}</span></td>
+                <td style={{ padding: '14px 16px' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 10px', borderRadius: 100, fontSize: 11, fontWeight: 500, background: `${statusColor[job.status]}18`, color: statusColor[job.status], fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>
+                    {job.status === 'معالجة' && <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#4285f4', animation: 'pulse 1s infinite' }}></span>}
+                    {job.status}
+                  </span>
+                </td>
+                <td style={{ padding: '14px 16px', fontSize: 12, color: 'var(--color-pebble)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{job.date}</td>
+                <td style={{ padding: '14px 16px' }}>
+                  {job.status === 'مكتملة' && <button className="btn-ghost" style={{ fontSize: 11, padding: '5px 12px' }} onClick={onNavigate}>عرض</button>}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/* ─── RESULTS PAGE ─── */
+function ResultsPage() {
+  const [tab, setTab] = useState('text');
+  const [copied, setCopied] = useState(false);
+
+  const sampleText = `بسم الله الرحمن الرحيم
+
+الفتاوى الكبرى لشيخ الإسلام ابن تيمية
+
+الجزء الأول
+
+فصل في بيان أصول الفتاوى وأحكامها
+
+سُئل شيخ الإسلام رحمه الله تعالى عن قول النبي صلى الله عليه وسلم: "إن الله لا ينظر إلى صوركم وأموالكم ولكن ينظر إلى قلوبكم وأعمالكم".
+
+فأجاب: هذا الحديث من جوامع كلمه صلى الله عليه وسلم، وفيه بيان أصل عظيم من أصول الدين، وهو أن المعتبر في الأعمال إنما هو ما في القلوب من النية والإخلاص...`;
+
+  const copyText = () => {
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 24, fontWeight: 400, color: 'var(--color-carbon)', letterSpacing: '-0.01em', marginBottom: 6 }}>الفتاوى_الكبرى.pdf</h1>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <span className="badge" style={{ fontSize: 11, background: 'rgba(246,146,81,0.1)', color: 'var(--color-tangerine)', borderColor: 'transparent' }}>مكتملة</span>
+            <span style={{ fontSize: 12, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>٢٤٠ صفحة · Claude Sonnet · ٢ مايو ٢٠٢٦</span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn-ghost" style={{ fontSize: 13 }}>↓ تحميل DOCX</button>
+          <button className="btn-primary" style={{ fontSize: 13 }}>↓ تحميل TXT</button>
+        </div>
+      </div>
+
+      {/* Stats row */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12, marginBottom: 24 }}>
+        {[
+          { label: 'الصفحات', value: '٢٤٠' },
+          { label: 'الكلمات', value: '٨٦,٤٠٠' },
+          { label: 'الأحرف', value: '٤١٢,٠٠٠' },
+          { label: 'الدقة', value: '٩٨.٢٪' },
+        ].map((s, i) => (
+          <div key={i} className="card" style={{ borderRadius: 12, padding: '16px 20px' }}>
+            <div style={{ fontSize: 11, color: 'var(--color-pebble)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 4 }}>{s.label}</div>
+            <div style={{ fontSize: 22, fontWeight: 400, fontFamily: 'IBM Plex Sans Arabic, sans-serif', color: 'var(--color-carbon)', letterSpacing: '-0.02em' }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 0, background: 'var(--color-snow)', borderRadius: 12, padding: 4, marginBottom: 16, width: 'fit-content', border: '1px solid var(--color-border)' }}>
+        {[{ key: 'text', label: 'النص' }, { key: 'pages', label: 'الصفحات' }, { key: 'raw', label: 'JSON' }].map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)} style={{ padding: '8px 20px', border: 'none', borderRadius: 9, background: tab === t.key ? 'var(--color-fog)' : 'transparent', color: tab === t.key ? 'var(--color-carbon)' : 'var(--color-stone)', fontWeight: tab === t.key ? 500 : 400, cursor: 'pointer', fontSize: 13, fontFamily: 'IBM Plex Sans Arabic, sans-serif', transition: 'all 0.15s' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'text' && (
+        <div className="card" style={{ borderRadius: 16, position: 'relative' }}>
+          <div style={{ position: 'absolute', top: 16, left: 16 }}>
+            <button onClick={copyText} className="btn-ghost" style={{ fontSize: 12, padding: '6px 12px' }}>
+              {copied ? '✓ تم النسخ' : 'نسخ النص'}
+            </button>
+          </div>
+          <pre style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 15, lineHeight: 2, color: 'var(--color-carbon)', direction: 'rtl', whiteSpace: 'pre-wrap', margin: 0, maxHeight: 480, overflow: 'auto' }}>
+            {sampleText}
+          </pre>
+        </div>
+      )}
+
+      {tab === 'pages' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12 }}>
+          {Array.from({ length: 12 }, (_, i) => (
+            <div key={i} style={{ background: 'var(--color-snow)', borderRadius: 12, padding: 12, boxShadow: 'var(--shadow-card)', cursor: 'pointer', transition: 'transform 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              <div style={{ background: 'var(--color-fog)', borderRadius: 6, aspectRatio: '3/4', marginBottom: 6, display: 'flex', flexDirection: 'column', gap: 3, padding: 8 }}>
+                {[80,70,90,60,75,85,65].map((w,j) => <div key={j} style={{ height: 3, background: 'var(--color-border)', borderRadius: 1, width: `${w}%` }}></div>)}
+              </div>
+              <div style={{ fontSize: 10, color: 'var(--color-pebble)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', textAlign: 'center' }}>صفحة {i + 1}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === 'raw' && (
+        <div className="card" style={{ borderRadius: 16 }}>
+          <pre style={{ fontFamily: 'monospace', fontSize: 12, color: 'var(--color-midnight)', direction: 'ltr', lineHeight: 1.6, maxHeight: 400, overflow: 'auto', margin: 0 }}>
+{`{
+  "job_id": "J-1001",
+  "status": "completed",
+  "pages": 240,
+  "model": "claude-sonnet-4-5",
+  "accuracy": 0.982,
+  "created_at": "2026-05-02T10:23:00Z",
+  "pages_data": [
+    {
+      "page_number": 1,
+      "text": "بسم الله الرحمن الرحيم...",
+      "confidence": 0.99,
+      "word_count": 340
+    }
+  ]
+}`}
+          </pre>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ─── BILLING PAGE ─── */
+function BillingPage({ onNavigate }) {
+  return (
+    <div>
+      <h1 style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 28, fontWeight: 400, color: 'var(--color-carbon)', letterSpacing: '-0.01em', marginBottom: 28 }}>الفوترة والاشتراك</h1>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 24 }}>
+        <div className="card" style={{ borderRadius: 16 }}>
+          <div style={{ fontSize: 12, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 8 }}>الخطة الحالية</div>
+          <div style={{ fontSize: 24, fontWeight: 400, fontFamily: 'IBM Plex Sans Arabic, sans-serif', color: 'var(--color-carbon)', marginBottom: 4 }}>مجاني</div>
+          <div style={{ fontSize: 13, color: 'var(--color-pebble)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 20 }}>٣٢ صفحة متبقية من ٥٠</div>
+          <button className="btn-primary" style={{ fontSize: 13 }} onClick={() => onNavigate('pricing')}>ترقية الخطة</button>
+        </div>
+        <div className="card" style={{ borderRadius: 16 }}>
+          <div style={{ fontSize: 12, color: 'var(--color-stone)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 8 }}>الإنفاق هذا الشهر</div>
+          <div style={{ fontSize: 24, fontWeight: 400, fontFamily: 'IBM Plex Sans Arabic, sans-serif', color: 'var(--color-carbon)', marginBottom: 4 }}>٠ ريال</div>
+          <div style={{ fontSize: 13, color: 'var(--color-pebble)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>لا توجد معاملات</div>
+        </div>
+      </div>
+      <div className="card" style={{ borderRadius: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--color-carbon)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 16 }}>سجل المعاملات</div>
+        <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--color-pebble)', fontSize: 14, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>
+          لا توجد معاملات بعد
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── SETTINGS PAGE ─── */
+function SettingsPage() {
+  return (
+    <div>
+      <h1 style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 28, fontWeight: 400, color: 'var(--color-carbon)', letterSpacing: '-0.01em', marginBottom: 28 }}>الإعدادات</h1>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {[
+          { title: 'المعلومات الشخصية', fields: [{ label: 'الاسم الكامل', val: 'أحمد محمد العلي', type: 'text' }, { label: 'البريد الإلكتروني', val: 'ahmed@example.com', type: 'email' }] },
+          { title: 'الأمان', fields: [{ label: 'كلمة المرور الجديدة', val: '', type: 'password' }, { label: 'تأكيد كلمة المرور', val: '', type: 'password' }] },
+        ].map((section, i) => (
+          <div key={i} className="card" style={{ borderRadius: 16 }}>
+            <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--color-carbon)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 20 }}>{section.title}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {section.fields.map((f, j) => (
+                <div key={j}>
+                  <label style={{ fontSize: 13, color: 'var(--color-stone)', display: 'block', marginBottom: 6, fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{f.label}</label>
+                  <input type={f.type} defaultValue={f.val} style={{ width: '100%', maxWidth: 400, padding: '11px 14px', border: '1px solid var(--color-border)', borderRadius: 8, fontSize: 14, fontFamily: 'IBM Plex Sans Arabic, sans-serif', background: 'var(--color-fog)', color: 'var(--color-carbon)', outline: 'none', direction: f.type === 'email' ? 'ltr' : 'rtl' }} />
+                </div>
+              ))}
+            </div>
+            <button className="btn-primary" style={{ fontSize: 13, marginTop: 20 }}>حفظ التغييرات</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ─── ADMIN DASHBOARD ─── */
+function AdminDashboard({ onNavigate }) {
+  const [section, setSection] = useState('overview');
+  const navItems = [
+    { key: 'overview', label: 'نظرة عامة', icon: '⊞' },
+    { key: 'users', label: 'المستخدمون', icon: '👥' },
+    { key: 'jobs', label: 'الوظائف', icon: '≡' },
+    { key: 'revenue', label: 'الإيرادات', icon: '◎' },
+    { key: 'system', label: 'النظام', icon: '⚙' },
+  ];
+  return (
+    <div style={{ display: 'flex', minHeight: '100vh', background: 'var(--color-deep-slate)', direction: 'rtl' }}>
+      {/* Dark Sidebar */}
+      <div style={{ width: 220, background: '#1a1929', borderLeft: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, right: 0, bottom: 0, zIndex: 10 }}>
+        <div style={{ padding: '24px 20px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
+          <a href="#" onClick={e => { e.preventDefault(); onNavigate('landing'); }} style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 18, fontWeight: 500, color: '#fff', textDecoration: 'none' }}>
+            وَرَّاق<span style={{ color: 'var(--color-tangerine)' }}>.</span>
+          </a>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginTop: 2, fontFamily: 'IBM Plex Sans Arabic, sans-serif', letterSpacing: '0.1em' }}>ADMIN</div>
+        </div>
+        <nav style={{ flex: 1, padding: '16px 12px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {navItems.map(item => (
+            <button key={item.key} onClick={() => setSection(item.key)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 10, border: 'none', background: section === item.key ? 'rgba(246,146,81,0.15)' : 'transparent', color: section === item.key ? 'var(--color-tangerine)' : 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 14, fontFamily: 'IBM Plex Sans Arabic, sans-serif', textAlign: 'right', width: '100%', transition: 'all 0.15s' }}>
+              <span style={{ fontSize: 16, flexShrink: 0 }}>{item.icon}</span>
+              {item.label}
+            </button>
+          ))}
+        </nav>
+        <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.08)' }}>
+          <button className="btn-ghost" style={{ fontSize: 12, padding: '8px 14px', width: '100%', justifyContent: 'center' }} onClick={() => onNavigate('dashboard')}>← لوحة المستخدم</button>
+        </div>
+      </div>
+
+      {/* Admin content */}
+      <div style={{ flex: 1, marginRight: 220, padding: '32px', overflow: 'auto' }}>
+        {section === 'overview' && (
+          <>
+            <h1 style={{ fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 26, fontWeight: 400, color: '#fff', letterSpacing: '-0.01em', marginBottom: 28 }}>لوحة الإدارة</h1>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
+              {[
+                { label: 'إجمالي المستخدمين', value: '١,٢٤٧', delta: '+١٢٪', good: true },
+                { label: 'الوظائف اليوم', value: '٣٤٢', delta: '+٥٪', good: true },
+                { label: 'الإيرادات (مايو)', value: '٨,٤٢٠ ر', delta: '+١٨٪', good: true },
+                { label: 'معدل الخطأ', value: '٠.٨٪', delta: '-٢٪', good: true },
+              ].map((s, i) => (
+                <div key={i} style={{ background: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: '20px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 8 }}>{s.label}</div>
+                  <div style={{ fontSize: 26, fontWeight: 300, fontFamily: 'IBM Plex Sans Arabic, sans-serif', color: '#fff', letterSpacing: '-0.02em', marginBottom: 4 }}>{s.value}</div>
+                  <div style={{ fontSize: 11, color: s.good ? 'var(--color-tangerine)' : '#c97b84', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{s.delta} هذا الشهر</div>
+                </div>
+              ))}
+            </div>
+            {/* Recent users */}
+            <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 16, padding: 24, border: '1px solid rgba(255,255,255,0.08)', marginBottom: 20 }}>
+              <div style={{ fontSize: 14, fontWeight: 500, color: '#fff', fontFamily: 'IBM Plex Sans Arabic, sans-serif', marginBottom: 16 }}>آخر المستخدمين المسجلين</div>
+              {[
+                { name: 'فاطمة الحربي', email: 'fatima@univ.edu', plan: 'احترافي', date: 'اليوم' },
+                { name: 'خالد النمر', email: 'khalid@library.sa', plan: 'مجاني', date: 'اليوم' },
+                { name: 'رنا الجابر', email: 'rana@heritage.org', plan: 'مؤسسي', date: 'أمس' },
+              ].map((u, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 0', borderBottom: i < 2 ? '1px solid rgba(255,255,255,0.06)' : 'none' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(246,146,81,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, color: 'var(--color-tangerine)', flexShrink: 0 }}>{u.name[0]}</div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#fff', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{u.name}</div>
+                    <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', direction: 'ltr' }}>{u.email}</div>
+                  </div>
+                  <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 100, background: u.plan === 'مؤسسي' ? 'rgba(246,146,81,0.2)' : 'rgba(255,255,255,0.08)', color: u.plan === 'مؤسسي' ? 'var(--color-tangerine)' : 'rgba(255,255,255,0.5)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{u.plan}</span>
+                  <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.3)', fontFamily: 'IBM Plex Sans Arabic, sans-serif' }}>{u.date}</span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+        {section !== 'overview' && (
+          <div style={{ textAlign: 'center', padding: '120px 0' }}>
+            <div style={{ fontSize: 40, marginBottom: 16 }}>🔧</div>
+            <p style={{ color: 'rgba(255,255,255,0.4)', fontFamily: 'IBM Plex Sans Arabic, sans-serif', fontSize: 16 }}>قسم {navItems.find(n => n.key === section)?.label} — قيد التطوير</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── DEMO NAV BAR ─── */
+function DemoNav({ current, onNavigate }) {
+  const pages = [
+    { key: 'landing', label: 'الرئيسية' },
+    { key: 'login', label: 'دخول' },
+    { key: 'pricing', label: 'الأسعار' },
+    { key: 'dashboard', label: 'لوحة التحكم' },
+    { key: 'admin', label: 'المدير' },
+  ];
+  return (
+    <div className="demo-nav">
+      {pages.map(p => (
+        <button key={p.key} onClick={() => onNavigate(p.key)} style={{ padding: '7px 14px', border: 'none', borderRadius: 100, background: current === p.key ? 'var(--color-tangerine)' : 'transparent', color: current === p.key ? '#fff' : 'var(--color-stone)', fontSize: 12, fontWeight: current === p.key ? 500 : 400, cursor: 'pointer', transition: 'all 0.15s', fontFamily: 'IBM Plex Sans Arabic, sans-serif', whiteSpace: 'nowrap' }}>
+          {p.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/* ─── ROOT APP ─── */
+function App() {
+  const [page, setPage] = useState('landing');
+  const { tweaks } = useTweaks(TWEAK_DEFAULTS);
+
+  const navigate = (p) => {
+    setPage(p);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  return (
+    <>
+      {page === 'landing' && <LandingPage onNavigate={navigate} />}
+      {(page === 'login' || page === 'register') && <AuthPage mode={page} onNavigate={navigate} />}
+      {page === 'pricing' && <PricingPage onNavigate={navigate} />}
+      {page === 'dashboard' && <Dashboard onNavigate={navigate} />}
+      {page === 'admin' && <AdminDashboard onNavigate={navigate} />}
+      <DemoNav current={page} onNavigate={navigate} />
+      <TweaksPanel>
+        <TweakSection label="الخط والمحتوى">
+          <TweakToggle id="showEnglish" label="English Mode" />
+        </TweakSection>
+        <TweakSection label="الألوان">
+          <TweakColor id="accentColor" label="لون CTA" />
+        </TweakSection>
+      </TweaksPanel>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+
+<style>
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+</style>
+
+</body>
+</html>

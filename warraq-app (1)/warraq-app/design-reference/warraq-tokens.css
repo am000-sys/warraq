@@ -1,0 +1,141 @@
+/* وَرَّاق — Design Tokens (Dialog System, Arabic-first) */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
+
+:root {
+  /* ── Colors ── */
+  --color-tangerine: #f69251;
+  --color-midnight: #181825;
+  --color-graphite: #484758;
+  --color-deep-slate: #242433;
+  --color-carbon: #000000;
+  --color-stone: #636363;
+  --color-pebble: #949494;
+  --color-ash: #8b8b8b;
+  --color-fog: #f7f7f7;
+  --color-snow: #ffffff;
+  --color-dusty-rose: #c97b84;
+  --color-border: #e8e8e8;
+  --color-border-subtle: #f0f0f0;
+
+  /* ── Typography ── */
+  --font-heading: 'Satoshi', 'DM Sans', 'Cairo', sans-serif;
+  --font-body: 'Inter', 'IBM Plex Sans Arabic', sans-serif;
+  --font-arabic: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', sans-serif;
+
+  /* ── Type Scale ── */
+  --text-caption: 12px;
+  --text-body: 16px;
+  --text-subheading: 18px;
+  --text-heading-sm: 24px;
+  --text-heading: 32px;
+  --text-heading-lg: 50px;
+  --text-display: 70px;
+
+  /* ── Spacing ── */
+  --sp-4: 4px; --sp-8: 8px; --sp-12: 12px; --sp-16: 16px;
+  --sp-20: 20px; --sp-24: 24px; --sp-32: 32px; --sp-40: 40px;
+  --sp-48: 48px; --sp-64: 64px; --sp-80: 80px; --sp-96: 96px;
+  --sp-128: 128px;
+
+  /* ── Radii ── */
+  --r-sm: 8px;
+  --r-card: 24px;
+  --r-badge: 100px;
+  --r-btn: 28px;
+  --r-nav: 32px;
+  --r-input: 0px;
+  --r-inner: 12px;
+
+  /* ── Shadows ── */
+  --shadow-card: rgba(24, 24, 37, 0.12) 0px 2px 3px -2px;
+  --shadow-btn: rgba(0,0,0,0.04) 0px 1px 2px, rgba(0,0,0,0.02) 0px 2px 4px, rgba(0,0,0,0.02) 0px 4px 8px;
+  --shadow-nav: rgba(24,24,37,0.08) 0px 4px 16px -4px;
+
+  /* ── Layout ── */
+  --max-w: 1200px;
+}
+
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; scroll-behavior: smooth; }
+
+body {
+  background: var(--color-fog);
+  color: var(--color-carbon);
+  font-family: var(--font-body);
+  font-size: var(--text-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Arabic text class */
+.ar {
+  font-family: var(--font-arabic);
+  direction: rtl;
+  text-align: right;
+}
+
+/* ── Utility classes ── */
+.container {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 0 var(--sp-24);
+}
+
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--color-tangerine);
+  color: var(--color-carbon);
+  border: none;
+  border-radius: var(--r-btn);
+  padding: 12px 24px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  box-shadow: var(--shadow-btn);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-primary:active { transform: translateY(0); }
+
+.btn-ghost {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--color-snow);
+  color: var(--color-carbon);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-btn);
+  padding: 12px 24px;
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.btn-ghost:hover { background: var(--color-fog); border-color: #ccc; }
+
+.badge {
+  display: inline-flex; align-items: center;
+  background: var(--color-snow);
+  border: 1px solid var(--color-border);
+  border-radius: var(--r-badge);
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-graphite);
+  letter-spacing: -0.01em;
+}
+
+.card {
+  background: var(--color-snow);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-card);
+  padding: var(--sp-24);
+}
