@@ -1,0 +1,193 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ══════════════════════════════════
+   وَرَّاق — Design System
+   Reference: design-reference/warraq-v3.html
+══════════════════════════════════ */
+
+:root {
+  --fog: #f7f7f7;
+  --snow: #ffffff;
+  --carbon: #000000;
+  --midnight: #181825;
+  --slate: #242433;
+  --graphite: #484758;
+  --stone: #636363;
+  --pebble: #949494;
+  --ash: #8b8b8b;
+  --orange: #f69251;
+  --orange-soft: rgba(246, 146, 81, 0.1);
+  --orange-mid: rgba(246, 146, 81, 0.18);
+  --rose: #c97b84;
+  --border: #e8e8e8;
+  --border-sub: #f0f0f0;
+  --success: #6dbd7a;
+
+  --r-btn: 28px;
+  --r-card: 24px;
+  --r-badge: 100px;
+  --r-nav: 32px;
+  --r-inner: 12px;
+
+  --shadow-card: rgba(24, 24, 37, 0.1) 0px 2px 8px -2px;
+  --shadow-btn: rgba(0, 0, 0, 0.06) 0px 2px 8px, rgba(0, 0, 0, 0.04) 0px 1px 2px;
+  --shadow-nav: rgba(24, 24, 37, 0.08) 0px 4px 20px -4px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--fog);
+  color: var(--carbon);
+  font-family: "Tajawal", ui-sans-serif, system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  direction: rtl;
+}
+
+@layer components {
+  /* ── Container ── */
+  .container-warraq {
+    max-width: 1160px;
+    margin: 0 auto;
+    padding: 0 28px;
+  }
+
+  /* ── Buttons ── */
+  .btn-primary {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--orange);
+    color: var(--carbon);
+    border: none;
+    border-radius: var(--r-btn);
+    padding: 13px 28px;
+    font-family: "Tajawal", sans-serif;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    box-shadow: var(--shadow-btn);
+    transition: all 0.18s ease;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .btn-primary:hover:not(:disabled) {
+    filter: brightness(1.05);
+    transform: translateY(-1px);
+    box-shadow: rgba(246, 146, 81, 0.3) 0px 6px 20px;
+  }
+  .btn-primary:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--snow);
+    color: var(--carbon);
+    border: 1px solid var(--border);
+    border-radius: var(--r-btn);
+    padding: 13px 28px;
+    font-family: "Tajawal", sans-serif;
+    font-size: 15px;
+    font-weight: 400;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  .btn-ghost:hover {
+    border-color: var(--orange);
+  }
+
+  /* ── Badge ── */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: var(--snow);
+    border: 1px solid var(--border);
+    border-radius: var(--r-badge);
+    padding: 5px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--graphite);
+    font-family: "Tajawal", sans-serif;
+  }
+
+  /* ── Card ── */
+  .card {
+    background: var(--snow);
+    border-radius: var(--r-card);
+    box-shadow: var(--shadow-card);
+    border: 1px solid var(--border-sub);
+    padding: 28px;
+  }
+
+  /* ── Form fields ── */
+  .field {
+    width: 100%;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: "Tajawal", sans-serif;
+    background: var(--fog);
+    color: var(--carbon);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .field:focus {
+    border-color: var(--orange);
+  }
+  .field-ltr {
+    direction: ltr;
+    text-align: right;
+  }
+
+  .label {
+    display: block;
+    font-size: 13px;
+    color: var(--stone);
+    margin-bottom: 6px;
+    font-family: "Tajawal", sans-serif;
+  }
+}
+
+@layer utilities {
+  .text-display {
+    font-size: clamp(40px, 6vw, 72px);
+    font-weight: 300;
+    line-height: 1.13;
+    letter-spacing: -0.025em;
+  }
+  .text-h1 {
+    font-size: clamp(28px, 4vw, 48px);
+    font-weight: 300;
+    line-height: 1.18;
+    letter-spacing: -0.02em;
+  }
+  .text-h2 {
+    font-size: clamp(26px, 3.5vw, 44px);
+    font-weight: 300;
+    line-height: 1.18;
+    letter-spacing: -0.02em;
+  }
+  /* Hide scrollbars on horizontal scroll */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+}

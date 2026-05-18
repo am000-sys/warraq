@@ -1,0 +1,470 @@
+// schema.prisma
+// قاعدة بيانات وَرَّاق - مخطّط شامل
+//
+// المخطّط يدعم:
+// - مستخدمين أفراد + مؤسسات (multi-tenancy)
+// - ٣ مستويات أدوار: USER, ORG_ADMIN/MEMBER, SYSTEM_ADMIN
+// - اشتراكات شهرية + دفع لمرّة واحدة (PAYG)
+// - بوّابتا دفع: Stripe + Tap
+// - مفاتيح API للمطوّرين
+// - تتبّع كامل للوظائف والصفحات
+// - سجلّات معاملات للمحاسبة
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── الأدوار ──────────────────────────────────
+enum SystemRole {
+  USER
+  SYSTEM_ADMIN
+}
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  TRIALING
+  INCOMPLETE
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELED
+}
+
+enum PageStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum PaymentGateway {
+  STRIPE
+  TAP
+}
+
+enum PaymentType {
+  SUBSCRIPTION
+  ONE_TIME      // PAYG / دفعة واحدة
+  REFUND
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum ExportFormat {
+  TXT
+  MD
+  DOCX
+  JSON
+  PDF_SEARCHABLE
+}
+
+enum ClaudeModel {
+  HAIKU
+  SONNET
+  OPUS
+}
+
+// ─── المستخدمون والمصادقة ─────────────────────
+model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  passwordHash  String?  // null لو OAuth فقط
+  emailVerified DateTime?
+  image         String?
+
+  systemRole    SystemRole @default(USER)
+  locale        String   @default("ar")
+
+  // رصيد الصفحات الشخصي (للأفراد، خارج اشتراك المؤسسة)
+  pagesBalance  Int      @default(10)  // ١٠ صفحات مجاناً عند التسجيل
+
+  // علاقة الاشتراك الشخصي (1:1 — يحتاج @unique)
+  subscriptionId String? @unique
+  subscription  Subscription? @relation(fields: [subscriptionId], references: [id])
+
+  // المعرّفات الخارجية
+  stripeCustomerId String? @unique
+  tapCustomerId    String? @unique
+
+  // العلاقات
+  accounts      Account[]
+  sessions      Session[]
+  orgMemberships OrgMember[]
+  ownedOrgs     Organization[] @relation("OrgOwner")
+  jobs          Job[]
+  apiKeys       ApiKey[]
+  transactions  Transaction[]
+  invitations   Invitation[]  @relation("InvitedBy")
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([email])
+  @@index([stripeCustomerId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model PasswordReset {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([email])
+}
+
+// ─── المؤسسات (Multi-tenancy) ────────────────
+model Organization {
+  id              String   @id @default(cuid())
+  name            String
+  slug            String   @unique
+  ownerId         String
+  owner           User     @relation("OrgOwner", fields: [ownerId], references: [id])
+
+  // رصيد المؤسسة المشترك
+  pagesBalance    Int      @default(0)
+
+  // الاشتراك
+  subscriptionId  String?  @unique
+  subscription    Subscription? @relation("OrgSubscription", fields: [subscriptionId], references: [id])
+
+  // المعرّفات الخارجية
+  stripeCustomerId String? @unique
+  tapCustomerId    String? @unique
+
+  // العلاقات
+  members         OrgMember[]
+  jobs            Job[]
+  apiKeys         ApiKey[]
+  invitations     Invitation[]
+  transactions    Transaction[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([slug])
+  @@index([ownerId])
+}
+
+model OrgMember {
+  id     String  @id @default(cuid())
+  userId String
+  orgId  String
+  role   OrgRole @default(MEMBER)
+
+  // حدّ شهري اختياري لكل عضو (null = غير محدود)
+  monthlyPageLimit Int?
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  joinedAt DateTime @default(now())
+
+  @@unique([userId, orgId])
+  @@index([orgId])
+}
+
+model Invitation {
+  id        String   @id @default(cuid())
+  orgId     String
+  email     String
+  role      OrgRole  @default(MEMBER)
+  token     String   @unique
+  invitedById String
+  expires   DateTime
+  acceptedAt DateTime?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invitedBy    User         @relation("InvitedBy", fields: [invitedById], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@index([email])
+  @@index([token])
+}
+
+// ─── خطط الاشتراك ─────────────────────────────
+model Plan {
+  id              String   @id @default(cuid())
+  slug            String   @unique          // free | researcher | verifier | custom
+  nameAr          String
+  nameEn          String
+
+  monthlyPriceSar Int                       // بالهللات (SAR cents)
+  yearlyPriceSar  Int?
+
+  pagesPerMonth   Int                       // ٠ للمجاني = ١٠، باحث = ٥٠٠، محقّق = ٢٥٠٠
+  maxFileSizeMb   Int      @default(10)
+  maxBatchSize    Int      @default(1)
+
+  allowedFormats  ExportFormat[]
+  apiAccess       Boolean  @default(false)
+  prioritySupport Boolean  @default(false)
+  defaultModel    ClaudeModel @default(SONNET)
+
+  // معرّفات بوّابات الدفع
+  stripeProductId String?
+  stripePriceMonthlyId String?
+  stripePriceYearlyId  String?
+
+  isActive        Boolean  @default(true)
+  isOrg           Boolean  @default(false)  // خطّة للمؤسسات فقط
+
+  subscriptions   Subscription[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  planId               String
+  plan                 Plan     @relation(fields: [planId], references: [id])
+
+  status               SubscriptionStatus @default(ACTIVE)
+  gateway              PaymentGateway
+  externalId           String   @unique     // Stripe sub_id أو Tap subscription id
+
+  currentPeriodStart   DateTime
+  currentPeriodEnd     DateTime
+  cancelAtPeriodEnd    Boolean  @default(false)
+  canceledAt           DateTime?
+
+  // ربط معكوس
+  user                 User?
+  organization         Organization? @relation("OrgSubscription")
+
+  // سجلّ التجديد لإعادة تعبئة الرصيد
+  lastRenewedAt        DateTime?
+
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([externalId])
+  @@index([status])
+}
+
+// ─── الوظائف (الترميز الضوئي) ──────────────────
+model Job {
+  id              String    @id @default(cuid())
+  userId          String                              // المالك (الشخص الذي رفع)
+  user            User      @relation(fields: [userId], references: [id])
+
+  orgId           String?                             // null للأفراد
+  organization    Organization? @relation(fields: [orgId], references: [id])
+
+  // معلومات الملف
+  fileName        String
+  fileSize        Int                                 // بالبايت
+  fileChecksum    String                              // SHA-256
+  storageKey      String                              // مفتاح R2
+
+  // معلومات المعالجة
+  totalPages      Int
+  processedPages  Int       @default(0)
+  failedPages     Int       @default(0)
+
+  status          JobStatus @default(PENDING)
+  model           ClaudeModel
+  dpi             Int       @default(200)
+
+  // التكلفة الفعلية
+  inputTokens     Int       @default(0)
+  outputTokens    Int       @default(0)
+  costUsd         Decimal   @default(0) @db.Decimal(10, 6)
+  pagesCharged    Int       @default(0)               // الصفحات المخصومة من رصيد المستخدم
+
+  // إن كانت دفعة واحدة (PAYG)
+  isPayg          Boolean   @default(false)
+  paygTransactionId String? @unique
+  paygTransaction Transaction? @relation("PaygJob", fields: [paygTransactionId], references: [id])
+
+  // التواريخ
+  startedAt       DateTime?
+  completedAt     DateTime?
+  expiresAt       DateTime?                           // تاريخ حذف النتائج تلقائياً (مثلاً ٣٠ يوم)
+  errorMessage    String?
+
+  pages           JobPage[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([orgId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model JobPage {
+  id                String   @id @default(cuid())
+  jobId             String
+  job               Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  sequentialNumber  Int                              // الترتيب التسلسلي ١، ٢، ٣
+  printedNumber     String?                          // الرقم المطبوع داخل الصفحة (٣٢، ٣٣، ...)
+
+  status            PageStatus @default(PENDING)
+  textContent       String?  @db.Text                // النص المستخرج
+  rawResponse       Json?                            // الردّ الكامل من Claude (للمراجعة)
+
+  inputTokens       Int      @default(0)
+  outputTokens      Int      @default(0)
+
+  errorMessage      String?
+
+  processedAt       DateTime?
+  createdAt         DateTime @default(now())
+
+  @@unique([jobId, sequentialNumber])
+  @@index([jobId])
+  @@index([status])
+}
+
+// ─── المعاملات المالية ────────────────────────
+model Transaction {
+  id              String   @id @default(cuid())
+
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id])
+
+  orgId           String?
+  organization    Organization? @relation(fields: [orgId], references: [id])
+
+  // المبلغ
+  amountSar       Int                                // بالهللات (SAR cents)
+  pagesGranted    Int      @default(0)               // عدد الصفحات الممنوحة
+
+  type            PaymentType
+  status          TransactionStatus @default(PENDING)
+  gateway         PaymentGateway
+  externalId      String?                            // Stripe payment_intent أو Tap charge_id
+
+  // وصف
+  description     String?
+  metadata        Json?
+
+  // ربط بوظيفة PAYG لو كانت دفعة لمرّة واحدة
+  paygJob         Job?     @relation("PaygJob")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId])
+  @@index([orgId])
+  @@index([externalId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ─── مفاتيح API للمطوّرين ─────────────────────
+model ApiKey {
+  id          String   @id @default(cuid())
+  userId      String?                                // مفتاح شخصي
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  orgId       String?                                // أو مفتاح مؤسسة
+  organization Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  name        String
+  keyPrefix   String                                 // أوّل ١٠ أحرف للعرض (wq_pk_xxx...)
+  keyHash     String   @unique                       // hash للمفتاح الكامل
+
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+
+  rateLimit   Int      @default(60)                  // طلبات في الدقيقة
+
+  createdAt   DateTime @default(now())
+
+  @@index([keyHash])
+  @@index([userId])
+  @@index([orgId])
+}
+
+// ─── الإعدادات والسجلّات ──────────────────────
+model SystemSetting {
+  key         String   @id
+  value       Json
+  description String?
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  action    String                                   // مثل: user.login, job.created, plan.changed
+  entity    String?                                  // المورد المتأثّر: user, job, org
+  entityId  String?
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}

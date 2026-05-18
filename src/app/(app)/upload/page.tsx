@@ -1,0 +1,311 @@
+// src/app/(app)/upload/page.tsx — رفع ملف جديد
+// مرجع: design-reference/warraq-v3.html (function UploadSection)
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { Upload as UploadIcon, FileText, X } from "lucide-react";
+
+const models = [
+  { k: "HAIKU", l: "Claude Haiku", d: "سريع وفعّال", t: "مجاني" },
+  { k: "SONNET", l: "Claude Sonnet", d: "متوازن · موصى به", t: "احترافي" },
+  { k: "OPUS", l: "Claude Opus", d: "أعلى دقة للمخطوطات الصعبة", t: "مؤسسي" },
+] as const;
+
+export default function UploadPage() {
+  const router = useRouter();
+  const [files, setFiles] = useState<File[]>([]);
+  const [model, setModel] = useState<"HAIKU" | "SONNET" | "OPUS">("SONNET");
+  const [dragging, setDragging] = useState(false);
+  const [progress, setProgress] = useState("");
+  const [error, setError] = useState("");
+
+  function addFiles(list: FileList | File[]) {
+    setFiles((prev) => [...prev, ...Array.from(list)]);
+  }
+
+  async function handleStart() {
+    if (!files.length) return;
+    setError("");
+
+    // For simplicity, process the first file (the original logic was single-file)
+    const file = files[0];
+    setProgress("جارٍ تحضير الرفع...");
+
+    try {
+      const signRes = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileName: file.name,
+          fileSize: file.size,
+          contentType: file.type || "application/pdf",
+        }),
+      });
+      if (!signRes.ok) throw new Error((await signRes.json()).error ?? "فشل تحضير الرفع");
+      const { uploadUrl, storageKey } = await signRes.json();
+
+      setProgress("جارٍ رفع الملف...");
+      const upRes = await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: { "Content-Type": file.type || "application/pdf" },
+      });
+      if (!upRes.ok) throw new Error("فشل الرفع");
+
+      setProgress("جارٍ بدء المعالجة...");
+      const jobRes = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storageKey,
+          fileName: file.name,
+          fileSize: file.size,
+          model,
+        }),
+      });
+      if (!jobRes.ok) {
+        const data = await jobRes.json();
+        if (jobRes.status === 402) {
+          throw new Error(`رصيد غير كافٍ. تحتاج ${data.required} صفحة، لديك ${data.available}.`);
+        }
+        throw new Error(data.error ?? "فشل إنشاء الوظيفة");
+      }
+
+      const { job } = await jobRes.json();
+      router.push(`/jobs/${job.id}`);
+    } catch (err) {
+      setError((err as Error).message);
+      setProgress("");
+    }
+  }
+
+  return (
+    <div>
+      <h1
+        style={{
+          fontFamily: "Tajawal, sans-serif",
+          fontSize: 26,
+          fontWeight: 400,
+          color: "var(--carbon)",
+          marginBottom: 28,
+        }}
+      >
+        رفع ملف جديد
+      </h1>
+
+      {/* Drop zone */}
+      <div
+        onDragOver={(e) => {
+          e.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragging(false);
+          addFiles(e.dataTransfer.files);
+        }}
+        onClick={() => document.getElementById("file-input")?.click()}
+        className="cursor-pointer transition-all"
+        style={{
+          border: `2px dashed ${dragging ? "var(--orange)" : "var(--border)"}`,
+          borderRadius: 20,
+          padding: "52px 24px",
+          textAlign: "center",
+          background: dragging ? "var(--orange-soft)" : "var(--snow)",
+          marginBottom: 20,
+        }}
+      >
+        <div
+          className="mx-auto flex items-center justify-center mb-3.5"
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: "50%",
+            background: "var(--orange-soft)",
+            color: "var(--orange)",
+          }}
+        >
+          <UploadIcon size={24} strokeWidth={1.7} />
+        </div>
+        <p
+          style={{
+            fontFamily: "Tajawal, sans-serif",
+            fontSize: 16,
+            fontWeight: 500,
+            color: "var(--carbon)",
+            marginBottom: 6,
+          }}
+        >
+          اسحب ملفاتك هنا أو اضغط للاختيار
+        </p>
+        <p
+          className="font-light"
+          style={{
+            fontFamily: "Tajawal, sans-serif",
+            fontSize: 13,
+            color: "var(--stone)",
+          }}
+        >
+          PDF · PNG · JPG · TIFF · حتى ٥٠٠ ميجابايت
+        </p>
+        <input
+          id="file-input"
+          type="file"
+          multiple
+          accept="application/pdf,image/png,image/jpeg,image/tiff"
+          onChange={(e) => e.target.files && addFiles(e.target.files)}
+          style={{ display: "none" }}
+        />
+      </div>
+
+      {/* Files */}
+      {files.length > 0 && (
+        <div className="card" style={{ borderRadius: 16, marginBottom: 18, padding: "16px 20px" }}>
+          {files.map((f, i) => (
+            <div
+              key={i}
+              className="flex items-center gap-2.5"
+              style={{
+                padding: "8px 0",
+                borderBottom: i < files.length - 1 ? "1px solid var(--border-sub)" : "none",
+              }}
+            >
+              <FileText size={18} color="var(--stone)" />
+              <span
+                className="flex-1"
+                style={{
+                  fontSize: 13,
+                  color: "var(--carbon)",
+                  fontFamily: "Tajawal, sans-serif",
+                }}
+              >
+                {f.name}
+              </span>
+              <span style={{ fontSize: 11, color: "var(--pebble)", fontFamily: "Inter, sans-serif" }}>
+                {(f.size / 1024 / 1024).toFixed(1)} MB
+              </span>
+              <button
+                onClick={() => setFiles(files.filter((_, j) => j !== i))}
+                className="cursor-pointer"
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "var(--pebble)",
+                  padding: 4,
+                }}
+              >
+                <X size={16} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Model picker */}
+      <div className="card" style={{ borderRadius: 16, marginBottom: 18 }}>
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 500,
+            color: "var(--carbon)",
+            fontFamily: "Tajawal, sans-serif",
+            marginBottom: 14,
+          }}
+        >
+          اختر النموذج
+        </div>
+        {models.map((m) => (
+          <label
+            key={m.k}
+            className="flex items-center gap-3 cursor-pointer transition-all"
+            style={{
+              padding: "13px 14px",
+              border: `1.5px solid ${model === m.k ? "var(--orange)" : "var(--border)"}`,
+              borderRadius: 12,
+              background: model === m.k ? "var(--orange-soft)" : "transparent",
+              marginBottom: 8,
+            }}
+          >
+            <input
+              type="radio"
+              name="model"
+              checked={model === m.k}
+              onChange={() => setModel(m.k)}
+              style={{ accentColor: "var(--orange)", flexShrink: 0 }}
+            />
+            <div className="flex-1">
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: "var(--carbon)",
+                  fontFamily: "Tajawal, sans-serif",
+                }}
+              >
+                {m.l}
+              </div>
+              <div
+                className="font-light"
+                style={{
+                  fontSize: 12,
+                  color: "var(--stone)",
+                  fontFamily: "Tajawal, sans-serif",
+                }}
+              >
+                {m.d}
+              </div>
+            </div>
+            <span className="badge" style={{ fontSize: 10 }}>
+              {m.t}
+            </span>
+          </label>
+        ))}
+      </div>
+
+      {error && (
+        <div
+          className="mb-4"
+          style={{
+            background: "rgba(201,123,132,0.10)",
+            border: "1px solid rgba(201,123,132,0.20)",
+            color: "var(--rose)",
+            borderRadius: 12,
+            padding: 12,
+            fontSize: 13,
+            fontFamily: "Tajawal, sans-serif",
+          }}
+        >
+          {error}
+        </div>
+      )}
+
+      {progress && !error && (
+        <p
+          className="text-center mb-3"
+          style={{
+            fontSize: 13,
+            color: "var(--stone)",
+            fontFamily: "Tajawal, sans-serif",
+          }}
+        >
+          {progress}
+        </p>
+      )}
+
+      <button
+        onClick={handleStart}
+        disabled={!files.length || !!progress}
+        className="btn-primary"
+        style={{
+          fontSize: 15,
+          padding: "13px 32px",
+          opacity: !files.length || !!progress ? 0.4 : 1,
+        }}
+      >
+        {progress ? progress : `ابدأ المعالجة${files.length > 0 ? ` (${files.length} ملف)` : ""}`}
+      </button>
+    </div>
+  );
+}
