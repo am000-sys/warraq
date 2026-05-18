@@ -83,7 +83,7 @@ export function Testimonials() {
                 fontFamily: "Georgia, serif",
               }}
             >
-              "
+              &ldquo;
             </div>
             <p
               className="font-light"
