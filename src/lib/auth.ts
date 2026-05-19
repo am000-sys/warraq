@@ -20,6 +20,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(db),
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
+  debug: true,
   providers: [
     Credentials({
       credentials: {
@@ -27,21 +28,46 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: {},
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
-        const user = await db.user.findUnique({
-          where: { email: String(credentials.email).toLowerCase() },
-        });
-        if (!user?.passwordHash) return null;
-        const ok = await bcrypt.compare(
-          String(credentials.password),
-          user.passwordHash,
-        );
-        if (!ok) return null;
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-        };
+        // ── سجلّات تشخيصية (مؤقّتة لحلّ مشكلة الدخول) ──
+        console.log("[authorize] called with email:", credentials?.email);
+
+        if (!credentials?.email || !credentials?.password) {
+          console.log("[authorize] missing email or password");
+          return null;
+        }
+
+        try {
+          const email = String(credentials.email).toLowerCase().trim();
+          const password = String(credentials.password);
+
+          const user = await db.user.findUnique({
+            where: { email },
+          });
+
+          console.log(
+            "[authorize] user lookup:",
+            user ? `found id=${user.id} hashLen=${user.passwordHash?.length}` : "NOT FOUND",
+          );
+
+          if (!user?.passwordHash) {
+            console.log("[authorize] user has no passwordHash");
+            return null;
+          }
+
+          const ok = await bcrypt.compare(password, user.passwordHash);
+          console.log("[authorize] bcrypt compare result:", ok);
+
+          if (!ok) return null;
+
+          return {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+          };
+        } catch (err) {
+          console.error("[authorize] ERROR:", err);
+          throw err;
+        }
       },
     }),
   ],
