@@ -1,6 +1,7 @@
 // src/app/(app)/settings/page.tsx — إعدادات الحساب
 import { getCurrentUser } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
+import { ChangePasswordForm } from "@/components/change-password-form";
 import { ar } from "@/lib/utils";
 
 export default async function SettingsPage() {
@@ -36,6 +37,11 @@ export default async function SettingsPage() {
             value={new Date(user.createdAt).toLocaleDateString("ar-SA")}
           />
         </dl>
+      </div>
+
+      {/* Change Password */}
+      <div className="mb-4">
+        <ChangePasswordForm />
       </div>
 
       {/* Preferences */}
