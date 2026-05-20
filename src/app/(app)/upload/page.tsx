@@ -42,7 +42,15 @@ export default function UploadPage() {
           contentType: file.type || "application/pdf",
         }),
       });
-      if (!signRes.ok) throw new Error((await signRes.json()).error ?? "فشل تحضير الرفع");
+      if (!signRes.ok) {
+        const data = await signRes.json().catch(() => ({}));
+        if (data?.configRequired) {
+          throw new Error(
+            "تخزين الملفّات لم يُعَدّ بعد على الخادم. سيُفعَّل قريباً عند ربط Cloudflare R2.",
+          );
+        }
+        throw new Error(data?.error ?? "فشل تحضير الرفع");
+      }
       const { uploadUrl, storageKey } = await signRes.json();
 
       setProgress("جارٍ رفع الملف...");
