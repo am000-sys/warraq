@@ -71,7 +71,7 @@ export default async function DashboardPage() {
 
       {/* Stats */}
       <div
-        className="grid"
+        className="grid wq-grid-4"
         style={{ gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }}
       >
         <StatCard

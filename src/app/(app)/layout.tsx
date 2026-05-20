@@ -35,7 +35,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         }}
       />
       <div
-        className="flex-1 overflow-y-auto"
+        className="flex-1 overflow-y-auto wq-app-main"
         style={{ marginRight: 228, padding: 36 }}
       >
         {children}

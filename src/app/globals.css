@@ -191,3 +191,57 @@ body {
     scrollbar-width: none;
   }
 }
+
+/* ══════════════════════════════════
+   استجابة الجوال (Mobile responsive)
+   تستعمل !important لتجاوز الـ inline styles على الشاشات الصغيرة
+══════════════════════════════════ */
+@media (max-width: 860px) {
+  .container-warraq {
+    padding: 0 18px;
+  }
+
+  /* إخفاء عناصر سطح المكتب */
+  .wq-hide-mobile {
+    display: none !important;
+  }
+
+  /* الشبكات: عمود واحد */
+  .wq-grid,
+  .wq-grid-2,
+  .wq-grid-3 {
+    grid-template-columns: 1fr !important;
+  }
+  /* شبكات الإحصائيات: عمودان */
+  .wq-grid-4 {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  /* تقليل المسافات الكبيرة */
+  .wq-section {
+    padding: 56px 0 !important;
+  }
+
+  /* إطار اللوحة (app/admin) — السايدبار يصبح علوياً */
+  .wq-app-main {
+    margin-right: 0 !important;
+    padding: 76px 16px 24px !important; /* 56px للشريط العلوي + هامش */
+  }
+  .wq-sidebar {
+    transform: translateX(100%);
+    transition: transform 0.25s ease;
+  }
+  .wq-sidebar.wq-sidebar-open {
+    transform: translateX(0);
+    box-shadow: -8px 0 40px rgba(0, 0, 0, 0.2);
+  }
+  .wq-mobile-topbar {
+    display: flex !important;
+  }
+}
+
+/* شريط علوي للجوال (مخفيّ على سطح المكتب) */
+.wq-mobile-topbar {
+  display: none;
+}
+

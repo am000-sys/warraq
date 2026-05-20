@@ -262,16 +262,42 @@ export default function UploadPage() {
       )}
 
       {progress && !error && (
-        <p
-          className="text-center mb-3"
-          style={{
-            fontSize: 13,
-            color: "var(--stone)",
-            fontFamily: "Tajawal, sans-serif",
-          }}
-        >
-          {progress}
-        </p>
+        <div className="mb-4">
+          <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+            <span
+              className="flex items-center gap-2"
+              style={{ fontSize: 13, color: "var(--orange)", fontFamily: "Tajawal, sans-serif", fontWeight: 500 }}
+            >
+              <span
+                className="w-1.5 h-1.5 rounded-full animate-pulse-dot"
+                style={{ background: "var(--orange)" }}
+              />
+              {progress}
+            </span>
+          </div>
+          {/* شريط تقدّم متحرّك (indeterminate) */}
+          <div
+            style={{
+              height: 6,
+              background: "var(--fog)",
+              borderRadius: 3,
+              overflow: "hidden",
+              position: "relative",
+            }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                height: "100%",
+                width: "40%",
+                background: "var(--orange)",
+                borderRadius: 3,
+                animation: "warraq-progress 1.2s ease-in-out infinite",
+              }}
+            />
+          </div>
+          <style>{`@keyframes warraq-progress { 0%{right:-40%} 100%{right:100%} }`}</style>
+        </div>
       )}
 
       <button

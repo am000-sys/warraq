@@ -4,22 +4,24 @@
 import Link from "next/link";
 import { useState } from "react";
 
+// التسعير محسوب بهامش ربح ~٧٠٪ فوق تكلفة Claude Vision التقديريّة
+// (تكلفة الصفحة ~٠٫٠٦ ريال بنموذج Sonnet → السعر ~٠٫٢٥ ريال/صفحة)
 const plans = [
   {
     tier: "مجاني",
     price: { monthly: 0, yearly: 0 },
-    feats: ["٥٠ صفحة / شهر", "Claude Haiku", "تصدير TXT و MD", "دعم بالبريد"],
+    feats: ["٥ صفحات / شهر", "Claude Haiku", "تصدير TXT و MD", "دعم بالبريد"],
     cta: "ابدأ مجاناً",
   },
   {
     tier: "احترافي",
-    price: { monthly: 49, yearly: 39 },
+    price: { monthly: 99, yearly: 79 },
     badge: "الأكثر شيوعاً",
     feats: [
-      "١٠٠٠ صفحة / شهر",
+      "٥٠٠ صفحة / شهر",
       "Haiku + Sonnet",
       "جميع صيغ التصدير",
-      "API كاملة",
+      "أولوية المعالجة",
       "دعم أولوية",
     ],
     cta: "اشترك الآن",
@@ -27,13 +29,13 @@ const plans = [
   },
   {
     tier: "مؤسسي",
-    price: { monthly: 199, yearly: 159 },
+    price: { monthly: 449, yearly: 359 },
     feats: [
-      "صفحات غير محدودة",
-      "جميع النماذج",
-      "إدارة فريق + SSO",
+      "٢٥٠٠ صفحة / شهر",
+      "جميع النماذج (Opus)",
+      "إدارة فريق",
       "مدير حساب مخصص",
-      "SLA ٩٩.٩٪",
+      "وصول API",
     ],
     cta: "تواصل معنا",
   },
@@ -113,7 +115,7 @@ export function Pricing({ standalone = false }: { standalone?: boolean }) {
         </div>
 
         <div
-          className="grid mx-auto"
+          className="grid mx-auto wq-grid-3"
           style={{ gridTemplateColumns: "repeat(3,1fr)", gap: 18, maxWidth: 900 }}
         >
           {plans.map((plan, i) => (

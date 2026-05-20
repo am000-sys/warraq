@@ -40,7 +40,7 @@ export function Nav() {
           <Logo size={0.82} />
         </Link>
 
-        <ul className="flex items-center gap-8 list-none">
+        <ul className="flex items-center gap-8 list-none wq-hide-mobile">
           {links.map((item) => (
             <li key={item.l}>
               <Link

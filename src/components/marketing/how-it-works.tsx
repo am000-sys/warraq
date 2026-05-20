@@ -28,7 +28,7 @@ export function HowItWorks() {
   return (
     <section id="how" style={{ padding: "96px 0", background: "var(--snow)" }}>
       <div className="container-warraq">
-        <div className="grid items-center" style={{ gridTemplateColumns: "1fr 1fr", gap: 64 }}>
+        <div className="grid items-center wq-grid-2" style={{ gridTemplateColumns: "1fr 1fr", gap: 64 }}>
           <div>
             <div className="badge mb-4" style={{ marginBottom: 18 }}>
               كيف يعمل

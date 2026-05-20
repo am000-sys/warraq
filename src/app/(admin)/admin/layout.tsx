@@ -24,7 +24,7 @@ export default async function AdminLayout({
     <div className="flex min-h-screen" style={{ background: "var(--fog)", direction: "rtl" }}>
       <AdminSidebar name={user?.name || user?.email.split("@")[0] || "مالك"} />
       <div
-        className="flex-1 overflow-y-auto"
+        className="flex-1 overflow-y-auto wq-app-main"
         style={{ marginRight: 228, padding: 36 }}
       >
         {children}

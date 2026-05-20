@@ -73,7 +73,7 @@ export function Features() {
             من المخطوط الأصلي إلى نص رقمي قابل للبحث والتحرير.
           </p>
         </div>
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(3,1fr)", gap: 18 }}>
+        <div className="grid gap-4 wq-grid-3" style={{ gridTemplateColumns: "repeat(3,1fr)", gap: 18 }}>
           {feats.map((f, i) => (
             <FeatureCard key={i} {...f} />
           ))}

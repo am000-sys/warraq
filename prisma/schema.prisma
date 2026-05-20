@@ -100,7 +100,7 @@ model User {
   locale        String   @default("ar")
 
   // رصيد الصفحات الشخصي (للأفراد، خارج اشتراك المؤسسة)
-  pagesBalance  Int      @default(10)  // ١٠ صفحات مجاناً عند التسجيل
+  pagesBalance  Int      @default(5)  // ٥ صفحات مجاناً عند التسجيل
 
   // علاقة الاشتراك الشخصي (1:1 — يحتاج @unique)
   subscriptionId String? @unique

@@ -59,7 +59,7 @@ export function Testimonials() {
           </p>
         </div>
 
-        <div className="grid" style={{ gridTemplateColumns: "repeat(2,1fr)", gap: 18 }}>
+        <div className="grid wq-grid-2" style={{ gridTemplateColumns: "repeat(2,1fr)", gap: 18 }}>
           {audiences.map((a, i) => {
             const Icon = a.icon;
             return (

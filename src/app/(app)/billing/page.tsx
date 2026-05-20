@@ -19,17 +19,17 @@ const plans: PaidPlan[] = [
   {
     slug: "researcher",
     tier: "احترافي",
-    price: 49,
-    pages: 1000,
-    feats: ["١٠٠٠ صفحة / شهر", "Haiku + Sonnet", "جميع صيغ التصدير", "API كاملة"],
+    price: 99,
+    pages: 500,
+    feats: ["٥٠٠ صفحة / شهر", "Haiku + Sonnet", "جميع صيغ التصدير", "أولوية المعالجة"],
   },
   {
     slug: "verifier",
     tier: "مؤسسي",
-    price: 199,
-    pages: 5000,
+    price: 449,
+    pages: 2500,
     badge: "الأفضل قيمة",
-    feats: ["صفحات غير محدودة", "جميع النماذج", "إدارة فريق + SSO", "SLA ٩٩.٩٪"],
+    feats: ["٢٥٠٠ صفحة / شهر", "جميع النماذج (Opus)", "إدارة فريق", "وصول API"],
     featured: true,
   },
 ];
