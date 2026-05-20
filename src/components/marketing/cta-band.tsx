@@ -50,7 +50,7 @@ export function CTABand() {
             fontFamily: "Tajawal, sans-serif",
           }}
         >
-          انضم إلى أكثر من ١٢٠٠ باحث يستخدمون وَرَّاق يومياً.
+          ابدأ مجاناً بـ ٥٠ صفحة — بدون بطاقة ائتمانية.
         </p>
         <Link
           href="/signup"

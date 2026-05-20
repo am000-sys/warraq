@@ -10,7 +10,7 @@ import { FileText, Image as ImageIcon, Plus } from "lucide-react";
 export default async function DashboardPage() {
   const user = (await getCurrentUser())!;
 
-  const [recentJobs, totalJobs, monthlyAgg] = await Promise.all([
+  const [recentJobs, totalJobs, monthlyAgg, processingJobs] = await Promise.all([
     db.job.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -34,6 +34,7 @@ export default async function DashboardPage() {
       },
       _sum: { processedPages: true },
     }),
+    db.job.count({ where: { userId: user.id, status: "PROCESSING" } }),
   ]);
 
   const monthlyPages = monthlyAgg._sum.processedPages ?? 0;
@@ -88,7 +89,11 @@ export default async function DashboardPage() {
           value={ar(user.pagesBalance)}
           sub="صفحة"
         />
-        <StatCard label="وقت المعالجة" value="٢.٤ث" sub="لكل صفحة" />
+        <StatCard
+          label="قيد المعالجة"
+          value={ar(processingJobs)}
+          sub="وظيفة الآن"
+        />
       </div>
 
       {/* Recent jobs */}

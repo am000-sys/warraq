@@ -70,26 +70,26 @@ export function Hero() {
         </Link>
       </div>
 
-      {/* Trust badges */}
+      {/* Trust badges — قدرات واقعيّة بلا أرقام مُختلَقة */}
       <div className="flex items-center gap-6 flex-wrap justify-center mb-16">
         <div className="flex items-center gap-2">
-          <span style={{ color: "var(--orange)", letterSpacing: "1px", fontSize: 12 }}>★★★★★</span>
+          <span style={{ fontSize: 13 }}>✦</span>
           <span style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>
-            دقة ٩٨٪+ في العربية
+            مدعوم بـ Claude Vision
           </span>
         </div>
         <div className="w-px h-3.5" style={{ background: "var(--border)" }} />
         <div className="flex items-center gap-2">
-          <span style={{ color: "var(--orange)", letterSpacing: "1px", fontSize: 12 }}>★★★★★</span>
+          <span style={{ fontSize: 13 }}>📜</span>
           <span style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>
-            يدعم المخطوطات القديمة
+            يدعم الخطوط العربية القديمة
           </span>
         </div>
         <div className="w-px h-3.5" style={{ background: "var(--border)" }} />
         <div className="flex items-center gap-2">
           <span style={{ fontSize: 13 }}>🔒</span>
           <span style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>
-            بياناتك مشفرة بالكامل
+            بياناتك مشفّرة بالكامل
           </span>
         </div>
       </div>

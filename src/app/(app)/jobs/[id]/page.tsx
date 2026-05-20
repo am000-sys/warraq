@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ar } from "@/lib/utils";
 import { ArrowRight, Download } from "lucide-react";
+import { JobAutoRefresh } from "@/components/job-auto-refresh";
 
 export default async function JobDetailPage({
   params,
@@ -46,6 +47,9 @@ export default async function JobDetailPage({
 
   return (
     <div>
+      {(job.status === "PROCESSING" || job.status === "PENDING") && (
+        <JobAutoRefresh jobId={job.id} />
+      )}
       <Link
         href="/jobs"
         className="inline-flex items-center gap-1.5 mb-4 no-underline transition-colors"

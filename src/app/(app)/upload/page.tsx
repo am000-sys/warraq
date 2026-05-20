@@ -81,6 +81,11 @@ export default function UploadPage() {
       }
 
       const { job } = await jobRes.json();
+
+      // إطلاق المعالجة (fire-and-forget — لا ننتظر اكتمالها)
+      setProgress("جارٍ بدء المعالجة بـ Claude...");
+      fetch(`/api/jobs/${job.id}/process`, { method: "POST" }).catch(() => {});
+
       router.push(`/jobs/${job.id}`);
     } catch (err) {
       setError((err as Error).message);

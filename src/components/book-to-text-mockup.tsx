@@ -210,10 +210,10 @@ export function BookToTextMockup() {
                   borderRadius: 4,
                   padding: "2px 8px",
                   color: "var(--orange)",
-                  fontFamily: "Inter, sans-serif",
+                  fontFamily: "Tajawal, sans-serif",
                 }}
               >
-                ٩٨٪ دقة
+                نصّ رقمي
               </span>
             </div>
             <div
@@ -286,7 +286,7 @@ export function BookToTextMockup() {
             {[
               { l: "النموذج", v: "Claude Sonnet" },
               { l: "الصفحة", v: `${Math.round(scanPos / 10 + 1)} / ٢٤٠` },
-              { l: "الدقة", v: "٩٨.٢٪" },
+              { l: "الصيغة", v: "نصّ + Markdown" },
             ].map((s, i) => (
               <div key={i} className="flex gap-1.5 items-center">
                 <span style={{ fontSize: 11, color: "var(--pebble)", fontFamily: "Tajawal, sans-serif" }}>
