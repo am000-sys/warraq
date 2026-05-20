@@ -30,63 +30,30 @@ export default function UploadPage() {
 
     // For simplicity, process the first file (the original logic was single-file)
     const file = files[0];
-    setProgress("جارٍ تحضير الرفع...");
+    setProgress("جارٍ الرفع والمعالجة بـ Claude...");
 
     try {
-      const signRes = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileSize: file.size,
-          contentType: file.type || "application/pdf",
-        }),
-      });
-      if (!signRes.ok) {
-        const data = await signRes.json().catch(() => ({}));
+      // المسار المباشر: يرسل الملفّ ويعالجه في طلب واحد (بدون R2)
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("model", model);
+
+      const res = await fetch("/api/jobs/direct", { method: "POST", body: fd });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
         if (data?.configRequired) {
           throw new Error(
-            "تخزين الملفّات لم يُعَدّ بعد على الخادم. سيُفعَّل قريباً عند ربط Cloudflare R2.",
+            "خدمة الـ OCR غير مُعَدّة بعد. يحتاج المالك ضبط مفتاح Anthropic على الخادم.",
           );
         }
-        throw new Error(data?.error ?? "فشل تحضير الرفع");
-      }
-      const { uploadUrl, storageKey } = await signRes.json();
-
-      setProgress("جارٍ رفع الملف...");
-      const upRes = await fetch(uploadUrl, {
-        method: "PUT",
-        body: file,
-        headers: { "Content-Type": file.type || "application/pdf" },
-      });
-      if (!upRes.ok) throw new Error("فشل الرفع");
-
-      setProgress("جارٍ بدء المعالجة...");
-      const jobRes = await fetch("/api/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          storageKey,
-          fileName: file.name,
-          fileSize: file.size,
-          model,
-        }),
-      });
-      if (!jobRes.ok) {
-        const data = await jobRes.json();
-        if (jobRes.status === 402) {
-          throw new Error(`رصيد غير كافٍ. تحتاج ${data.required} صفحة، لديك ${data.available}.`);
+        if (res.status === 402) {
+          throw new Error(`رصيد غير كافٍ. لديك ${data.available ?? 0} صفحة.`);
         }
-        throw new Error(data.error ?? "فشل إنشاء الوظيفة");
+        throw new Error(data?.error ?? "فشلت المعالجة");
       }
 
-      const { job } = await jobRes.json();
-
-      // إطلاق المعالجة (fire-and-forget — لا ننتظر اكتمالها)
-      setProgress("جارٍ بدء المعالجة بـ Claude...");
-      fetch(`/api/jobs/${job.id}/process`, { method: "POST" }).catch(() => {});
-
-      router.push(`/jobs/${job.id}`);
+      const { jobId } = await res.json();
+      router.push(`/jobs/${jobId}`);
     } catch (err) {
       setError((err as Error).message);
       setProgress("");
