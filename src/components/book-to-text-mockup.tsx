@@ -85,10 +85,10 @@ export function BookToTextMockup() {
         </div>
 
         {/* Two panels */}
-        <div className="grid" style={{ gridTemplateColumns: "1fr 56px 1fr", minHeight: 300 }}>
+        <div className="grid wq-mockup-grid" style={{ gridTemplateColumns: "1fr 56px 1fr", minHeight: 300 }}>
           {/* LEFT — scanned page */}
           <div
-            className="flex flex-col gap-2.5"
+            className="flex flex-col gap-2.5 wq-mockup-panel"
             style={{ padding: 20, borderLeft: "1px solid var(--border-sub)" }}
           >
             <div className="flex justify-between items-center mb-1">
@@ -157,12 +157,12 @@ export function BookToTextMockup() {
 
           {/* CENTER — arrow */}
           <div
-            className="flex flex-col items-center justify-center gap-2"
+            className="flex flex-col items-center justify-center gap-2 wq-mockup-divider"
             style={{ padding: "20px 0", borderLeft: "1px solid var(--border-sub)" }}
           >
-            <div className="w-px flex-1" style={{ background: "var(--border-sub)" }} />
+            <div className="w-px flex-1 wq-divider-line" style={{ background: "var(--border-sub)" }} />
             <div
-              className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+              className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 wq-divider-arrow"
               style={{
                 background: "var(--orange-soft)",
                 border: "1px solid rgba(246,146,81,0.3)",
@@ -190,7 +190,7 @@ export function BookToTextMockup() {
           </div>
 
           {/* RIGHT — extracted text */}
-          <div className="flex flex-col gap-2.5" style={{ padding: 20 }}>
+          <div className="flex flex-col gap-2.5 wq-mockup-panel" style={{ padding: 20 }}>
             <div className="flex justify-between items-center mb-1">
               <span
                 style={{

@@ -238,6 +238,30 @@ body {
   .wq-mobile-topbar {
     display: flex !important;
   }
+
+  /* المحاكاة التفاعليّة (كتاب → نص): تكدّس عمودي على الجوال */
+  .wq-mockup-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .wq-mockup-panel {
+    border-left: none !important;
+    border-bottom: 1px solid var(--border-sub) !important;
+    min-height: 230px; /* ثبات الارتفاع كي لا يقفز أثناء الكتابة */
+  }
+  .wq-mockup-divider {
+    flex-direction: row !important;
+    border-left: none !important;
+    border-bottom: 1px solid var(--border-sub) !important;
+    padding: 12px 0 !important;
+  }
+  /* إخفاء الخطوط الرأسيّة الطويلة على الجوال */
+  .wq-divider-line {
+    display: none !important;
+  }
+  /* توجيه السهم لأسفل (← يصبح ↓) */
+  .wq-divider-arrow {
+    transform: rotate(-90deg);
+  }
 }
 
 /* شريط علوي للجوال (مخفيّ على سطح المكتب) */
