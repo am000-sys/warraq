@@ -469,3 +469,21 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
 }
+
+// طلبات شحن الرصيد عبر الحوالة البنكيّة (اعتماد يدوي من المالك)
+model TopUpRequest {
+  id           String    @id @default(cuid())
+  userId       String
+  packageId    String                                // small | medium | large
+  pages        Int
+  amountSar    Int                                   // بالهللات
+  senderName   String                                // اسم المُحوِّل
+  receiptImage String    @db.Text                    // صورة الإيصال (data URL base64)
+  status       String    @default("PENDING")         // PENDING | APPROVED | REJECTED
+  note         String?                               // سبب الرفض أو ملاحظة
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([status])
+  @@index([userId])
+}
