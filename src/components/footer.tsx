@@ -8,8 +8,7 @@ const cols = [
   { title: "المنتج", links: [
     { l: "المميزات", href: "/#features" },
     { l: "الأسعار", href: "/pricing" },
-    { l: "API", href: "/#api" },
-    { l: "التوثيق", href: "/#docs" },
+    { l: "كيف يعمل", href: "/#how" },
   ] },
   { title: "الشركة", links: [
     { l: "من نحن", href: "#" },

@@ -1,6 +1,5 @@
 // src/components/nav.tsx
-// شريط التنقّل العلوي العائم
-// مرجع: design-reference/warraq-v3.html (function Nav)
+// شريط التنقّل العلوي العائم — يتعرّف على حالة الدخول
 "use client";
 
 import Link from "next/link";
@@ -11,15 +10,24 @@ const links = [
   { l: "المميزات", href: "/#features" },
   { l: "كيف يعمل", href: "/#how" },
   { l: "الأسعار", href: "/pricing" },
-  { l: "API", href: "/#api" },
 ];
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
+  const [authed, setAuthed] = useState<boolean | null>(null);
+
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 48);
     window.addEventListener("scroll", fn);
     return () => window.removeEventListener("scroll", fn);
+  }, []);
+
+  // تحقّق من حالة الدخول دون إخراج المستخدم
+  useEffect(() => {
+    fetch("/api/auth/session")
+      .then((r) => r.json())
+      .then((s) => setAuthed(Boolean(s?.user)))
+      .catch(() => setAuthed(false));
   }, []);
 
   return (
@@ -55,16 +63,24 @@ export function Nav() {
         </ul>
 
         <div className="flex items-center gap-2.5">
-          <Link
-            href="/login"
-            className="text-sm font-medium text-carbon px-4 py-2 rounded-btn hover:bg-fog transition-colors no-underline"
-            style={{ fontFamily: "Tajawal, sans-serif" }}
-          >
-            تسجيل الدخول
-          </Link>
-          <Link href="/signup" className="btn-primary text-sm" style={{ padding: "10px 22px" }}>
-            ابدأ مجاناً
-          </Link>
+          {authed ? (
+            <Link href="/dashboard" className="btn-primary text-sm no-underline" style={{ padding: "10px 22px" }}>
+              لوحة التحكم
+            </Link>
+          ) : (
+            <>
+              <Link
+                href="/login"
+                className="text-sm font-medium text-carbon px-4 py-2 rounded-btn hover:bg-fog transition-colors no-underline wq-hide-mobile"
+                style={{ fontFamily: "Tajawal, sans-serif" }}
+              >
+                تسجيل الدخول
+              </Link>
+              <Link href="/signup" className="btn-primary text-sm no-underline" style={{ padding: "10px 22px" }}>
+                ابدأ مجاناً
+              </Link>
+            </>
+          )}
         </div>
       </nav>
     </div>
