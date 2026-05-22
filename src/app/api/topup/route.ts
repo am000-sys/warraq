@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPackage } from "@/lib/packages";
+import { sendEmail, newTopupForOwnerEmail } from "@/lib/email";
 
 const schema = z.object({
   packageId: z.enum(["small", "medium", "large"]),
@@ -36,6 +37,22 @@ export async function POST(req: NextRequest) {
       },
       select: { id: true, status: true },
     });
+
+    // إشعار المالك (مالكو النظام) بطلب جديد — يُتجاهَل بصمت إن لم يُضبط Resend
+    const admins = await db.user.findMany({
+      where: { systemRole: "SYSTEM_ADMIN" },
+      select: { email: true },
+    });
+    const me = await db.user.findUnique({
+      where: { id: session.user.id },
+      select: { email: true },
+    });
+    for (const a of admins) {
+      sendEmail({
+        to: a.email,
+        ...newTopupForOwnerEmail(me?.email ?? "مستخدم", pkg.pages, Math.round(pkg.amountSar * 100)),
+      }).catch(() => {});
+    }
 
     return NextResponse.json({ request });
   } catch (err) {
