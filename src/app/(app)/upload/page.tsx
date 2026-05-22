@@ -5,6 +5,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload as UploadIcon, FileText, X } from "lucide-react";
+import { ProcessingView } from "@/components/processing-view";
 
 const models = [
   { k: "HAIKU", l: "سريع", d: "سريع وفعّال للكتب الواضحة", t: "صفحة واحدة لكل صفحة" },
@@ -19,9 +20,18 @@ export default function UploadPage() {
   const [dragging, setDragging] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
+  const [preview, setPreview] = useState<string | null>(null);
 
   function addFiles(list: FileList | File[]) {
-    setFiles((prev) => [...prev, ...Array.from(list)]);
+    const arr = Array.from(list);
+    setFiles((prev) => [...prev, ...arr]);
+    // معاينة لأوّل صورة (للعرض أثناء المعالجة)
+    const img = arr.find((f) => f.type.startsWith("image/"));
+    if (img && !preview) {
+      const reader = new FileReader();
+      reader.onload = () => setPreview(reader.result as string);
+      reader.readAsDataURL(img);
+    }
   }
 
   async function handleStart() {
@@ -74,6 +84,11 @@ export default function UploadPage() {
         رفع ملف جديد
       </h1>
 
+      {/* أثناء المعالجة: تجربة بصريّة بدل النموذج */}
+      {progress ? (
+        <ProcessingView previewUrl={preview} />
+      ) : (
+      <>
       {/* Drop zone */}
       <div
         onDragOver={(e) => {
@@ -312,6 +327,8 @@ export default function UploadPage() {
       >
         {progress ? progress : `ابدأ المعالجة${files.length > 0 ? ` (${files.length} ملف)` : ""}`}
       </button>
+      </>
+      )}
     </div>
   );
 }
