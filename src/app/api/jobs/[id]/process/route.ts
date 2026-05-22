@@ -31,7 +31,7 @@ export async function POST(
   }
   if (!isClaudeConfigured) {
     return NextResponse.json(
-      { error: "مفتاح Anthropic غير مُعَدّ", configRequired: true },
+      { error: "خدمة المعالجة غير مهيّأة", configRequired: true },
       { status: 503 },
     );
   }

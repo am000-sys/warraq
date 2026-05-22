@@ -33,13 +33,30 @@ export function BookToTextMockup() {
   useEffect(() => {
     let pos = 0;
     let chars = 0;
-    const t = setInterval(() => {
-      pos = pos >= 100 ? 0 : pos + 1.2;
-      chars = pos >= 100 ? 0 : Math.min(chars + 3, 100);
+    let t: ReturnType<typeof setInterval> | null = null;
+    const tick = () => {
+      pos = pos >= 100 ? 0 : pos + 1.6;
+      chars = pos >= 100 ? 0 : Math.min(chars + 4, 100);
       setScanPos(pos);
       setTextVisible(chars);
-    }, 35);
-    return () => clearInterval(t);
+    };
+    const start = () => {
+      if (!t) t = setInterval(tick, 50);
+    };
+    const stop = () => {
+      if (t) {
+        clearInterval(t);
+        t = null;
+      }
+    };
+    // أوقف الحركة عندما تكون الصفحة مخفيّة (يوفّر المعالج)
+    const onVis = () => (document.hidden ? stop() : start());
+    document.addEventListener("visibilitychange", onVis);
+    start();
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVis);
+    };
   }, []);
 
   return (
@@ -284,7 +301,7 @@ export function BookToTextMockup() {
         >
           <div className="flex gap-5">
             {[
-              { l: "النموذج", v: "وَرَّاق متوازن" },
+              { l: "النموذج", v: "جيد" },
               { l: "الصفحة", v: `${Math.round(scanPos / 10 + 1)} / ٢٤٠` },
               { l: "الصيغة", v: "نصّ + Markdown" },
             ].map((s, i) => (

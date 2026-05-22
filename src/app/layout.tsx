@@ -20,7 +20,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: "وَرَّاق — تحويل الكتب العربية إلى نصوص",
   description:
-    "منصّة احترافية لتحويل الكتب العربية المصوّرة إلى نصوص رقمية دقيقة باستخدام Claude Vision.",
+    "منصّة احترافية لتحويل الكتب العربية المصوّرة إلى نصوص رقمية دقيقة بالذكاء الاصطناعي.",
   metadataBase: new URL("https://warraq.sa"),
   openGraph: {
     title: "وَرَّاق",

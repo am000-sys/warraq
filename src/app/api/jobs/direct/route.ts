@@ -10,6 +10,7 @@ import {
   extractTextFromPdfPage,
 } from "@/lib/claude";
 import { isImageFile, isPdfFile, imageBufferToPage, splitPdfPages } from "@/lib/pdf";
+import { modelCredits } from "@/lib/models";
 import type { ClaudeModel } from "@prisma/client";
 
 export const maxDuration = 300;
@@ -63,8 +64,17 @@ export async function POST(req: NextRequest) {
 
     const totalPages = isPdf ? pdfPages.length : 1;
 
-    // لا نعالج أكثر من رصيد المستخدم
-    const pagesToProcess = Math.min(totalPages, user.pagesBalance);
+    // معامل الاستهلاك بحسب النموذج (فائق يستهلك أكثر)
+    const credits = modelCredits(model);
+    // أقصى عدد صفحات يسمح به الرصيد الحالي
+    const affordablePages = Math.floor(user.pagesBalance / credits);
+    const pagesToProcess = Math.min(totalPages, affordablePages);
+    if (pagesToProcess < 1) {
+      return NextResponse.json(
+        { error: "رصيد غير كافٍ لهذا النموذج", available: user.pagesBalance },
+        { status: 402 },
+      );
+    }
 
     const job = await db.job.create({
       data: {
@@ -117,18 +127,19 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // خصم الرصيد + إنهاء الوظيفة
+    // خصم الرصيد (صفحات × معامل النموذج) + إنهاء الوظيفة
+    const charged = processed * credits;
     await db.$transaction([
       db.user.update({
         where: { id: user.id },
-        data: { pagesBalance: { decrement: processed } },
+        data: { pagesBalance: { decrement: charged } },
       }),
       db.job.update({
         where: { id: job.id },
         data: {
           status: "COMPLETED",
           processedPages: processed,
-          pagesCharged: processed,
+          pagesCharged: charged,
           inputTokens,
           outputTokens,
           completedAt: new Date(),
@@ -136,7 +147,7 @@ export async function POST(req: NextRequest) {
       }),
     ]);
 
-    return NextResponse.json({ jobId: job.id, pages: processed });
+    return NextResponse.json({ jobId: job.id, pages: processed, charged });
   } catch (err) {
     const raw = (err as Error)?.message ?? "unknown";
     console.error("[jobs.direct]", err);
