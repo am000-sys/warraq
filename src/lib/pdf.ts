@@ -36,3 +36,21 @@ export function imageBufferToPage(buffer: Buffer, fileName: string): InputPage {
   const mediaType = IMAGE_TYPES[ext] ?? "image/png";
   return { base64: buffer.toString("base64"), mediaType };
 }
+
+// تقسيم PDF إلى صفحات مفردة (كلّ صفحة PDF مستقلّ base64)
+// يستعمل pdf-lib (JS خالص — متوافق مع Vercel serverless دون binaries خارجيّة)
+export async function splitPdfPages(buffer: Buffer): Promise<string[]> {
+  const { PDFDocument } = await import("pdf-lib");
+  const src = await PDFDocument.load(buffer, { ignoreEncryption: true });
+  const total = src.getPageCount();
+  const pages: string[] = [];
+  for (let i = 0; i < total; i++) {
+    const doc = await PDFDocument.create();
+    const [copied] = await doc.copyPages(src, [i]);
+    doc.addPage(copied);
+    const bytes = await doc.save();
+    pages.push(Buffer.from(bytes).toString("base64"));
+  }
+  return pages;
+}
+

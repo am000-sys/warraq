@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { sendEmail, topupApprovedEmail } from "@/lib/email";
 
 const schema = z.object({
   action: z.enum(["approve", "reject"]),
@@ -50,6 +51,17 @@ export async function POST(
           },
         }),
       ]);
+
+      // إشعار المستخدم بالاعتماد (يُتجاهَل إن لم يُضبط Resend)
+      const u = await db.user.findUnique({
+        where: { id: request.userId },
+        select: { email: true, name: true },
+      });
+      if (u) {
+        sendEmail({ to: u.email, ...topupApprovedEmail(u.name ?? "", request.pages) }).catch(
+          () => {},
+        );
+      }
     } else {
       await db.topUpRequest.update({
         where: { id },

@@ -1,16 +1,15 @@
 // src/app/api/jobs/direct/route.ts
-// رفع ومعالجة مباشرة (بدون R2) — للصور و PDF الصغيرة.
-// يقبل الملفّ مباشرةً، يستخرج النصّ بـ Claude، ويحفظ الوظيفة.
-// مناسب للبدء السريع بمفتاح Anthropic وحده.
+// رفع ومعالجة مباشرة. الصور: صفحة واحدة. PDF: يُقسَّم صفحة-صفحة
+// مع حفظ التقدّم تدريجياً وخصم الرصيد لكلّ صفحة.
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import {
   isClaudeConfigured,
   extractTextFromImage,
-  extractTextFromPdf,
+  extractTextFromPdfPage,
 } from "@/lib/claude";
-import { isImageFile, isPdfFile, imageBufferToPage } from "@/lib/pdf";
+import { isImageFile, isPdfFile, imageBufferToPage, splitPdfPages } from "@/lib/pdf";
 import type { ClaudeModel } from "@prisma/client";
 
 export const maxDuration = 300;
@@ -22,15 +21,12 @@ export async function POST(req: NextRequest) {
   }
   if (!isClaudeConfigured) {
     return NextResponse.json(
-      {
-        error: "خدمة الـ OCR غير مُعَدّة بعد",
-        details: "يحتاج المالك ضبط ANTHROPIC_API_KEY الحقيقي على Vercel.",
-        configRequired: true,
-      },
+      { error: "خدمة الـ OCR غير مُعَدّة بعد", configRequired: true },
       { status: 503 },
     );
   }
 
+  let jobId: string | null = null;
   try {
     const form = await req.formData();
     const file = form.get("file") as File | null;
@@ -52,7 +48,24 @@ export async function POST(req: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    // إنشاء سجلّ الوظيفة
+    // تحضير صفحات الإدخال
+    let pdfPages: string[] = [];
+    const isPdf = isPdfFile(file.name);
+    if (isPdf) {
+      pdfPages = await splitPdfPages(buffer);
+      if (pdfPages.length === 0) throw new Error("ملفّ PDF فارغ أو تالف");
+    } else if (!isImageFile(file.name)) {
+      return NextResponse.json(
+        { error: "صيغة غير مدعومة — استعمل PNG أو JPG أو PDF" },
+        { status: 400 },
+      );
+    }
+
+    const totalPages = isPdf ? pdfPages.length : 1;
+
+    // لا نعالج أكثر من رصيد المستخدم
+    const pagesToProcess = Math.min(totalPages, user.pagesBalance);
+
     const job = await db.job.create({
       data: {
         userId: session.user.id,
@@ -60,94 +73,95 @@ export async function POST(req: NextRequest) {
         fileSize: buffer.length,
         fileChecksum: "direct",
         storageKey: "direct",
-        totalPages: 0,
+        totalPages: pagesToProcess,
         model,
         status: "PROCESSING",
         startedAt: new Date(),
       },
     });
+    jobId = job.id;
 
-    try {
-      const savedPages: { seq: number; text: string; printed: string | null }[] = [];
-      let inputTokens = 0;
-      let outputTokens = 0;
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let processed = 0;
 
-      if (isPdfFile(file.name)) {
-        const result = await extractTextFromPdf(buffer.toString("base64"), model);
-        inputTokens = result.inputTokens;
-        outputTokens = result.outputTokens;
-        result.pages.forEach((p, i) =>
-          savedPages.push({ seq: i + 1, text: p.text, printed: p.printedPageNumber }),
-        );
-      } else if (isImageFile(file.name)) {
-        const page = imageBufferToPage(buffer, file.name);
-        const r = await extractTextFromImage(page.base64, page.mediaType, model);
-        inputTokens = r.inputTokens;
-        outputTokens = r.outputTokens;
-        savedPages.push({ seq: 1, text: r.text, printed: r.printedPageNumber });
-      } else {
-        throw new Error("صيغة غير مدعومة — استعمل PNG أو JPG أو PDF");
-      }
+    for (let i = 0; i < pagesToProcess; i++) {
+      const r = isPdf
+        ? await extractTextFromPdfPage(pdfPages[i], model)
+        : await extractTextFromImage(
+            imageBufferToPage(buffer, file.name).base64,
+            imageBufferToPage(buffer, file.name).mediaType,
+            model,
+          );
+      inputTokens += r.inputTokens;
+      outputTokens += r.outputTokens;
 
-      await db.jobPage.createMany({
-        data: savedPages.map((p) => ({
-          jobId: job.id,
-          sequentialNumber: p.seq,
-          printedNumber: p.printed,
-          status: "COMPLETED" as const,
-          textContent: p.text,
-          processedAt: new Date(),
-        })),
-      });
-
-      const pageCount = savedPages.length;
-      await db.$transaction([
-        db.user.update({
-          where: { id: user.id },
-          data: { pagesBalance: { decrement: pageCount } },
-        }),
-        db.job.update({
-          where: { id: job.id },
-          data: {
-            status: "COMPLETED",
-            totalPages: pageCount,
-            processedPages: pageCount,
-            pagesCharged: pageCount,
-            inputTokens,
-            outputTokens,
-            completedAt: new Date(),
-          },
-        }),
-      ]);
-
-      return NextResponse.json({ jobId: job.id, pages: pageCount });
-    } catch (procErr) {
-      await db.job.update({
-        where: { id: job.id },
+      await db.jobPage.create({
         data: {
-          status: "FAILED",
-          errorMessage: (procErr as Error).message?.slice(0, 500),
+          jobId: job.id,
+          sequentialNumber: i + 1,
+          printedNumber: r.printedPageNumber,
+          status: "COMPLETED",
+          textContent: r.text,
+          inputTokens: r.inputTokens,
+          outputTokens: r.outputTokens,
+          processedAt: new Date(),
         },
       });
-      throw procErr;
+
+      processed++;
+      // تحديث التقدّم تدريجياً (يظهر في صفحة الوظيفة عبر polling)
+      await db.job.update({
+        where: { id: job.id },
+        data: { processedPages: processed },
+      });
     }
+
+    // خصم الرصيد + إنهاء الوظيفة
+    await db.$transaction([
+      db.user.update({
+        where: { id: user.id },
+        data: { pagesBalance: { decrement: processed } },
+      }),
+      db.job.update({
+        where: { id: job.id },
+        data: {
+          status: "COMPLETED",
+          processedPages: processed,
+          pagesCharged: processed,
+          inputTokens,
+          outputTokens,
+          completedAt: new Date(),
+        },
+      }),
+    ]);
+
+    return NextResponse.json({ jobId: job.id, pages: processed });
   } catch (err) {
+    const raw = (err as Error)?.message ?? "unknown";
     console.error("[jobs.direct]", err);
-    return NextResponse.json({ error: friendlyError(err) }, { status: 500 });
+    // نسجّل الخطأ الخام في الوظيفة (يراه المالك)، ونُظهر رسالة ودودة للمستخدم
+    if (jobId) {
+      await db.job
+        .update({
+          where: { id: jobId },
+          data: { status: "FAILED", errorMessage: raw.slice(0, 800) },
+        })
+        .catch(() => {});
+    }
+    return NextResponse.json({ error: friendlyError(raw) }, { status: 500 });
   }
 }
 
-// تحويل أخطاء مزوّد الذكاء إلى رسائل واضحة للمستخدم (دون كشف المزوّد)
-function friendlyError(err: unknown): string {
-  const msg = (err as Error)?.message?.toLowerCase() ?? "";
-  if (msg.includes("credit balance") || msg.includes("billing")) {
-    return "خدمة المعالجة متوقّفة مؤقّتاً (انتهى الرصيد التشغيلي). يُرجى المحاولة لاحقاً أو التواصل مع الدعم.";
-  }
-  if (msg.includes("rate limit") || msg.includes("429") || msg.includes("overloaded")) {
+function friendlyError(raw: string): string {
+  const msg = raw.toLowerCase();
+  if (msg.includes("credit balance") || msg.includes("billing"))
+    return "خدمة المعالجة متوقّفة مؤقّتاً (رصيد تشغيلي). حاول لاحقاً أو تواصل مع الدعم.";
+  if (msg.includes("rate limit") || msg.includes("429") || msg.includes("overloaded"))
     return "الخدمة مزدحمة حالياً. حاول بعد دقيقة.";
-  }
-  if (msg.includes("authentication") || msg.includes("x-api-key") || msg.includes("401")) {
-    return "خدمة المعالجة غير مهيّأة حالياً. يُرجى التواصل مع الدعم.";
-  }
-  return "تعذّرت معالجة الملفّ. تأكّد من وضوح الصورة وحاول مجدّداً.";
+  if (msg.includes("authentication") || msg.includes("x-api-key") || msg.includes("401"))
+    return "خدمة المعالجة غير مهيّأة. يُرجى التواصل مع الدعم.";
+  if (msg.includes("not found") || msg.includes("model"))
+    return "تعذّر الوصول لنموذج المعالجة. تواصل مع الدعم.";
+  return "تعذّرت معالجة الملفّ. تأكّد من وضوح الصورة/الملفّ وحاول مجدّداً.";
 }

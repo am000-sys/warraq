@@ -88,6 +88,55 @@ export async function extractTextFromImage(
   };
 }
 
+// استخراج النصّ من صفحة PDF مفردة (مستند بصفحة واحدة)
+export async function extractTextFromPdfPage(
+  pdfBase64: string,
+  model: ClaudeModel,
+): Promise<OcrResult> {
+  if (!client) throw new Error("ANTHROPIC_NOT_CONFIGURED");
+
+  const response = await client.messages.create({
+    model: MODEL_IDS[model],
+    max_tokens: 8192,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "document",
+            source: { type: "base64", media_type: "application/pdf", data: pdfBase64 },
+          },
+          { type: "text", text: OCR_PROMPT },
+        ],
+      },
+    ],
+  });
+
+  const block = response.content.find((b) => b.type === "text");
+  const raw = block && block.type === "text" ? block.text : "";
+  let text = raw;
+  let printedPageNumber: string | null = null;
+  try {
+    const m = raw.match(/\{[\s\S]*\}/);
+    if (m) {
+      const parsed = JSON.parse(m[0]);
+      text = parsed.text ?? raw;
+      printedPageNumber =
+        parsed.printedPageNumber && parsed.printedPageNumber !== "null"
+          ? String(parsed.printedPageNumber)
+          : null;
+    }
+  } catch {
+    /* استخدم النصّ الخام */
+  }
+  return {
+    text: text.trim(),
+    printedPageNumber,
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+  };
+}
+
 // استخراج النصّ من مستند PDF كامل (يقرأ Claude كلّ الصفحات)
 const PDF_PROMPT = `أنت خبير في قراءة الكتب العربية المصوّرة (OCR). استخرج النصّ الكامل من هذا المستند صفحةً صفحة.
 

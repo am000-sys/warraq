@@ -2,6 +2,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { ChangePasswordForm } from "@/components/change-password-form";
+import { DeleteAccountButton } from "@/components/delete-account-button";
 import { ar } from "@/lib/utils";
 
 export default async function SettingsPage() {
@@ -107,21 +108,7 @@ export default async function SettingsPage() {
         >
           حذف الحساب يلغي كل بياناتك ووظائفك ومفاتيح API. لا يمكن التراجع.
         </p>
-        <button
-          className="cursor-pointer"
-          style={{
-            background: "none",
-            border: "1px solid rgba(201,123,132,0.30)",
-            color: "var(--rose)",
-            padding: "10px 22px",
-            borderRadius: "var(--r-btn)",
-            fontSize: 13,
-            fontFamily: "Tajawal, sans-serif",
-            fontWeight: 500,
-          }}
-        >
-          حذف الحساب
-        </button>
+        <DeleteAccountButton />
       </div>
     </div>
   );

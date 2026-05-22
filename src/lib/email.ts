@@ -39,6 +39,24 @@ export function passwordResetEmail(name: string, resetUrl: string) {
   };
 }
 
+export function topupApprovedEmail(name: string, pages: number) {
+  return {
+    subject: "تمّ شحن رصيدك — وَرَّاق",
+    html: `
+      <div style="font-family: 'Tajawal', sans-serif; direction: rtl; max-width: 480px; margin: 0 auto; padding: 32px;">
+        <h2 style="font-weight: 500; color: #181825;">مرحباً ${name}،</h2>
+        <p style="color: #484758; line-height: 1.7;">
+          تمّ اعتماد حوالتك وإضافة <strong style="color:#f69251;">${pages}</strong> صفحة إلى رصيدك.
+        </p>
+        <a href="https://warraq-nu.vercel.app/upload" style="display: inline-block; background: #f69251; color: #000; padding: 12px 28px; border-radius: 28px; text-decoration: none; font-weight: 500; margin: 16px 0;">
+          ابدأ المعالجة
+        </a>
+        <p style="color: #949494; font-size: 13px;">شكراً لاستخدامك وَرَّاق.</p>
+      </div>
+    `,
+  };
+}
+
 export function welcomeEmail(name: string) {
   return {
     subject: "أهلاً بك في وَرَّاق",

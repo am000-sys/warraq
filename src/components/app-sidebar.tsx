@@ -11,7 +11,6 @@ import {
   ListChecks,
   Wallet,
   Settings,
-  Building2,
   Menu,
   X,
 } from "lucide-react";
@@ -21,7 +20,6 @@ const items = [
   { k: "/upload", l: "رفع ملف", icon: Upload },
   { k: "/jobs", l: "الوظائف", icon: ListChecks },
   { k: "/billing", l: "شحن الرصيد", icon: Wallet },
-  { k: "/organization", l: "المؤسسة", icon: Building2 },
   { k: "/settings", l: "الإعدادات", icon: Settings },
 ];
 
