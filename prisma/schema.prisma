@@ -487,3 +487,11 @@ model TopUpRequest {
   @@index([status])
   @@index([userId])
 }
+
+// تتبّع التجربة المجانيّة عبر IP (دون تسجيل)
+model TrialUsage {
+  ip        String   @id
+  count     Int      @default(0)
+  lastAt    DateTime @default(now())
+  createdAt DateTime @default(now())
+}

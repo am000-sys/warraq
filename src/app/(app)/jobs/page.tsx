@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PageHeader, StatusPill } from "@/components/page-header";
 import { ar } from "@/lib/utils";
+import { modelName } from "@/lib/models";
 import { FileText, Image as ImageIcon, Plus } from "lucide-react";
 
 export default async function JobsPage() {
@@ -96,7 +97,7 @@ export default async function JobsPage() {
                     fontFamily: "Tajawal, sans-serif",
                   }}
                 >
-                  {ar(job.totalPages)} صفحة · {job.model} ·{" "}
+                  {ar(job.totalPages)} صفحة · {modelName(job.model)} ·{" "}
                   {new Date(job.createdAt).toLocaleString("ar-SA", {
                     dateStyle: "short",
                     timeStyle: "short",

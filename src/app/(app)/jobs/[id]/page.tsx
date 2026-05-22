@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ar } from "@/lib/utils";
+import { modelName } from "@/lib/models";
 import { ArrowRight, Download } from "lucide-react";
 import { JobAutoRefresh } from "@/components/job-auto-refresh";
 
@@ -86,7 +87,7 @@ export default async function JobDetailPage({
               fontFamily: "Tajawal, sans-serif",
             }}
           >
-            {ar(job.totalPages)} صفحة · {job.model} · {statusLabel(job.status)}
+            {ar(job.totalPages)} صفحة · {modelName(job.model)} · {statusLabel(job.status)}
             {job.status === "PROCESSING" && ` · ${ar(job.processedPages)}/${ar(job.totalPages)}`}
           </p>
         </div>

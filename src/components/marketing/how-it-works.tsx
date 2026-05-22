@@ -10,7 +10,7 @@ const steps = [
   },
   {
     t: "اختر النموذج",
-    d: "ثلاثة نماذج من Claude Vision — اختر Opus للمخطوطات الأصعب ودقة أعلى.",
+    d: "ثلاثة نماذج ذكاء — اختر الدقيق للمخطوطات الأصعب ودقة أعلى.",
   },
   {
     t: "انتظر المعالجة",
@@ -167,9 +167,9 @@ function Step0() {
 
 function Step1() {
   const models = [
-    { k: "Haiku", d: "سريع · للكتب الحديثة", active: false },
-    { k: "Sonnet", d: "متوازن · موصى به", active: true },
-    { k: "Opus", d: "الأدق · للمخطوطات الصعبة", active: false },
+    { k: "سريع", d: "للكتب الحديثة الواضحة", active: false },
+    { k: "متوازن", d: "موصى به للأغلب", active: true },
+    { k: "دقيق", d: "للمخطوطات الصعبة", active: false },
   ];
   return (
     <div className="flex flex-col" style={{ gap: 10 }}>

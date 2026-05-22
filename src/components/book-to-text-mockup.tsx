@@ -284,7 +284,7 @@ export function BookToTextMockup() {
         >
           <div className="flex gap-5">
             {[
-              { l: "النموذج", v: "Claude Sonnet" },
+              { l: "النموذج", v: "وَرَّاق متوازن" },
               { l: "الصفحة", v: `${Math.round(scanPos / 10 + 1)} / ٢٤٠` },
               { l: "الصيغة", v: "نصّ + Markdown" },
             ].map((s, i) => (

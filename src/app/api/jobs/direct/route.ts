@@ -133,9 +133,21 @@ export async function POST(req: NextRequest) {
     }
   } catch (err) {
     console.error("[jobs.direct]", err);
-    return NextResponse.json(
-      { error: (err as Error).message ?? "فشلت المعالجة" },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: friendlyError(err) }, { status: 500 });
   }
+}
+
+// تحويل أخطاء مزوّد الذكاء إلى رسائل واضحة للمستخدم (دون كشف المزوّد)
+function friendlyError(err: unknown): string {
+  const msg = (err as Error)?.message?.toLowerCase() ?? "";
+  if (msg.includes("credit balance") || msg.includes("billing")) {
+    return "خدمة المعالجة متوقّفة مؤقّتاً (انتهى الرصيد التشغيلي). يُرجى المحاولة لاحقاً أو التواصل مع الدعم.";
+  }
+  if (msg.includes("rate limit") || msg.includes("429") || msg.includes("overloaded")) {
+    return "الخدمة مزدحمة حالياً. حاول بعد دقيقة.";
+  }
+  if (msg.includes("authentication") || msg.includes("x-api-key") || msg.includes("401")) {
+    return "خدمة المعالجة غير مهيّأة حالياً. يُرجى التواصل مع الدعم.";
+  }
+  return "تعذّرت معالجة الملفّ. تأكّد من وضوح الصورة وحاول مجدّداً.";
 }

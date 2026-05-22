@@ -7,9 +7,9 @@ import { useRouter } from "next/navigation";
 import { Upload as UploadIcon, FileText, X } from "lucide-react";
 
 const models = [
-  { k: "HAIKU", l: "Claude Haiku", d: "سريع وفعّال", t: "مجاني" },
-  { k: "SONNET", l: "Claude Sonnet", d: "متوازن · موصى به", t: "احترافي" },
-  { k: "OPUS", l: "Claude Opus", d: "أعلى دقة للمخطوطات الصعبة", t: "مؤسسي" },
+  { k: "HAIKU", l: "وَرَّاق سريع", d: "سريع وفعّال", t: "مجاني" },
+  { k: "SONNET", l: "وَرَّاق متوازن", d: "متوازن · موصى به", t: "احترافي" },
+  { k: "OPUS", l: "وَرَّاق دقيق", d: "أعلى دقة للمخطوطات الصعبة", t: "مؤسسي" },
 ] as const;
 
 export default function UploadPage() {

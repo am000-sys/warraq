@@ -25,7 +25,7 @@ export function Hero() {
           className="w-1.5 h-1.5 rounded-full flex-shrink-0 animate-pulse-dot"
           style={{ background: "var(--orange)" }}
         />
-        مدعوم بـ Claude Vision · Anthropic
+        ذكاء اصطناعي متقدّم لقراءة العربية
       </div>
 
       {/* Headline */}
@@ -65,8 +65,8 @@ export function Hero() {
         <Link href="/signup" className="btn-primary no-underline" style={{ fontSize: 16, padding: "14px 32px" }}>
           ابدأ مجاناً — ٥ صفحات
         </Link>
-        <Link href="/dashboard" className="btn-ghost no-underline" style={{ fontSize: 16, padding: "14px 32px" }}>
-          شاهد العرض التجريبي
+        <Link href="/try" className="btn-ghost no-underline" style={{ fontSize: 16, padding: "14px 32px" }}>
+          جرّب مجاناً الآن
         </Link>
       </div>
 
@@ -75,7 +75,7 @@ export function Hero() {
         <div className="flex items-center gap-2">
           <span style={{ fontSize: 13 }}>✦</span>
           <span style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>
-            مدعوم بـ Claude Vision
+            ذكاء اصطناعي متقدّم
           </span>
         </div>
         <div className="w-px h-3.5" style={{ background: "var(--border)" }} />
