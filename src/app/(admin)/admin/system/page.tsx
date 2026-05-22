@@ -1,6 +1,7 @@
 // src/app/(admin)/admin/system/page.tsx — إعدادات النظام + سجلّ النشاط
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
+import { InitDbButton } from "@/components/init-db-button";
 
 export default async function AdminSystemPage() {
   const [recentLogs, settings] = await Promise.all([
@@ -14,6 +15,8 @@ export default async function AdminSystemPage() {
   return (
     <div>
       <PageHeader title="النظام" subtitle="إعدادات وسجلّ نشاط المنصّة." />
+
+      <InitDbButton />
 
       {/* Settings */}
       <h2

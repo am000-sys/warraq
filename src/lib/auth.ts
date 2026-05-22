@@ -11,7 +11,6 @@ declare module "next-auth" {
     user: {
       id: string;
       systemRole: "USER" | "SYSTEM_ADMIN";
-      pagesBalance: number;
     } & DefaultSession["user"];
   }
 }
@@ -43,20 +42,22 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   callbacks: {
     async jwt({ token, user }) {
-      if (user) token.id = user.id;
+      // عند تسجيل الدخول فقط: نخزّن المعرّف والدور في الـ token (مرّة واحدة)
+      if (user?.id) {
+        token.id = user.id;
+        const dbUser = await db.user.findUnique({
+          where: { id: user.id },
+          select: { systemRole: true },
+        });
+        token.systemRole = dbUser?.systemRole ?? "USER";
+      }
       return token;
     },
     async session({ session, token }) {
-      if (token?.id && session.user) {
-        const dbUser = await db.user.findUnique({
-          where: { id: String(token.id) },
-          select: { id: true, systemRole: true, pagesBalance: true },
-        });
-        if (dbUser) {
-          session.user.id = dbUser.id;
-          session.user.systemRole = dbUser.systemRole as "USER" | "SYSTEM_ADMIN";
-          session.user.pagesBalance = dbUser.pagesBalance;
-        }
+      // نقرأ من الـ token مباشرةً — دون استعلام قاعدة بيانات في كلّ طلب (أسرع)
+      if (session.user) {
+        session.user.id = String(token.id ?? "");
+        session.user.systemRole = (token.systemRole as "USER" | "SYSTEM_ADMIN") ?? "USER";
       }
       return session;
     },
