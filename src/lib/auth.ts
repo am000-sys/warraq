@@ -57,7 +57,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       // نقرأ من الـ token مباشرةً — دون استعلام قاعدة بيانات في كلّ طلب (أسرع)
       if (session.user) {
         session.user.id = String(token.id ?? "");
-        session.user.systemRole = (token.systemRole as "USER" | "SYSTEM_ADMIN") ?? "USER";
+        let role = token.systemRole as "USER" | "SYSTEM_ADMIN" | undefined;
+        // احتياط للجلسات القديمة التي لا تحوي الدور في الـ token
+        if (!role && token.id) {
+          const u = await db.user.findUnique({
+            where: { id: String(token.id) },
+            select: { systemRole: true },
+          });
+          role = (u?.systemRole as "USER" | "SYSTEM_ADMIN") ?? "USER";
+        }
+        session.user.systemRole = role ?? "USER";
       }
       return session;
     },
