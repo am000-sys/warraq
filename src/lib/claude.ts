@@ -195,3 +195,81 @@ export async function extractTextFromPdf(
     outputTokens: response.usage.output_tokens,
   };
 }
+
+// ─── خدمات الفهم النصّيّة (Claude Add-on) ───────────────
+// تعمل على النصّ المستخرَج (لا صور) — تُستخدم في Ask Document / Generate Report.
+
+const MAX_CONTEXT_CHARS = 60_000; // حدّ أمان لطول السياق المرسَل
+
+export type ClaudeTextResult = {
+  text: string;
+  inputTokens: number;
+  outputTokens: number;
+};
+
+async function runText(
+  model: ClaudeModel,
+  system: string,
+  userContent: string,
+  maxTokens: number,
+): Promise<ClaudeTextResult> {
+  if (!client) throw new Error("ANTHROPIC_NOT_CONFIGURED");
+  const response = await client.messages.create({
+    model: MODEL_IDS[model],
+    max_tokens: maxTokens,
+    system,
+    messages: [{ role: "user", content: userContent }],
+  });
+  const block = response.content.find((b) => b.type === "text");
+  const text = block && block.type === "text" ? block.text : "";
+  return {
+    text: text.trim(),
+    inputTokens: response.usage.input_tokens,
+    outputTokens: response.usage.output_tokens,
+  };
+}
+
+// سؤال حول المستند المستخرَج
+export async function askDocument(
+  documentText: string,
+  question: string,
+  model: ClaudeModel = "OPUS",
+): Promise<ClaudeTextResult> {
+  const ctx = documentText.slice(0, MAX_CONTEXT_CHARS);
+  const system =
+    "أنت مساعد عربيّ خبير في تحليل النصوص والكتب. أجِب عن سؤال المستخدم اعتماداً على نصّ المستند المرفق فقط. " +
+    "إن لم تجد الإجابة في المستند، قل ذلك بوضوح. أجب بالعربيّة الفصحى وبدقّة، مع الإشارة لرقم الصفحة إن أمكن.";
+  const userContent = `=== نصّ المستند ===\n${ctx}\n\n=== السؤال ===\n${question}`;
+  return runText(model, system, userContent, 2048);
+}
+
+export type ReportType =
+  | "summary"
+  | "executive-summary"
+  | "key-points"
+  | "structured";
+
+const REPORT_INSTRUCTIONS: Record<ReportType, string> = {
+  summary: "اكتب ملخّصاً عامّاً واضحاً للمستند في فقرات مترابطة.",
+  "executive-summary":
+    "اكتب ملخّصاً تنفيذياً موجزاً (نصف صفحة) يبرز الغرض والنتائج والتوصيات الأساسيّة.",
+  "key-points": "استخرج أهمّ النقاط الرئيسيّة في المستند على شكل قائمة نقطيّة منظّمة.",
+  structured:
+    "أنشئ تقريراً منظّماً بعناوين وأقسام (مقدّمة، المحاور الرئيسيّة، الخلاصة) يغطّي محتوى المستند.",
+};
+
+// توليد تقرير عن المستند المستخرَج
+export async function generateReport(
+  documentText: string,
+  type: ReportType,
+  model: ClaudeModel = "OPUS",
+): Promise<ClaudeTextResult> {
+  const ctx = documentText.slice(0, MAX_CONTEXT_CHARS);
+  const system =
+    "أنت محرّر عربيّ محترف. أنتج تقريراً عالي الجودة بالعربيّة الفصحى اعتماداً على نصّ المستند المرفق فقط، " +
+    "دون إضافة معلومات من خارجه. " +
+    REPORT_INSTRUCTIONS[type];
+  const userContent = `=== نصّ المستند ===\n${ctx}`;
+  return runText(model, system, userContent, 4096);
+}
+

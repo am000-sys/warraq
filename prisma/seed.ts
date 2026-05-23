@@ -130,6 +130,13 @@ async function main() {
     { key: "results_retention_days", value: 30, description: "مدّة حفظ النتائج" },
     { key: "free_signup_pages", value: 10, description: "صفحات مجانية عند التسجيل" },
     { key: "max_pages_per_file", value: 2000, description: "الحدّ الأقصى للصفحات في الملف" },
+    // ── إعدادات إضافة Claude (Ask/Report) — قابلة للتحكّم من لوحة الإدارة ──
+    { key: "claude_addon_enabled", value: true, description: "تفعيل خدمات Claude الإضافيّة (Ask/Report)" },
+    { key: "claude_addon_mode", value: "plan", description: "طريقة الأهليّة: plan | usage | plan_or_usage" },
+    { key: "claude_addon_included_plans", value: ["researcher", "verifier"], description: "الخطط التي تتضمّن إضافة Claude" },
+    { key: "claude_addon_cost_per_action", value: 5, description: "تكلفة العمليّة الواحدة بالرصيد (وضع usage)" },
+    { key: "claude_addon_monthly_limit", value: 0, description: "حدّ شهريّ لعمليّات Claude (0 = بلا حدّ)" },
+    { key: "claude_addon_text_model", value: "OPUS", description: "نموذج Claude النصّي لخدمات الفهم" },
   ];
 
   for (const s of settings) {

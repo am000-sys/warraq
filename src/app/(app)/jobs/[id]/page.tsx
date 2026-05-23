@@ -7,6 +7,8 @@ import { ar } from "@/lib/utils";
 import { modelName } from "@/lib/models";
 import { ArrowRight, Download } from "lucide-react";
 import { JobAutoRefresh } from "@/components/job-auto-refresh";
+import { ClaudePanel } from "@/components/claude-panel";
+import { getClaudeAccess } from "@/lib/claude-addon";
 
 export default async function JobDetailPage({
   params,
@@ -45,6 +47,10 @@ export default async function JobDetailPage({
 
   const completedPages = job.pages.filter((p) => p.status === "COMPLETED");
   const pct = (job.processedPages / Math.max(1, job.totalPages)) * 100;
+
+  // أهليّة خدمات Claude الإضافيّة (للعرض المقفل/المفتوح)
+  const claudeAccess =
+    job.status === "COMPLETED" ? await getClaudeAccess(user.id) : null;
 
   return (
     <div>
@@ -221,6 +227,20 @@ export default async function JobDetailPage({
             </p>
           )}
         </div>
+      )}
+
+      {/* خدمات Claude الإضافيّة (Ask / Report) — مفتوحة للمؤهّلين، مقفلة مع upsell لغيرهم */}
+      {claudeAccess && completedPages.length > 0 && (
+        <ClaudePanel
+          jobId={job.id}
+          access={{
+            enabled: claudeAccess.enabled,
+            eligible: claudeAccess.eligible,
+            mode: claudeAccess.mode,
+            costPerAction: claudeAccess.costPerAction,
+            balance: claudeAccess.balance,
+          }}
+        />
       )}
     </div>
   );
