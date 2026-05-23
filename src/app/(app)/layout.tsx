@@ -32,6 +32,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           pagesBalance: user.pagesBalance,
           plan: sub?.plan?.nameAr || "الخطة المجانية",
           quota: sub?.plan?.pagesPerMonth ?? 50,
+          isAdmin: user.systemRole === "SYSTEM_ADMIN",
         }}
       />
       <div

@@ -11,6 +11,7 @@ import {
   ListChecks,
   Wallet,
   Settings,
+  ShieldCheck,
   Menu,
   X,
 } from "lucide-react";
@@ -30,6 +31,7 @@ type Props = {
     pagesBalance: number;
     plan: string;
     quota: number;
+    isAdmin: boolean;
   };
 };
 
@@ -129,6 +131,28 @@ export function AppSidebar({ user }: Props) {
               </Link>
             );
           })}
+
+          {user.isAdmin && (
+            <Link
+              href="/admin"
+              className="flex items-center gap-2.5 transition-all no-underline"
+              style={{
+                marginTop: 8,
+                padding: "10px 12px",
+                borderRadius: 10,
+                background: "var(--orange-soft)",
+                color: "var(--orange)",
+                fontWeight: 500,
+                fontSize: 14,
+                fontFamily: "Tajawal, sans-serif",
+                textAlign: "right",
+                border: "1px solid rgba(246,146,81,0.25)",
+              }}
+            >
+              <ShieldCheck size={16} strokeWidth={1.7} />
+              لوحة المالك
+            </Link>
+          )}
         </nav>
 
         {/* Upgrade nudge */}

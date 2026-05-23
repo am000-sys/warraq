@@ -5,8 +5,9 @@ export const MODEL_LABELS: Record<
   { name: string; desc: string; tier: string; credits: number }
 > = {
   HAIKU: { name: "سريع", desc: "سريع · للكتب الواضحة", tier: "اقتصادي", credits: 1 },
-  SONNET: { name: "جيد", desc: "متوازن · موصى به", tier: "قياسي", credits: 2 },
-  OPUS: { name: "فائق", desc: "الأدقّ · يستهلك رصيداً أكثر", tier: "متقدّم", credits: 4 },
+  SONNET: { name: "جيد", desc: "متوازن · موصى به", tier: "قياسي", credits: 1 },
+  // مؤقّتاً: النموذج الفائق هو المعتمَد، وبالتسعيرة الأساسيّة (صفحة واحدة لكل صفحة)
+  OPUS: { name: "فائق", desc: "الأدقّ · معتمَد", tier: "متقدّم", credits: 1 },
 };
 
 export function modelName(model: string): string {

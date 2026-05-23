@@ -7,16 +7,15 @@ import { useRouter } from "next/navigation";
 import { Upload as UploadIcon, FileText, X } from "lucide-react";
 import { ProcessingView } from "@/components/processing-view";
 
+// مؤقّتاً: نعتمد النموذج الفائق فقط ونُخفي النموذجين الآخرين، بالتسعيرة الأساسيّة
 const models = [
-  { k: "HAIKU", l: "سريع", d: "سريع وفعّال للكتب الواضحة", t: "صفحة واحدة لكل صفحة" },
-  { k: "SONNET", l: "جيد", d: "متوازن · موصى به", t: "صفحتان لكل صفحة" },
-  { k: "OPUS", l: "فائق", d: "الأدقّ · يستهلك رصيداً أكثر", t: "٤ صفحات لكل صفحة" },
+  { k: "OPUS", l: "فائق", d: "الأدقّ · أعلى جودة للكتب العربيّة", t: "صفحة واحدة لكل صفحة" },
 ] as const;
 
 export default function UploadPage() {
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
-  const [model, setModel] = useState<"HAIKU" | "SONNET" | "OPUS">("SONNET");
+  const [model, setModel] = useState<"HAIKU" | "SONNET" | "OPUS">("OPUS");
   const [dragging, setDragging] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
@@ -209,7 +208,7 @@ export default function UploadPage() {
             marginBottom: 14,
           }}
         >
-          اختر النموذج
+          النموذج المعتمد
         </div>
         {models.map((m) => (
           <label

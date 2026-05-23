@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     }
 
     const page = imageBufferToPage(buffer, file.name);
-    const result = await extractTextFromImage(page.base64, page.mediaType, "SONNET");
+    const result = await extractTextFromImage(page.base64, page.mediaType, "OPUS");
 
     // سجّل الاستخدام (increment أو إنشاء)
     await db.trialUsage.upsert({
