@@ -34,34 +34,61 @@ export default function UploadPage() {
   async function handleStart() {
     if (!files.length) return;
     setError("");
-
-    // For simplicity, process the first file (the original logic was single-file)
     const file = files[0];
-    setProgress("جارٍ الرفع والمعالجة بـ Claude...");
+    setProgress("جارٍ التحضير...");
 
     try {
-      // أوّل طلب: يُنشئ الوظيفة ويعالج أوّل دفعة من الصفحات
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("model", model);
+      const contentType = file.type || "application/octet-stream";
 
-      let res = await fetch("/api/jobs/direct", { method: "POST", body: fd });
-      let data = await parseRes(res);
+      // ١) اطلب رابط رفع موقّع لـ R2 (رفع الملفّ مرّة واحدة)
+      const up = await fetch("/api/upload", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, fileSize: file.size, contentType }),
+      });
 
-      const jobId: string = data.jobId;
-      let done: boolean = Boolean(data.done);
-      showProgress(data);
+      // إن لم يُضبط R2 بعد: ارجع للمسار المباشر (دون تخزين)
+      if (up.status === 503) {
+        return await processDirect(file);
+      }
+      const upData = await up.json().catch(() => ({}));
+      if (!up.ok) throw new Error(upData?.error ?? "تعذّر تحضير الرفع");
 
-      // دفعات لاحقة: نُكمل المعالجة حتى تنتهي كلّ الصفحات (يتجاوز حدّ زمن الخادم)
+      // ٢) ارفع الملفّ مباشرةً إلى R2 (يتجاوز حدود حجم/زمن الخادم)
+      setProgress("جارٍ رفع الملفّ...");
+      const put = await fetch(upData.uploadUrl, {
+        method: "PUT",
+        headers: { "content-type": contentType },
+        body: file,
+      });
+      if (!put.ok) throw new Error("فشل رفع الملفّ إلى التخزين");
+
+      // ٣) أنشئ الوظيفة المرتبطة بالملفّ المخزّن
+      const jr = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          storageKey: upData.storageKey,
+          fileName: file.name,
+          fileSize: file.size,
+          model,
+        }),
+      });
+      const jd = await jr.json().catch(() => ({}));
+      if (!jr.ok) {
+        if (jr.status === 402) throw new Error(`رصيد غير كافٍ. لديك ${jd.available ?? 0} صفحة.`);
+        throw new Error(jd?.error ?? "تعذّر إنشاء الوظيفة");
+      }
+      const jobId: string = jd.job.id;
+
+      // ٤) عالج على دفعات من التخزين حتى تنتهي كلّ الصفحات (دون إعادة إرسال)
+      setProgress("جارٍ المعالجة بـ Claude...");
+      let done = false;
       while (!done) {
-        const fd2 = new FormData();
-        fd2.append("file", file);
-        fd2.append("model", model);
-        fd2.append("jobId", jobId);
-        res = await fetch("/api/jobs/direct", { method: "POST", body: fd2 });
-        data = await parseRes(res);
-        done = Boolean(data.done);
-        showProgress(data);
+        const pr = await fetch(`/api/jobs/${jobId}/process`, { method: "POST" });
+        const pd = await parseRes(pr);
+        done = Boolean(pd.done);
+        showProgress(pd);
       }
 
       router.push(`/jobs/${jobId}`);
@@ -69,6 +96,32 @@ export default function UploadPage() {
       setError((err as Error).message);
       setProgress("");
     }
+  }
+
+  // مسار احتياطي: لو لم يُضبط R2، نعالج عبر الرفع المباشر على دفعات
+  async function processDirect(file: File) {
+    setProgress("جارٍ الرفع والمعالجة بـ Claude...");
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("model", model);
+
+    let res = await fetch("/api/jobs/direct", { method: "POST", body: fd });
+    let data = await parseRes(res);
+    const jobId: string = data.jobId;
+    let done: boolean = Boolean(data.done);
+    showProgress(data);
+
+    while (!done) {
+      const fd2 = new FormData();
+      fd2.append("file", file);
+      fd2.append("model", model);
+      fd2.append("jobId", jobId);
+      res = await fetch("/api/jobs/direct", { method: "POST", body: fd2 });
+      data = await parseRes(res);
+      done = Boolean(data.done);
+      showProgress(data);
+    }
+    router.push(`/jobs/${jobId}`);
   }
 
   function showProgress(data: { processed?: number; total?: number }) {
