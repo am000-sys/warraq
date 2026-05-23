@@ -1,4 +1,5 @@
 // src/lib/auth.ts — Auth.js v5 + helpers
+import { cache } from "react";
 import NextAuth, { type DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
@@ -74,13 +75,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 });
 
 // ── Helpers ──
-export async function getCurrentUser() {
+// مُغلّف بـ cache: استدعاؤه عدّة مرّات في الطلب الواحد (layout + الصفحة) = استعلام واحد فقط
+export const getCurrentUser = cache(async () => {
   const session = await auth();
   if (!session?.user?.id) return null;
   return db.user.findUnique({
     where: { id: session.user.id },
   });
-}
+});
 
 export async function requireAdmin() {
   const session = await auth();
