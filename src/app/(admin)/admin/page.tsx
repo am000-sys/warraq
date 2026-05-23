@@ -1,7 +1,8 @@
 // src/app/(admin)/admin/page.tsx — مركز تحكّم المالك
 import Link from "next/link";
 import { db } from "@/lib/db";
-import { PageHeader, StatusPill } from "@/components/page-header";
+import { getCurrentUser } from "@/lib/auth";
+import { StatusPill } from "@/components/page-header";
 import { ar } from "@/lib/utils";
 import { modelName } from "@/lib/models";
 import {
@@ -12,9 +13,13 @@ import {
   Clock,
   ArrowLeft,
   AlertTriangle,
+  Crown,
 } from "lucide-react";
 
 export default async function AdminDashboardPage() {
+  const owner = await getCurrentUser();
+  const ownerName = owner?.name || owner?.email?.split("@")[0] || "صاحب المنصّة";
+
   const now = new Date();
   const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
   const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -96,7 +101,69 @@ export default async function AdminDashboardPage() {
 
   return (
     <div>
-      <PageHeader title="مركز تحكّم المالك" subtitle="نظرة شاملة على وَرَّاق وأدوات الإدارة." />
+      {/* بانر ترحيب فخم للمالك */}
+      <div
+        className="flex items-center gap-4 mb-7"
+        style={{
+          background: "linear-gradient(135deg, var(--midnight) 0%, #242433 100%)",
+          borderRadius: 20,
+          padding: "24px 28px",
+          border: "1px solid rgba(246,146,81,0.28)",
+          boxShadow: "0 14px 44px rgba(24,24,37,0.28)",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        {/* توهّج برتقالي خلفي */}
+        <div
+          style={{
+            position: "absolute",
+            insetInlineStart: -60,
+            top: -60,
+            width: 220,
+            height: 220,
+            background: "radial-gradient(circle, rgba(246,146,81,0.18) 0%, transparent 70%)",
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          className="flex items-center justify-center flex-shrink-0"
+          style={{
+            width: 54,
+            height: 54,
+            borderRadius: 16,
+            background: "linear-gradient(135deg, var(--orange) 0%, #e07b3a 100%)",
+            boxShadow: "0 6px 20px rgba(246,146,81,0.45)",
+          }}
+        >
+          <Crown size={26} color="#fff" strokeWidth={1.8} />
+        </div>
+        <div className="min-w-0" style={{ position: "relative" }}>
+          <h1
+            className="truncate"
+            style={{
+              fontFamily: "Tajawal, sans-serif",
+              fontSize: 24,
+              fontWeight: 500,
+              color: "#fff",
+              letterSpacing: "-0.01em",
+              marginBottom: 4,
+            }}
+          >
+            {greetingByHour()}، {ownerName} 👑
+          </h1>
+          <p
+            className="font-light"
+            style={{
+              fontSize: 14,
+              color: "rgba(255,255,255,0.55)",
+              fontFamily: "Tajawal, sans-serif",
+            }}
+          >
+            منصّتك بين يديك — كلّ الأرقام والتحكّم في مكانٍ واحد.
+          </p>
+        </div>
+      </div>
 
       {/* تنبيه الطلبات المعلّقة */}
       {pendingTopups > 0 && (
@@ -297,6 +364,13 @@ function Empty({ text, icon: Icon }: { text: string; icon: React.ElementType }) 
       <p style={{ fontSize: 13 }}>{text}</p>
     </div>
   );
+}
+
+function greetingByHour() {
+  const h = new Date().getHours();
+  if (h < 5) return "ليلة موفّقة";
+  if (h < 12) return "صباح الخير";
+  return "مساء الخير";
 }
 
 function JobPill({ status }: { status: string }) {
