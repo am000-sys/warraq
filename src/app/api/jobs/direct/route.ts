@@ -13,6 +13,7 @@ import {
   extractTextFromPdfPage,
 } from "@/lib/claude";
 import { isMistralConfigured, ocrDocument } from "@/lib/mistral";
+import { formatOcrPage } from "@/lib/ocr-format";
 import { isImageFile, isPdfFile, imageBufferToPage } from "@/lib/pdf";
 import { modelCredits } from "@/lib/models";
 import type { ClaudeModel } from "@prisma/client";
@@ -100,16 +101,19 @@ export async function POST(req: NextRequest) {
       });
       jobId = job.id;
       await db.jobPage.createMany({
-        data: toSave.map((p, i) => ({
-          jobId: job.id,
-          sequentialNumber: i + 1,
-          printedNumber: null,
-          status: "COMPLETED" as const,
-          textContent: p.text,
-          inputTokens: 0,
-          outputTokens: 0,
-          processedAt: new Date(),
-        })),
+        data: toSave.map((p, i) => {
+          const f = formatOcrPage(p.text);
+          return {
+            jobId: job.id,
+            sequentialNumber: i + 1,
+            printedNumber: f.printedNumber,
+            status: "COMPLETED" as const,
+            textContent: f.text,
+            inputTokens: 0,
+            outputTokens: 0,
+            processedAt: new Date(),
+          };
+        }),
       });
       const charged = toSave.length * credits;
       await db.$transaction([
