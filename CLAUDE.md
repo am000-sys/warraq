@@ -341,14 +341,14 @@ npm run dev
 
 ## ١٠.٥ خدمات Claude الإضافيّة (Add-on مدفوع)
 
-- **الأساسي:** OCR (التفريغ النصّي) — متاح للجميع حسب الرصيد/الخطّة.
+- **الأساسي:** OCR (التفريغ النصّي) عبر **Mistral** (`src/lib/mistral.ts`، نداء واحد للمستند) — متاح للجميع حسب الرصيد/الخطّة. يرجع إلى Claude إن لم يُضبط `MISTRAL_API_KEY`.
 - **الإضافي المدفوع:** `Ask Document` و`Generate Report` عبر Claude — **ليست ضمن الباقة الأساسيّة**.
 - **المنطق المركزيّ:** `src/lib/claude-addon.ts` (`getClaudeAccess`, `canUseClaudeFeatures`, `trackClaudeUsage`).
 - **الأهليّة:** عبر الخطّة (الخطط في `claude_addon_included_plans`) أو رصيد الاستخدام (`pagesBalance`)، حسب `claude_addon_mode`.
 - **التحكّم:** كلّه في `SystemSetting` بمفاتيح `claude_addon_*` (تفعيل/سعر/طريقة الاحتساب/الحدّ الشهريّ) — **بلا جداول جديدة**.
 - **التتبّع:** في `AuditLog` (action: `claude.*`). الخصم في وضع usage من `pagesBalance`.
 - **الواجهة:** `src/components/claude-panel.tsx` على صفحة المستند — مفتوح للمؤهّل، مقفل مع upsell لغيره.
-- **ملاحظة:** OCR لا يزال عبر Claude حالياً؛ استبداله بـ Mistral مهمّة منفصلة لا تمسّ هذا الـ add-on.
+- **ملاحظة:** التفريغ الأساسي عبر Mistral؛ وخدمات Claude (Ask/Report) مستقلّة عنه كـ add-on مدفوع.
 
 ---
 

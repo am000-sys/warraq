@@ -12,6 +12,7 @@ import {
   extractTextFromImage,
   extractTextFromPdfPage,
 } from "@/lib/claude";
+import { isMistralConfigured, ocrDocument } from "@/lib/mistral";
 import { isImageFile, isPdfFile, imageBufferToPage } from "@/lib/pdf";
 import { modelCredits } from "@/lib/models";
 import type { ClaudeModel } from "@prisma/client";
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 401 });
   }
-  if (!isClaudeConfigured) {
+  if (!isMistralConfigured && !isClaudeConfigured) {
     return NextResponse.json(
       { error: "خدمة الـ OCR غير مُعَدّة بعد", configRequired: true },
       { status: 503 },
@@ -58,6 +59,80 @@ export async function POST(req: NextRequest) {
         { error: "صيغة غير مدعومة — استعمل PNG أو JPG أو PDF" },
         { status: 400 },
       );
+    }
+
+    // ===== Mistral OCR: الخدمة الأساسيّة (نداء واحد للمستند كاملاً) =====
+    if (isMistralConfigured) {
+      if (user.pagesBalance < credits) {
+        return NextResponse.json(
+          { error: "رصيد غير كافٍ", available: user.pagesBalance },
+          { status: 402 },
+        );
+      }
+      const b64 = buffer.toString("base64");
+      const dataUri = isImg
+        ? `data:${imageBufferToPage(buffer, file.name).mediaType};base64,${b64}`
+        : `data:application/pdf;base64,${b64}`;
+      const { pages } = await ocrDocument({ dataUri, isImage: isImg });
+      if (pages.length === 0) throw new Error("لم يُستخرَج نصّ من المستند");
+
+      const affordable = Math.floor(user.pagesBalance / credits);
+      const toSave = pages.slice(0, Math.max(0, affordable));
+      if (toSave.length < 1) {
+        return NextResponse.json(
+          { error: "رصيد غير كافٍ", available: user.pagesBalance },
+          { status: 402 },
+        );
+      }
+
+      const job = await db.job.create({
+        data: {
+          userId: session.user.id,
+          fileName: file.name,
+          fileSize: buffer.length,
+          fileChecksum: "direct",
+          storageKey: "direct",
+          totalPages: toSave.length,
+          model,
+          status: "PROCESSING",
+          startedAt: new Date(),
+        },
+      });
+      jobId = job.id;
+      await db.jobPage.createMany({
+        data: toSave.map((p, i) => ({
+          jobId: job.id,
+          sequentialNumber: i + 1,
+          printedNumber: null,
+          status: "COMPLETED" as const,
+          textContent: p.text,
+          inputTokens: 0,
+          outputTokens: 0,
+          processedAt: new Date(),
+        })),
+      });
+      const charged = toSave.length * credits;
+      await db.$transaction([
+        db.user.update({
+          where: { id: user.id },
+          data: { pagesBalance: { decrement: charged } },
+        }),
+        db.job.update({
+          where: { id: job.id },
+          data: {
+            status: "COMPLETED",
+            processedPages: toSave.length,
+            pagesCharged: charged,
+            completedAt: new Date(),
+          },
+        }),
+      ]);
+      return NextResponse.json({
+        jobId: job.id,
+        processed: toSave.length,
+        total: toSave.length,
+        done: true,
+      });
     }
 
     // ===== صورة مفردة: طلب واحد =====

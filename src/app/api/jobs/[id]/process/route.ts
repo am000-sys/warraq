@@ -11,6 +11,7 @@ import {
   extractTextFromImage,
   extractTextFromPdfPage,
 } from "@/lib/claude";
+import { isMistralConfigured, ocrDocument } from "@/lib/mistral";
 import { isImageFile, isPdfFile, imageBufferToPage } from "@/lib/pdf";
 import { modelCredits } from "@/lib/models";
 
@@ -32,7 +33,8 @@ export async function POST(
       { status: 503 },
     );
   }
-  if (!isClaudeConfigured) {
+  // خدمة التفريغ الأساسيّة: Mistral (مفضّلة)، وإلّا Claude كبديل
+  if (!isMistralConfigured && !isClaudeConfigured) {
     return NextResponse.json(
       { error: "خدمة المعالجة غير مهيّأة", configRequired: true },
       { status: 503 },
@@ -61,6 +63,69 @@ export async function POST(
       });
     }
 
+    // ===== Mistral OCR: الخدمة الأساسيّة (نداء واحد للمستند كاملاً) =====
+    if (isMistralConfigured) {
+      const user = await db.user.findUnique({ where: { id: job.userId } });
+      if (!user) throw new Error("مستخدم غير موجود");
+      const credits = modelCredits(job.model) || 1;
+
+      const signedUrl = await getDownloadUrl(job.storageKey);
+      const { pages } = await ocrDocument({
+        url: signedUrl,
+        isImage: isImageFile(job.fileName),
+      });
+      if (pages.length === 0) throw new Error("لم يُستخرَج نصّ من المستند");
+
+      const affordable = Math.floor(user.pagesBalance / credits);
+      const toSave = pages.slice(0, Math.max(0, affordable));
+      if (toSave.length < 1) {
+        return NextResponse.json(
+          { error: "رصيد غير كافٍ", available: user.pagesBalance },
+          { status: 402 },
+        );
+      }
+
+      await db.jobPage.deleteMany({ where: { jobId: id } });
+      await db.jobPage.createMany({
+        data: toSave.map((p, i) => ({
+          jobId: id,
+          sequentialNumber: i + 1,
+          printedNumber: null,
+          status: "COMPLETED" as const,
+          textContent: p.text,
+          inputTokens: 0,
+          outputTokens: 0,
+          processedAt: new Date(),
+        })),
+      });
+
+      const charged = toSave.length * credits;
+      await db.$transaction([
+        db.user.update({
+          where: { id: user.id },
+          data: { pagesBalance: { decrement: charged } },
+        }),
+        db.job.update({
+          where: { id },
+          data: {
+            status: "COMPLETED",
+            totalPages: toSave.length,
+            processedPages: toSave.length,
+            pagesCharged: charged,
+            completedAt: new Date(),
+          },
+        }),
+      ]);
+
+      return NextResponse.json({
+        ok: true,
+        processed: toSave.length,
+        total: toSave.length,
+        done: true,
+      });
+    }
+
+    // ===== Claude OCR: بديل عند غياب Mistral (معالجة على دفعات) =====
     // تنزيل الملفّ من R2
     const url = await getDownloadUrl(job.storageKey);
     const res = await fetch(url);
