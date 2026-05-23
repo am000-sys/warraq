@@ -35,39 +35,51 @@ export default async function AdminDashboardPage() {
     recentUsers,
     recentJobs,
   ] = await Promise.all([
-    db.user.count(),
-    db.user.count({ where: { createdAt: { gte: startOfMonth } } }),
-    db.subscription.count({ where: { status: "ACTIVE" } }),
-    db.job.count({ where: { createdAt: { gte: startOfDay } } }),
-    db.job.count({ where: { createdAt: { gte: startOfMonth } } }),
-    db.transaction.aggregate({
-      where: { status: "SUCCEEDED", createdAt: { gte: startOfMonth }, type: { in: ["SUBSCRIPTION", "ONE_TIME"] } },
-      _sum: { amountSar: true },
-    }),
-    db.transaction.aggregate({
-      where: { status: "SUCCEEDED", type: { in: ["SUBSCRIPTION", "ONE_TIME"] } },
-      _sum: { amountSar: true },
-    }),
-    db.job.aggregate({ where: { status: "COMPLETED" }, _sum: { processedPages: true } }),
-    db.job.aggregate({
-      where: { status: "COMPLETED", completedAt: { gte: startOfMonth } },
-      _sum: { processedPages: true },
-    }),
-    db.job.count({ where: { status: "FAILED", createdAt: { gte: startOfDay } } }),
+    db.user.count().catch(() => 0),
+    db.user.count({ where: { createdAt: { gte: startOfMonth } } }).catch(() => 0),
+    db.subscription.count({ where: { status: "ACTIVE" } }).catch(() => 0),
+    db.job.count({ where: { createdAt: { gte: startOfDay } } }).catch(() => 0),
+    db.job.count({ where: { createdAt: { gte: startOfMonth } } }).catch(() => 0),
+    db.transaction
+      .aggregate({
+        where: { status: "SUCCEEDED", createdAt: { gte: startOfMonth }, type: { in: ["SUBSCRIPTION", "ONE_TIME"] } },
+        _sum: { amountSar: true },
+      })
+      .catch(() => ({ _sum: { amountSar: null } })),
+    db.transaction
+      .aggregate({
+        where: { status: "SUCCEEDED", type: { in: ["SUBSCRIPTION", "ONE_TIME"] } },
+        _sum: { amountSar: true },
+      })
+      .catch(() => ({ _sum: { amountSar: null } })),
+    db.job
+      .aggregate({ where: { status: "COMPLETED" }, _sum: { processedPages: true } })
+      .catch(() => ({ _sum: { processedPages: null } })),
+    db.job
+      .aggregate({
+        where: { status: "COMPLETED", completedAt: { gte: startOfMonth } },
+        _sum: { processedPages: true },
+      })
+      .catch(() => ({ _sum: { processedPages: null } })),
+    db.job.count({ where: { status: "FAILED", createdAt: { gte: startOfDay } } }).catch(() => 0),
     db.topUpRequest.count({ where: { status: "PENDING" } }).catch(() => 0),
     db.topUpRequest
       .findMany({ where: { status: "PENDING" }, orderBy: { createdAt: "desc" }, take: 4 })
       .catch(() => []),
-    db.user.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: { id: true, name: true, email: true, pagesBalance: true, createdAt: true },
-    }),
-    db.job.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 5,
-      select: { id: true, fileName: true, status: true, model: true, totalPages: true, createdAt: true },
-    }),
+    db.user
+      .findMany({
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { id: true, name: true, email: true, pagesBalance: true, createdAt: true },
+      })
+      .catch(() => []),
+    db.job
+      .findMany({
+        orderBy: { createdAt: "desc" },
+        take: 5,
+        select: { id: true, fileName: true, status: true, model: true, totalPages: true, createdAt: true },
+      })
+      .catch(() => []),
   ]);
 
   const revenueMonth = (revenueThisMonth._sum.amountSar ?? 0) / 100;
@@ -76,7 +88,9 @@ export default async function AdminDashboardPage() {
   // أسماء أصحاب طلبات الشحن المعلّقة
   const topupUserIds = [...new Set(recentTopups.map((t) => t.userId))];
   const topupUsers = topupUserIds.length
-    ? await db.user.findMany({ where: { id: { in: topupUserIds } }, select: { id: true, email: true } })
+    ? await db.user
+        .findMany({ where: { id: { in: topupUserIds } }, select: { id: true, email: true } })
+        .catch(() => [])
     : [];
   const topupEmail = Object.fromEntries(topupUsers.map((u) => [u.id, u.email]));
 
