@@ -195,53 +195,6 @@ export default function UploadPage() {
         </div>
       )}
 
-      {/* النموذج المعتمد — واحد فقط حالياً، بلا اختيار */}
-      <div className="card" style={{ borderRadius: 16, marginBottom: 18 }}>
-        <div
-          style={{
-            fontSize: 14,
-            fontWeight: 500,
-            color: "var(--carbon)",
-            fontFamily: "Tajawal, sans-serif",
-            marginBottom: 14,
-          }}
-        >
-          النموذج المعتمد
-        </div>
-        <div
-          className="flex items-center gap-3"
-          style={{
-            padding: "13px 14px",
-            border: "1.5px solid var(--orange)",
-            borderRadius: 12,
-            background: "var(--orange-soft)",
-          }}
-        >
-          <div className="flex-1">
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 500,
-                color: "var(--carbon)",
-                fontFamily: "Tajawal, sans-serif",
-              }}
-            >
-              فائق
-            </div>
-            <div
-              className="font-light"
-              style={{
-                fontSize: 12,
-                color: "var(--stone)",
-                fontFamily: "Tajawal, sans-serif",
-              }}
-            >
-              الأدقّ · أعلى جودة للكتب العربيّة
-            </div>
-          </div>
-        </div>
-      </div>
-
       {error && (
         <div
           className="mb-4"
