@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Logo } from "@/components/logo";
-import { Activity, Users, Briefcase, DollarSign, Server, Menu, X, Wallet } from "lucide-react";
+import { Activity, Users, Briefcase, DollarSign, Server, Menu, X, Wallet, LayoutDashboard } from "lucide-react";
 
 const items = [
   { k: "/admin", l: "النظرة العامة", icon: Activity },
@@ -44,7 +44,7 @@ export function AdminSidebar({ name }: { name: string }) {
           padding: "0 16px",
         }}
       >
-        <Link href="/admin" className="no-underline">
+        <Link href="/" className="no-underline">
           <Logo size={0.7} inverted />
         </Link>
         <button
@@ -72,7 +72,7 @@ export function AdminSidebar({ name }: { name: string }) {
         }}
       >
         <div style={{ padding: "20px 20px", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
-          <Link href="/admin" className="no-underline">
+          <Link href="/" className="no-underline">
             <Logo size={0.78} inverted />
           </Link>
         </div>
@@ -102,6 +102,25 @@ export function AdminSidebar({ name }: { name: string }) {
               </Link>
             );
           })}
+
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-2.5 transition-all no-underline"
+            style={{
+              marginTop: 8,
+              padding: "10px 12px",
+              borderRadius: 10,
+              background: "transparent",
+              color: "rgba(255,255,255,0.55)",
+              fontWeight: 400,
+              fontSize: 14,
+              fontFamily: "Tajawal, sans-serif",
+              borderTop: "1px solid rgba(255,255,255,0.06)",
+            }}
+          >
+            <LayoutDashboard size={16} strokeWidth={1.7} />
+            العودة إلى لوحة المستخدم
+          </Link>
         </nav>
 
         <div style={{ padding: "14px 20px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>

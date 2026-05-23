@@ -5,11 +5,13 @@ import { InitDbButton } from "@/components/init-db-button";
 
 export default async function AdminSystemPage() {
   const [recentLogs, settings] = await Promise.all([
-    db.auditLog.findMany({
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    }),
-    db.systemSetting.findMany(),
+    db.auditLog
+      .findMany({
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      })
+      .catch(() => []),
+    db.systemSetting.findMany().catch(() => []),
   ]);
 
   return (
