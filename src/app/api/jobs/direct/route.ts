@@ -1,6 +1,9 @@
 // src/app/api/jobs/direct/route.ts
-// رفع ومعالجة مباشرة. الصور: صفحة واحدة. PDF: يُقسَّم صفحة-صفحة
-// مع حفظ التقدّم تدريجياً وخصم الرصيد لكلّ صفحة.
+// رفع ومعالجة مباشرة قابلة للاستئناف (chunked):
+// - الصور: صفحة واحدة في طلب واحد.
+// - PDF: يُنشأ السجلّ في الطلب الأوّل، ثمّ يعالج كلّ طلب ما يسعه الوقت من الصفحات
+//   (بدءاً من processedPages المحفوظة) ويعيد done=false حتى تكتمل كلّ الصفحات.
+//   يقود المتصفّحُ السلسلة بإعادة الاستدعاء مع jobId حتى done=true.
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -9,11 +12,15 @@ import {
   extractTextFromImage,
   extractTextFromPdfPage,
 } from "@/lib/claude";
-import { isImageFile, isPdfFile, imageBufferToPage, splitPdfPages } from "@/lib/pdf";
+import { isImageFile, isPdfFile, imageBufferToPage } from "@/lib/pdf";
 import { modelCredits } from "@/lib/models";
 import type { ClaudeModel } from "@prisma/client";
 
 export const maxDuration = 300;
+
+// أقصى زمن نقضيه في معالجة الصفحات داخل طلب واحد قبل أن نعيد التحكّم للمتصفّح
+// (نُبقيه دون حدّ Vercel — يعمل حتى على Hobby بحدّ ٦٠ ثانية).
+const TIME_BUDGET_MS = 45_000;
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -32,6 +39,7 @@ export async function POST(req: NextRequest) {
     const form = await req.formData();
     const file = form.get("file") as File | null;
     const model = (form.get("model") as string | null)?.toUpperCase() as ClaudeModel;
+    const resumeJobId = (form.get("jobId") as string | null) || null;
 
     if (!file) return NextResponse.json({ error: "لا يوجد ملفّ" }, { status: 400 });
     if (!["HAIKU", "SONNET", "OPUS"].includes(model)) {
@@ -40,76 +48,142 @@ export async function POST(req: NextRequest) {
 
     const user = await db.user.findUnique({ where: { id: session.user.id } });
     if (!user) return NextResponse.json({ error: "مستخدم غير موجود" }, { status: 404 });
-    if (user.pagesBalance < 1) {
-      return NextResponse.json(
-        { error: "رصيد غير كافٍ", available: user.pagesBalance },
-        { status: 402 },
-      );
-    }
 
+    const credits = modelCredits(model);
     const buffer = Buffer.from(await file.arrayBuffer());
-
-    // تحضير صفحات الإدخال
-    let pdfPages: string[] = [];
     const isPdf = isPdfFile(file.name);
-    if (isPdf) {
-      pdfPages = await splitPdfPages(buffer);
-      if (pdfPages.length === 0) throw new Error("ملفّ PDF فارغ أو تالف");
-    } else if (!isImageFile(file.name)) {
+    const isImg = isImageFile(file.name);
+    if (!isPdf && !isImg) {
       return NextResponse.json(
         { error: "صيغة غير مدعومة — استعمل PNG أو JPG أو PDF" },
         { status: 400 },
       );
     }
 
-    const totalPages = isPdf ? pdfPages.length : 1;
-
-    // معامل الاستهلاك بحسب النموذج (فائق يستهلك أكثر)
-    const credits = modelCredits(model);
-    // أقصى عدد صفحات يسمح به الرصيد الحالي
-    const affordablePages = Math.floor(user.pagesBalance / credits);
-    const pagesToProcess = Math.min(totalPages, affordablePages);
-    if (pagesToProcess < 1) {
-      return NextResponse.json(
-        { error: "رصيد غير كافٍ لهذا النموذج", available: user.pagesBalance },
-        { status: 402 },
-      );
+    // ===== صورة مفردة: طلب واحد =====
+    if (isImg) {
+      if (user.pagesBalance < credits) {
+        return NextResponse.json(
+          { error: "رصيد غير كافٍ", available: user.pagesBalance },
+          { status: 402 },
+        );
+      }
+      const job = await db.job.create({
+        data: {
+          userId: session.user.id,
+          fileName: file.name,
+          fileSize: buffer.length,
+          fileChecksum: "direct",
+          storageKey: "direct",
+          totalPages: 1,
+          model,
+          status: "PROCESSING",
+          startedAt: new Date(),
+        },
+      });
+      jobId = job.id;
+      const page = imageBufferToPage(buffer, file.name);
+      const r = await extractTextFromImage(page.base64, page.mediaType, model);
+      await db.jobPage.create({
+        data: {
+          jobId: job.id,
+          sequentialNumber: 1,
+          printedNumber: r.printedPageNumber,
+          status: "COMPLETED",
+          textContent: r.text,
+          inputTokens: r.inputTokens,
+          outputTokens: r.outputTokens,
+          processedAt: new Date(),
+        },
+      });
+      await db.$transaction([
+        db.user.update({
+          where: { id: user.id },
+          data: { pagesBalance: { decrement: credits } },
+        }),
+        db.job.update({
+          where: { id: job.id },
+          data: {
+            status: "COMPLETED",
+            processedPages: 1,
+            pagesCharged: credits,
+            inputTokens: r.inputTokens,
+            outputTokens: r.outputTokens,
+            completedAt: new Date(),
+          },
+        }),
+      ]);
+      return NextResponse.json({ jobId: job.id, processed: 1, total: 1, done: true });
     }
 
-    const job = await db.job.create({
-      data: {
-        userId: session.user.id,
-        fileName: file.name,
-        fileSize: buffer.length,
-        fileChecksum: "direct",
-        storageKey: "direct",
-        totalPages: pagesToProcess,
-        model,
-        status: "PROCESSING",
-        startedAt: new Date(),
-      },
-    });
+    // ===== PDF: إنشاء/استئناف ثمّ معالجة دفعة ضمن ميزانيّة الوقت =====
+    const { PDFDocument } = await import("pdf-lib");
+    const src = await PDFDocument.load(buffer, { ignoreEncryption: true });
+    const pdfTotal = src.getPageCount();
+    if (pdfTotal === 0) throw new Error("ملفّ PDF فارغ أو تالف");
+
+    let job;
+    if (!resumeJobId) {
+      const affordablePages = Math.floor(user.pagesBalance / credits);
+      const totalPages = Math.min(pdfTotal, affordablePages);
+      if (totalPages < 1) {
+        return NextResponse.json(
+          { error: "رصيد غير كافٍ لهذا النموذج", available: user.pagesBalance },
+          { status: 402 },
+        );
+      }
+      job = await db.job.create({
+        data: {
+          userId: session.user.id,
+          fileName: file.name,
+          fileSize: buffer.length,
+          fileChecksum: "direct",
+          storageKey: "direct",
+          totalPages,
+          processedPages: 0,
+          model,
+          status: "PROCESSING",
+          startedAt: new Date(),
+        },
+      });
+    } else {
+      job = await db.job.findUnique({ where: { id: resumeJobId } });
+      if (!job || job.userId !== session.user.id) {
+        return NextResponse.json({ error: "وظيفة غير موجودة" }, { status: 404 });
+      }
+      if (job.status === "COMPLETED") {
+        return NextResponse.json({
+          jobId: job.id,
+          processed: job.processedPages,
+          total: job.totalPages,
+          done: true,
+        });
+      }
+    }
     jobId = job.id;
 
-    let inputTokens = 0;
-    let outputTokens = 0;
-    let processed = 0;
+    const total = job.totalPages;
+    let offset = job.processedPages; // الخادم هو المرجع — لا نثق بإزاحة العميل
+    const start = Date.now();
+    let processedThisCall = 0;
+    let inTok = 0;
+    let outTok = 0;
 
-    for (let i = 0; i < pagesToProcess; i++) {
-      const r = isPdf
-        ? await extractTextFromPdfPage(pdfPages[i], model)
-        : await extractTextFromImage(
-            imageBufferToPage(buffer, file.name).base64,
-            imageBufferToPage(buffer, file.name).mediaType,
-            model,
-          );
-      inputTokens += r.inputTokens;
-      outputTokens += r.outputTokens;
+    while (offset < total && Date.now() - start < TIME_BUDGET_MS) {
+      // استخرج صفحة PDF مفردة عند الإزاحة الحاليّة
+      const doc = await PDFDocument.create();
+      const [copied] = await doc.copyPages(src, [offset]);
+      doc.addPage(copied);
+      const pageB64 = Buffer.from(await doc.save()).toString("base64");
+
+      const r = await extractTextFromPdfPage(pageB64, model);
+      inTok += r.inputTokens;
+      outTok += r.outputTokens;
 
       await db.jobPage.create({
         data: {
           jobId: job.id,
-          sequentialNumber: i + 1,
+          sequentialNumber: offset + 1,
           printedNumber: r.printedPageNumber,
           status: "COMPLETED",
           textContent: r.text,
@@ -119,16 +193,16 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      processed++;
-      // تحديث التقدّم تدريجياً (يظهر في صفحة الوظيفة عبر polling)
+      offset++;
+      processedThisCall++;
       await db.job.update({
         where: { id: job.id },
-        data: { processedPages: processed },
+        data: { processedPages: offset },
       });
     }
 
-    // خصم الرصيد (صفحات × معامل النموذج) + إنهاء الوظيفة
-    const charged = processed * credits;
+    const charged = processedThisCall * credits;
+    const done = offset >= total;
     await db.$transaction([
       db.user.update({
         where: { id: user.id },
@@ -137,21 +211,19 @@ export async function POST(req: NextRequest) {
       db.job.update({
         where: { id: job.id },
         data: {
-          status: "COMPLETED",
-          processedPages: processed,
-          pagesCharged: charged,
-          inputTokens,
-          outputTokens,
-          completedAt: new Date(),
+          pagesCharged: { increment: charged },
+          inputTokens: { increment: inTok },
+          outputTokens: { increment: outTok },
+          processedPages: offset,
+          ...(done ? { status: "COMPLETED", completedAt: new Date() } : {}),
         },
       }),
     ]);
 
-    return NextResponse.json({ jobId: job.id, pages: processed, charged });
+    return NextResponse.json({ jobId: job.id, processed: offset, total, done });
   } catch (err) {
     const raw = (err as Error)?.message ?? "unknown";
     console.error("[jobs.direct]", err);
-    // نسجّل الخطأ الخام في الوظيفة (يراه المالك)، ونُظهر رسالة ودودة للمستخدم
     if (jobId) {
       await db.job
         .update({

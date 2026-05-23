@@ -40,31 +40,59 @@ export default function UploadPage() {
     setProgress("جارٍ الرفع والمعالجة بـ Claude...");
 
     try {
-      // المسار المباشر: يرسل الملفّ ويعالجه في طلب واحد (بدون R2)
+      // أوّل طلب: يُنشئ الوظيفة ويعالج أوّل دفعة من الصفحات
       const fd = new FormData();
       fd.append("file", file);
       fd.append("model", model);
 
-      const res = await fetch("/api/jobs/direct", { method: "POST", body: fd });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data?.configRequired) {
-          throw new Error(
-            "خدمة الـ OCR غير مُعَدّة بعد. يحتاج المالك ضبط مفتاح Anthropic على الخادم.",
-          );
-        }
-        if (res.status === 402) {
-          throw new Error(`رصيد غير كافٍ. لديك ${data.available ?? 0} صفحة.`);
-        }
-        throw new Error(data?.error ?? "فشلت المعالجة");
+      let res = await fetch("/api/jobs/direct", { method: "POST", body: fd });
+      let data = await parseRes(res);
+
+      const jobId: string = data.jobId;
+      let done: boolean = Boolean(data.done);
+      showProgress(data);
+
+      // دفعات لاحقة: نُكمل المعالجة حتى تنتهي كلّ الصفحات (يتجاوز حدّ زمن الخادم)
+      while (!done) {
+        const fd2 = new FormData();
+        fd2.append("file", file);
+        fd2.append("model", model);
+        fd2.append("jobId", jobId);
+        res = await fetch("/api/jobs/direct", { method: "POST", body: fd2 });
+        data = await parseRes(res);
+        done = Boolean(data.done);
+        showProgress(data);
       }
 
-      const { jobId } = await res.json();
       router.push(`/jobs/${jobId}`);
     } catch (err) {
       setError((err as Error).message);
       setProgress("");
     }
+  }
+
+  function showProgress(data: { processed?: number; total?: number }) {
+    if (data.total && data.total > 1) {
+      setProgress(`تمّت معالجة ${data.processed ?? 0} من ${data.total} صفحة...`);
+    } else {
+      setProgress("جارٍ المعالجة بـ Claude...");
+    }
+  }
+
+  async function parseRes(res: Response) {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      if (data?.configRequired) {
+        throw new Error(
+          "خدمة الـ OCR غير مُعَدّة بعد. يحتاج المالك ضبط مفتاح Anthropic على الخادم.",
+        );
+      }
+      if (res.status === 402) {
+        throw new Error(`رصيد غير كافٍ. لديك ${data.available ?? 0} صفحة.`);
+      }
+      throw new Error(data?.error ?? "فشلت المعالجة");
+    }
+    return data;
   }
 
   return (
