@@ -3,8 +3,9 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, Lock, FileText, MessageSquare, Loader2 } from "lucide-react";
+import { Sparkles, Lock, FileText, MessageSquare, Loader2, Wand2 } from "lucide-react";
 
 export type ClaudeAccessClient = {
   enabled: boolean;
@@ -82,11 +83,43 @@ function ClaudeLocked() {
 }
 
 function ClaudeActive({ jobId, access }: { jobId: string; access: ClaudeAccessClient }) {
+  const router = useRouter();
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState("");
   const [report, setReport] = useState("");
   const [busy, setBusy] = useState<null | "ask" | string>(null);
   const [error, setError] = useState("");
+  const [enhanceMsg, setEnhanceMsg] = useState("");
+
+  async function enhance() {
+    if (busy) return;
+    setBusy("enhance");
+    setError("");
+    setEnhanceMsg("جارٍ تحسين الدقّة عبر Claude...");
+    try {
+      let offset = 0;
+      let done = false;
+      while (!done) {
+        const res = await fetch(`/api/jobs/${jobId}/enhance`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ offset }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error ?? "تعذّر تحسين الدقّة");
+        offset = data.processed ?? offset;
+        done = Boolean(data.done);
+        setEnhanceMsg(`تمّ تحسين ${data.processed ?? 0} من ${data.total ?? 0} صفحة...`);
+      }
+      setEnhanceMsg("اكتمل تحسين الدقّة ✓");
+      router.refresh();
+    } catch (e) {
+      setError((e as Error).message);
+      setEnhanceMsg("");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function ask() {
     if (!question.trim() || busy) return;
@@ -138,6 +171,38 @@ function ClaudeActive({ jobId, access }: { jobId: string; access: ClaudeAccessCl
           تُحتسب كلّ عمليّة من رصيدك ({access.costPerAction} وحدة) · الرصيد: {access.balance}
         </p>
       )}
+
+      {/* تحسين دقّة القراءة (تصحيح OCR عبر Claude) */}
+      <div
+        className="flex items-center justify-between flex-wrap"
+        style={{
+          gap: 10,
+          background: "var(--orange-soft)",
+          border: "1px solid rgba(246,146,81,0.2)",
+          borderRadius: 12,
+          padding: "12px 14px",
+          marginTop: 8,
+          marginBottom: 4,
+        }}
+      >
+        <div className="min-w-0">
+          <div style={{ fontSize: 13, fontWeight: 500, color: "var(--carbon)", fontFamily: "Tajawal, sans-serif" }}>
+            تحسين دقّة القراءة
+          </div>
+          <div style={{ fontSize: 11, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>
+            {enhanceMsg || "يصحّح Claude أخطاء التعرّف في النصّ المستخرَج دون تغيير المعنى."}
+          </div>
+        </div>
+        <button
+          onClick={enhance}
+          disabled={busy !== null}
+          className="btn-primary"
+          style={{ fontSize: 13, padding: "9px 18px", opacity: busy ? 0.7 : 1 }}
+        >
+          {busy === "enhance" ? <Loader2 size={14} className="animate-spin" /> : <Wand2 size={14} />}
+          تحسين الدقّة
+        </button>
+      </div>
 
       {/* Ask */}
       <div style={{ marginTop: 8 }}>

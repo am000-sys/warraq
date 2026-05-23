@@ -12,7 +12,8 @@ export type ClaudeActionType =
   | "report-summary"
   | "report-executive-summary"
   | "report-key-points"
-  | "report-structured";
+  | "report-structured"
+  | "proofread";
 
 export const CLAUDE_ACTION_TYPES: ClaudeActionType[] = [
   "ask",
@@ -20,6 +21,7 @@ export const CLAUDE_ACTION_TYPES: ClaudeActionType[] = [
   "report-executive-summary",
   "report-key-points",
   "report-structured",
+  "proofread",
 ];
 
 export type ClaudeConfig = {

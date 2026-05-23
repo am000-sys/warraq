@@ -273,3 +273,18 @@ export async function generateReport(
   return runText(model, system, userContent, 4096);
 }
 
+// تدقيق/تصحيح أخطاء التعرّف الضوئي (OCR) في نصّ صفحة — تصحيح فقط، بلا إعادة صياغة
+export async function proofreadText(
+  pageText: string,
+  model: ClaudeModel = "OPUS",
+): Promise<ClaudeTextResult> {
+  const system =
+    "أنت مدقّق نصوص عربيّة خبير. مهمّتك تصحيح أخطاء التعرّف الضوئي (OCR) فقط في النصّ المرفق:\n" +
+    "- صحّح الكلمات المقروءة خطأً والحروف المشوّهة بما يوافق السياق العربيّ الصحيح.\n" +
+    "- حافظ حرفيّاً على المعنى والترتيب وفواصل الأسطر والفقرات والتشكيل وأرقام الصفحات والحواشي وعلامات التنسيق.\n" +
+    "- لا تُضِف ولا تحذف ولا تختصر ولا تُعِد الصياغة، ولا تترجم.\n" +
+    "- أعِد النصّ المصحَّح فقط دون أيّ تعليق أو مقدّمة.";
+  return runText(model, system, pageText.slice(0, MAX_CONTEXT_CHARS), 8192);
+}
+
+
