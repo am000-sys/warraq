@@ -7,15 +7,13 @@ import { useRouter } from "next/navigation";
 import { Upload as UploadIcon, FileText, X } from "lucide-react";
 import { ProcessingView } from "@/components/processing-view";
 
-// مؤقّتاً: نعتمد النموذج الفائق فقط ونُخفي النموذجين الآخرين، بالتسعيرة الأساسيّة
-const models = [
-  { k: "OPUS", l: "فائق", d: "الأدقّ · أعلى جودة للكتب العربيّة", t: "صفحة واحدة لكل صفحة" },
-] as const;
+// مؤقّتاً: نعتمد النموذج الفائق فقط بالتسعيرة الأساسيّة (بلا اختيار)
+const MODEL = "OPUS" as const;
 
 export default function UploadPage() {
   const router = useRouter();
   const [files, setFiles] = useState<File[]>([]);
-  const [model, setModel] = useState<"HAIKU" | "SONNET" | "OPUS">("OPUS");
+  const model = MODEL;
   const [dragging, setDragging] = useState(false);
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
@@ -197,7 +195,7 @@ export default function UploadPage() {
         </div>
       )}
 
-      {/* Model picker */}
+      {/* النموذج المعتمد — واحد فقط حالياً، بلا اختيار */}
       <div className="card" style={{ borderRadius: 16, marginBottom: 18 }}>
         <div
           style={{
@@ -210,52 +208,38 @@ export default function UploadPage() {
         >
           النموذج المعتمد
         </div>
-        {models.map((m) => (
-          <label
-            key={m.k}
-            className="flex items-center gap-3 cursor-pointer transition-all"
-            style={{
-              padding: "13px 14px",
-              border: `1.5px solid ${model === m.k ? "var(--orange)" : "var(--border)"}`,
-              borderRadius: 12,
-              background: model === m.k ? "var(--orange-soft)" : "transparent",
-              marginBottom: 8,
-            }}
-          >
-            <input
-              type="radio"
-              name="model"
-              checked={model === m.k}
-              onChange={() => setModel(m.k)}
-              style={{ accentColor: "var(--orange)", flexShrink: 0 }}
-            />
-            <div className="flex-1">
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 500,
-                  color: "var(--carbon)",
-                  fontFamily: "Tajawal, sans-serif",
-                }}
-              >
-                {m.l}
-              </div>
-              <div
-                className="font-light"
-                style={{
-                  fontSize: 12,
-                  color: "var(--stone)",
-                  fontFamily: "Tajawal, sans-serif",
-                }}
-              >
-                {m.d}
-              </div>
+        <div
+          className="flex items-center gap-3"
+          style={{
+            padding: "13px 14px",
+            border: "1.5px solid var(--orange)",
+            borderRadius: 12,
+            background: "var(--orange-soft)",
+          }}
+        >
+          <div className="flex-1">
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 500,
+                color: "var(--carbon)",
+                fontFamily: "Tajawal, sans-serif",
+              }}
+            >
+              فائق
             </div>
-            <span className="badge" style={{ fontSize: 10 }}>
-              {m.t}
-            </span>
-          </label>
-        ))}
+            <div
+              className="font-light"
+              style={{
+                fontSize: 12,
+                color: "var(--stone)",
+                fontFamily: "Tajawal, sans-serif",
+              }}
+            >
+              الأدقّ · أعلى جودة للكتب العربيّة
+            </div>
+          </div>
+        </div>
       </div>
 
       {error && (
