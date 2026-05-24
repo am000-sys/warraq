@@ -2,8 +2,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Copy, Check, Upload, Clock, XCircle, CheckCircle } from "lucide-react";
-import type { TopUpPackage } from "@/lib/packages";
+import { Copy, Check, Upload, Clock, XCircle, CheckCircle, Minus, Plus } from "lucide-react";
+import {
+  type TopUpPackage,
+  buildFlexiblePackage,
+  FLEX_STEP,
+  FLEX_MIN,
+  FLEX_MAX,
+} from "@/lib/packages";
 import { ar } from "@/lib/utils";
 
 type Bank = { holder: string; bankName: string; iban: string };
@@ -27,6 +33,16 @@ export function TopUpClient({ packages, bank }: { packages: TopUpPackage[]; bank
   const [done, setDone] = useState(false);
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState<Req[]>([]);
+  const [flexPages, setFlexPages] = useState(FLEX_MIN);
+
+  const flexActive = selected?.id === "flex";
+
+  function setFlex(pages: number) {
+    const clamped = Math.min(FLEX_MAX, Math.max(FLEX_MIN, pages));
+    setFlexPages(clamped);
+    setSelected(buildFlexiblePackage(clamped));
+    setDone(false);
+  }
 
   useEffect(() => {
     fetch("/api/topup")
@@ -68,7 +84,12 @@ export function TopUpClient({ packages, bank }: { packages: TopUpPackage[]; bank
     const res = await fetch("/api/topup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ packageId: selected.id, senderName, receiptImage: receipt }),
+      body: JSON.stringify({
+        packageId: selected.id,
+        pages: selected.id === "flex" ? selected.pages : undefined,
+        senderName,
+        receiptImage: receipt,
+      }),
     });
     setSubmitting(false);
     if (!res.ok) {
@@ -192,6 +213,85 @@ export function TopUpClient({ packages, bank }: { packages: TopUpPackage[]; bank
             </button>
           );
         })}
+      </div>
+
+      {/* الباقة المرنة — عدد صفحات بمضاعفات ٥٠ */}
+      <div
+        className="flex items-center justify-between flex-wrap"
+        style={{
+          gap: 16,
+          background: "var(--snow)",
+          borderRadius: "var(--r-card)",
+          padding: 24,
+          marginBottom: 28,
+          border: flexActive ? "2px solid var(--orange)" : "1px solid var(--border-sub)",
+          boxShadow: "var(--shadow-card)",
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif", marginBottom: 6 }}>
+            باقة مرنة — اختر عدد الصفحات (مضاعفات ٥٠)
+          </div>
+          <div className="flex items-center" style={{ gap: 12 }}>
+            <button
+              type="button"
+              onClick={() => setFlex(flexPages - FLEX_STEP)}
+              aria-label="إنقاص"
+              style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid var(--border)", background: "var(--snow)", cursor: "pointer", color: "var(--carbon)" }}
+              className="flex items-center justify-center"
+            >
+              <Minus size={16} />
+            </button>
+            <input
+              type="number"
+              value={flexPages}
+              step={FLEX_STEP}
+              min={FLEX_MIN}
+              max={FLEX_MAX}
+              onChange={(e) => {
+                const v = parseInt(e.target.value || "0", 10);
+                const rounded = Math.round(v / FLEX_STEP) * FLEX_STEP;
+                setFlex(rounded || FLEX_MIN);
+              }}
+              className="field"
+              style={{ width: 110, textAlign: "center", fontFamily: "Inter, sans-serif", direction: "ltr" }}
+            />
+            <button
+              type="button"
+              onClick={() => setFlex(flexPages + FLEX_STEP)}
+              aria-label="زيادة"
+              style={{ width: 36, height: 36, borderRadius: 10, border: "1px solid var(--border)", background: "var(--snow)", cursor: "pointer", color: "var(--carbon)" }}
+              className="flex items-center justify-center"
+            >
+              <Plus size={16} />
+            </button>
+            <span style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>صفحة</span>
+          </div>
+        </div>
+        <div className="text-left">
+          <div
+            style={{
+              fontSize: 30,
+              fontWeight: 300,
+              color: "var(--carbon)",
+              fontFamily: "Tajawal, sans-serif",
+              letterSpacing: "-0.02em",
+              lineHeight: 1,
+              marginBottom: 4,
+            }}
+          >
+            {ar(buildFlexiblePackage(flexPages).amountSar)}
+            <span style={{ fontSize: 14, fontWeight: 400, marginRight: 4 }}>ريال</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setFlex(flexPages)}
+            className="btn-primary"
+            style={{ fontSize: 13, padding: "9px 20px", marginTop: 6 }}
+          >
+            {flexActive ? "محدّدة ✓" : "اختر هذه الباقة"}
+          </button>
+        </div>
       </div>
 
       {/* تفاصيل الحوالة + الإرسال */}

@@ -3,11 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getPackage } from "@/lib/packages";
+import { getPackage, getFlexiblePackage } from "@/lib/packages";
 import { sendEmail, newTopupForOwnerEmail } from "@/lib/email";
 
 const schema = z.object({
-  packageId: z.enum(["small", "medium", "large"]),
+  packageId: z.enum(["small", "medium", "large", "flex"]),
+  // مطلوب فقط للباقة المرنة: عدد الصفحات (مضاعفات ٥٠)
+  pages: z.number().int().positive().optional(),
   senderName: z.string().min(2).max(120),
   // صورة الإيصال كـ data URL base64 (يُحدّ حجمها في الواجهة)
   receiptImage: z.string().startsWith("data:image/").max(8_000_000),
@@ -22,8 +24,21 @@ export async function POST(req: NextRequest) {
 
   try {
     const data = schema.parse(await req.json());
-    const pkg = getPackage(data.packageId);
-    if (!pkg) return NextResponse.json({ error: "باقة غير صالحة" }, { status: 400 });
+    const pkg =
+      data.packageId === "flex"
+        ? getFlexiblePackage(data.pages ?? 0)
+        : getPackage(data.packageId);
+    if (!pkg) {
+      return NextResponse.json(
+        {
+          error:
+            data.packageId === "flex"
+              ? "عدد صفحات غير صالح — استخدم مضاعفات ٥٠"
+              : "باقة غير صالحة",
+        },
+        { status: 400 },
+      );
+    }
 
     const request = await db.topUpRequest.create({
       data: {
