@@ -4,8 +4,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-// التسعير محسوب بهامش ربح ~٧٠٪ فوق التكلفة التقديريّة
-// (تكلفة الصفحة ~٠٫٠٦ ريال بنموذج Sonnet → السعر ~٠٫٢٥ ريال/صفحة)
+// التسعير الحاليّ = ربع التسعيرة السابقة (سعر الصفحة ~٠٫٠٥ ريال)
 const plans = [
   {
     tier: "مجاني",
@@ -15,7 +14,7 @@ const plans = [
   },
   {
     tier: "احترافي",
-    price: { monthly: 99, yearly: 79 },
+    price: { monthly: 24.75, yearly: 19.75 },
     badge: "الأكثر شيوعاً",
     feats: [
       "٥٠٠ صفحة / شهر",
@@ -29,7 +28,7 @@ const plans = [
   },
   {
     tier: "مؤسسي",
-    price: { monthly: 449, yearly: 359 },
+    price: { monthly: 112.25, yearly: 89.75 },
     feats: [
       "٢٥٠٠ صفحة / شهر",
       "جميع النماذج (فائق)",
