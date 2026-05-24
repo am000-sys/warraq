@@ -108,7 +108,9 @@ export function formatOcrPage(raw: string): FormattedPage {
   const printedNumber = extractPrintedNumber(lines);
 
   let text = lines.join("\n");
-  text = separateFootnotes(text);
+  // لا نُعيد ترتيب الحواشي في صفحات فيها جداول أو أشكال (حفاظاً على بنيتها)
+  const hasTableOrImage = /\|.*\|/.test(text) || text.includes("![");
+  if (!hasTableOrImage) text = separateFootnotes(text);
   text = text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
 
   return { text, printedNumber };

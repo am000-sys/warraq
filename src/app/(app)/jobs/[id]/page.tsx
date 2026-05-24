@@ -8,6 +8,7 @@ import { modelName } from "@/lib/models";
 import { ArrowRight, Download } from "lucide-react";
 import { JobAutoRefresh } from "@/components/job-auto-refresh";
 import { ClaudePanel } from "@/components/claude-panel";
+import { MarkdownView } from "@/components/markdown-view";
 import { getClaudeAccess } from "@/lib/claude-addon";
 
 export default async function JobDetailPage({
@@ -199,19 +200,7 @@ export default async function JobDetailPage({
                 <span>صفحة {page.printedNumber || "—"}</span>
                 <span>تسلسلي: {ar(page.sequentialNumber)}</span>
               </div>
-              <pre
-                dir="rtl"
-                style={{
-                  whiteSpace: "pre-wrap",
-                  fontSize: 14,
-                  lineHeight: 2,
-                  fontFamily: "Tajawal, sans-serif",
-                  color: "var(--midnight)",
-                  margin: 0,
-                }}
-              >
-                {page.textContent}
-              </pre>
+              <MarkdownView content={page.textContent ?? ""} />
             </div>
           ))}
           {completedPages.length > 10 && (
