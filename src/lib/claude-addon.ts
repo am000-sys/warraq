@@ -34,7 +34,7 @@ export type ClaudeConfig = {
 };
 
 const DEFAULTS: ClaudeConfig = {
-  enabled: true,
+  enabled: false, // مُعطّلة مؤقّتاً — تُخفى مميزات Claude من الواجهة والـ backend ريثما تُطوَّر
   mode: "plan",
   includedPlanSlugs: ["researcher", "verifier"],
   costPerAction: 5,

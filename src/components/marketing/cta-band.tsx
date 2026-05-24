@@ -50,14 +50,14 @@ export function CTABand() {
             fontFamily: "Tajawal, sans-serif",
           }}
         >
-          ابدأ مجاناً بـ ٥ صفحات — بدون بطاقة ائتمانية.
+          ابدأ مجاناً بـ ٥٠ صفحة — بدون بطاقة ائتمانية.
         </p>
         <Link
           href="/signup"
           className="btn-primary no-underline"
           style={{ fontSize: 16, padding: "15px 36px" }}
         >
-          ابدأ مجاناً — ٥ صفحات
+          ابدأ مجاناً — ٥٠ صفحة
         </Link>
       </div>
     </section>

@@ -15,7 +15,7 @@ const signupSchema = z.object({
   name: z.string().min(2).max(80),
 });
 
-const FREE_INITIAL_PAGES = 5;
+const FREE_INITIAL_PAGES = 50;
 
 export async function POST(req: NextRequest) {
   try {

@@ -7,7 +7,7 @@ import { isImageFile, imageBufferToPage } from "@/lib/pdf";
 export const maxDuration = 120;
 
 // عدد الصفحات المجانيّة لكلّ عنوان IP
-const FREE_TRIES_PER_IP = 2;
+const FREE_TRIES_PER_IP = 50;
 
 function getClientIp(req: NextRequest): string {
   const fwd = req.headers.get("x-forwarded-for");

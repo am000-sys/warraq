@@ -11,13 +11,13 @@ export type TopUpPackage = {
 };
 
 export const TOPUP_PACKAGES: TopUpPackage[] = [
-  { id: "small", nameAr: "باقة صغيرة", pages: 100, amountSar: 20, perPage: 0.2 },
+  { id: "small", nameAr: "باقة صغيرة", pages: 100, amountSar: 5, perPage: 0.05 },
   {
     id: "medium",
     nameAr: "باقة متوسطة",
     pages: 500,
-    amountSar: 75,
-    perPage: 0.15,
+    amountSar: 18.75,
+    perPage: 0.0375,
     savePct: 25,
     featured: true,
   },
@@ -25,8 +25,8 @@ export const TOPUP_PACKAGES: TopUpPackage[] = [
     id: "large",
     nameAr: "باقة كبيرة",
     pages: 2500,
-    amountSar: 300,
-    perPage: 0.12,
+    amountSar: 75,
+    perPage: 0.03,
     savePct: 40,
   },
 ];

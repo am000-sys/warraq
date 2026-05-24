@@ -63,7 +63,7 @@ export function Hero() {
       {/* CTA */}
       <div className="flex gap-3 flex-wrap justify-center mb-10">
         <Link href="/signup" className="btn-primary no-underline" style={{ fontSize: 16, padding: "14px 32px" }}>
-          ابدأ مجاناً — ٥ صفحات
+          ابدأ مجاناً — ٥٠ صفحة
         </Link>
         <Link href="/try" className="btn-ghost no-underline" style={{ fontSize: 16, padding: "14px 32px" }}>
           جرّب مجاناً الآن

@@ -125,13 +125,13 @@ async function main() {
   console.log("\n⚙️  إعدادات النظام...");
 
   const settings = [
-    { key: "payg_price_per_page_halala", value: 25, description: "سعر الصفحة في PAYG (هللات)" },
+    { key: "payg_price_per_page_halala", value: 6, description: "سعر الصفحة في PAYG (هللات)" },
     { key: "max_file_size_mb", value: 100, description: "الحدّ الأقصى لحجم الملف" },
     { key: "results_retention_days", value: 30, description: "مدّة حفظ النتائج" },
-    { key: "free_signup_pages", value: 10, description: "صفحات مجانية عند التسجيل" },
+    { key: "free_signup_pages", value: 50, description: "صفحات مجانية عند التسجيل" },
     { key: "max_pages_per_file", value: 2000, description: "الحدّ الأقصى للصفحات في الملف" },
     // ── إعدادات إضافة Claude (Ask/Report) — قابلة للتحكّم من لوحة الإدارة ──
-    { key: "claude_addon_enabled", value: true, description: "تفعيل خدمات Claude الإضافيّة (Ask/Report)" },
+    { key: "claude_addon_enabled", value: false, description: "تفعيل خدمات Claude الإضافيّة (Ask/Report) — مُعطّلة مؤقّتاً ريثما تُطوَّر" },
     { key: "claude_addon_mode", value: "plan", description: "طريقة الأهليّة: plan | usage | plan_or_usage" },
     { key: "claude_addon_included_plans", value: ["researcher", "verifier"], description: "الخطط التي تتضمّن إضافة Claude" },
     { key: "claude_addon_cost_per_action", value: 5, description: "تكلفة العمليّة الواحدة بالرصيد (وضع usage)" },

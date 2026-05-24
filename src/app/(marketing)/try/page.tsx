@@ -67,7 +67,7 @@ export default function TryPage() {
             className="font-light"
             style={{ fontSize: 16, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}
           >
-            ارفع صورة صفحة عربيّة — بدون تسجيل. (صفحتان مجاناً)
+            ارفع صورة صفحة عربيّة — بدون تسجيل. (٥٠ صفحة مجاناً)
           </p>
         </div>
 
