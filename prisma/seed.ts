@@ -33,7 +33,7 @@ async function main() {
       nameAr: "مجاني",
       nameEn: "Free",
       monthlyPriceSar: 0,
-      pagesPerMonth: 5,
+      pagesPerMonth: 50,
       maxFileSizeMb: 10,
       maxBatchSize: 1,
       allowedFormats: ["TXT", "MD", "DOCX"] as const,
