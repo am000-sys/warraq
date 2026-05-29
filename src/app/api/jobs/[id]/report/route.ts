@@ -1,10 +1,9 @@
-// src/app/api/jobs/[id]/report/route.ts — خدمة "توليد تقرير" (Claude Add-on، مدفوعة)
+// src/app/api/jobs/[id]/report/route.ts — خدمة "توليد تقرير" (Add-on مدفوع، عبر Mistral)
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { isClaudeConfigured, generateReport, type ReportType } from "@/lib/claude";
-import { isMistralConfigured, generateReportMistral } from "@/lib/mistral";
+import { isMistralConfigured, generateReportMistral, type ReportType } from "@/lib/mistral";
 import {
   getClaudeAccess,
   trackClaudeUsage,
@@ -27,9 +26,9 @@ export async function POST(
   if (!session?.user?.id) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 401 });
   }
-  if (!isMistralConfigured && !isClaudeConfigured) {
+  if (!isMistralConfigured) {
     return NextResponse.json(
-      { error: "خدمة الذكاء الاصطناعي غير مهيّأة", configRequired: true },
+      { error: "خدمة التقارير غير مهيّأة", configRequired: true },
       { status: 503 },
     );
   }
@@ -56,7 +55,7 @@ export async function POST(
   const access = await getClaudeAccess(session.user.id);
   if (!access.eligible) {
     return NextResponse.json(
-      { error: "هذه ميزة إضافيّة مدفوعة (Claude). رقِّ خطّتك أو فعّل الإضافة.", upsell: true },
+      { error: "هذه ميزة إضافيّة مدفوعة. رقِّ خطّتك أو فعّل الإضافة.", upsell: true },
       { status: 403 },
     );
   }
@@ -64,7 +63,7 @@ export async function POST(
     const used = await claudeMonthlyUsage(session.user.id);
     if (used >= access.monthlyLimit) {
       return NextResponse.json(
-        { error: "بلغت الحدّ الشهريّ لخدمات Claude في خطّتك.", upsell: true },
+        { error: "بلغت الحدّ الشهريّ للخدمات الإضافيّة في خطّتك.", upsell: true },
         { status: 403 },
       );
     }
@@ -83,9 +82,7 @@ export async function POST(
     .join("\n\n");
 
   try {
-    const report = isMistralConfigured
-      ? await generateReportMistral(context, type)
-      : (await generateReport(context, type, access.textModel)).text;
+    const report = await generateReportMistral(context, type);
     await trackClaudeUsage(session.user.id, `report-${type}` as ClaudeActionType, {
       jobId: id,
       mode: access.mode,

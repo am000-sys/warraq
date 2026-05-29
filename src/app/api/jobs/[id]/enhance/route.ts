@@ -1,12 +1,11 @@
 // src/app/api/jobs/[id]/enhance/route.ts
-// تحسين دقّة القراءة عبر Claude (Add-on مدفوع): يصحّح أخطاء OCR في نصّ Mistral
-// دون إعادة صياغة. يعمل على دفعات يقودها المتصفّح (offset)، ويُحتسب كعمليّة واحدة
-// (الخصم/التتبّع عند offset=0 فقط). Claude لا يشارك في القراءة الأساسيّة.
+// تحسين الدقّة والتنسيق عبر Mistral (Add-on مدفوع): يصحّح أخطاء القراءة وينسّق
+// ويفصل الحواشي ويضبط رقم الصفحة. يعمل على دفعات يقودها المتصفّح (offset)، ويُحتسب
+// كعمليّة واحدة (الخصم/التتبّع عند offset=0 فقط).
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { isClaudeConfigured, proofreadText } from "@/lib/claude";
 import { isMistralConfigured, refinePageMistral } from "@/lib/mistral";
 import { getClaudeAccess, trackClaudeUsage, claudeMonthlyUsage } from "@/lib/claude-addon";
 
@@ -24,9 +23,9 @@ export async function POST(
   if (!session?.user?.id) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 401 });
   }
-  if (!isMistralConfigured && !isClaudeConfigured) {
+  if (!isMistralConfigured) {
     return NextResponse.json(
-      { error: "خدمة الذكاء الاصطناعي غير مهيّأة", configRequired: true },
+      { error: "خدمة التحسين غير مهيّأة", configRequired: true },
       { status: 503 },
     );
   }
@@ -53,7 +52,7 @@ export async function POST(
   const access = await getClaudeAccess(session.user.id);
   if (!access.eligible) {
     return NextResponse.json(
-      { error: "هذه ميزة إضافيّة مدفوعة (Claude). رقِّ خطّتك أو فعّل الإضافة.", upsell: true },
+      { error: "هذه ميزة إضافيّة مدفوعة. رقِّ خطّتك أو فعّل الإضافة.", upsell: true },
       { status: 403 },
     );
   }
@@ -64,7 +63,7 @@ export async function POST(
       const used = await claudeMonthlyUsage(session.user.id);
       if (used >= access.monthlyLimit) {
         return NextResponse.json(
-          { error: "بلغت الحدّ الشهريّ لخدمات Claude في خطّتك.", upsell: true },
+          { error: "بلغت الحدّ الشهريّ للخدمات الإضافيّة في خطّتك.", upsell: true },
           { status: 403 },
         );
       }
@@ -93,26 +92,16 @@ export async function POST(
       const page = pages[i];
       const original = page.textContent ?? "";
       if (original.trim()) {
-        if (isMistralConfigured) {
-          // تدقيق + تنسيق + فصل الحواشي + رقم الصفحة
-          const r = await refinePageMistral(original);
-          if (r.text && r.text.trim()) {
-            await db.jobPage.update({
-              where: { id: page.id },
-              data: {
-                textContent: r.text,
-                ...(r.printedNumber ? { printedNumber: r.printedNumber } : {}),
-              },
-            });
-          }
-        } else {
-          const corrected = (await proofreadText(original, access.textModel)).text;
-          if (corrected && corrected.trim()) {
-            await db.jobPage.update({
-              where: { id: page.id },
-              data: { textContent: corrected },
-            });
-          }
+        // تدقيق + تنسيق + فصل الحواشي + رقم الصفحة عبر Mistral
+        const r = await refinePageMistral(original);
+        if (r.text && r.text.trim()) {
+          await db.jobPage.update({
+            where: { id: page.id },
+            data: {
+              textContent: r.text,
+              ...(r.printedNumber ? { printedNumber: r.printedNumber } : {}),
+            },
+          });
         }
       }
       i++;
