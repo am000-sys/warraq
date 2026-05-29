@@ -47,6 +47,7 @@ function inlineImages(
 export async function ocrDocument(
   source: DocSource,
   withImages = false,
+  pageRange?: number[], // نطاق صفحات اختياريّ (0-indexed) — لمعالجة الكتب الكبيرة على دفعات
 ): Promise<{ pages: MistralOcrPage[] }> {
   if (!apiKey) throw new Error("MISTRAL_NOT_CONFIGURED");
   const ref = source.url ?? source.dataUri;
@@ -60,6 +61,7 @@ export async function ocrDocument(
     model: OCR_MODEL,
     document,
     include_image_base64: withImages,
+    ...(pageRange && pageRange.length ? { pages: pageRange } : {}),
   });
 
   // إعادة محاولة عند الأخطاء العابرة (٤٢٩/٥xx) — لا نفشل لمجرّد ازدحام مؤقّت

@@ -20,14 +20,13 @@ export type OcrPageResult = {
   outputTokens: number;
 };
 
-// تفريغ مستند كامل عبر Mistral في نداء واحد (الأسرع والأضمن — كما في موقع Mistral).
-// يقبل رابطاً موقّعاً (R2) أو data URI، ويعيد كلّ الصفحات منسّقة.
-export async function ocrFullDocument(source: {
-  url?: string;
-  dataUri?: string;
-  isImage: boolean;
-}): Promise<OcrPageResult[]> {
-  const { pages } = await ocrDocument(source);
+// تفريغ مستند عبر Mistral. pageRange اختياريّ (0-indexed) لمعالجة الكتب الكبيرة
+// على دفعات قابلة للاستئناف (لا تتجاوز أيّ مهلة تنفيذ).
+export async function ocrFullDocument(
+  source: { url?: string; dataUri?: string; isImage: boolean },
+  pageRange?: number[],
+): Promise<OcrPageResult[]> {
+  const { pages } = await ocrDocument(source, false, pageRange);
   return pages.map((p) => {
     const f = formatOcrPage(p.text ?? "");
     return { text: f.text, printedNumber: f.printedNumber, inputTokens: 0, outputTokens: 0 };
