@@ -8,7 +8,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getDownloadUrl, isStorageConfigured } from "@/lib/storage";
-import { isOcrConfigured, ocrImage, ocrPdfPage } from "@/lib/ocr";
+import {
+  isOcrConfigured,
+  isMistralConfigured,
+  ocrImage,
+  ocrPdfPage,
+  ocrFullDocument,
+} from "@/lib/ocr";
 import { isImageFile, isPdfFile, imageBufferToPage } from "@/lib/pdf";
 import { modelCredits } from "@/lib/models";
 
@@ -120,7 +126,60 @@ export async function POST(
       throw new Error("صيغة ملفّ غير مدعومة");
     }
 
-    // ===== PDF على دفعات (صفحة صفحة) =====
+    // ===== PDF عبر Mistral: المستند كاملاً في نداء واحد (الأسرع والأضمن) =====
+    if (isMistralConfigured) {
+      const results = await ocrFullDocument({ url, isImage: false });
+      if (results.length === 0) throw new Error("لم يُستخرَج نصّ من المستند");
+
+      const affordable = Math.floor(user.pagesBalance / credits);
+      const toSave = results.slice(0, Math.max(0, affordable));
+      if (toSave.length < 1) {
+        return NextResponse.json(
+          { error: "رصيد غير كافٍ", available: user.pagesBalance },
+          { status: 402 },
+        );
+      }
+
+      await db.jobPage.deleteMany({ where: { jobId: id } });
+      await db.jobPage.createMany({
+        data: toSave.map((r, i) => ({
+          jobId: id,
+          sequentialNumber: i + 1,
+          printedNumber: r.printedNumber,
+          status: "COMPLETED" as const,
+          textContent: r.text,
+          inputTokens: 0,
+          outputTokens: 0,
+          processedAt: new Date(),
+        })),
+      });
+
+      const charged = toSave.length * credits;
+      await db.$transaction([
+        db.user.update({
+          where: { id: user.id },
+          data: { pagesBalance: { decrement: charged } },
+        }),
+        db.job.update({
+          where: { id },
+          data: {
+            status: "COMPLETED",
+            totalPages: toSave.length,
+            processedPages: toSave.length,
+            pagesCharged: charged,
+            completedAt: new Date(),
+          },
+        }),
+      ]);
+      return NextResponse.json({
+        ok: true,
+        processed: toSave.length,
+        total: toSave.length,
+        done: true,
+      });
+    }
+
+    // ===== PDF عبر Claude (بديل): معالجة على دفعات (صفحة صفحة) =====
     const { PDFDocument } = await import("pdf-lib");
     const src = await PDFDocument.load(buffer, { ignoreEncryption: true });
     const pdfTotal = src.getPageCount();

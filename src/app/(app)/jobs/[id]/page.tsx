@@ -218,7 +218,7 @@ export default async function JobDetailPage({
         </div>
       )}
 
-      {/* خدمات Claude الإضافيّة (Ask / Report) — مفتوحة للمؤهّلين، مقفلة مع upsell لغيرهم */}
+      {/* مساعد المستند الذكي (تحسين/تقرير/سؤال) — مفتوح للمؤهّلين، مقفل مع upsell لغيرهم */}
       {claudeAccess && completedPages.length > 0 && (
         <ClaudePanel
           jobId={job.id}

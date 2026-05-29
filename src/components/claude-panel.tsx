@@ -95,7 +95,7 @@ function ClaudeActive({ jobId, access }: { jobId: string; access: ClaudeAccessCl
     if (busy) return;
     setBusy("enhance");
     setError("");
-    setEnhanceMsg("جارٍ تحسين الدقّة عبر Claude...");
+    setEnhanceMsg("جارٍ تحسين الدقّة والتنسيق...");
     try {
       let offset = 0;
       let done = false;
@@ -172,7 +172,7 @@ function ClaudeActive({ jobId, access }: { jobId: string; access: ClaudeAccessCl
         </p>
       )}
 
-      {/* تحسين دقّة القراءة (تصحيح OCR عبر Claude) */}
+      {/* تحسين الدقّة والتنسيق (تصحيح القراءة + تنسيق + حواشي + رقم الصفحة) */}
       <div
         className="flex items-center justify-between flex-wrap"
         style={{

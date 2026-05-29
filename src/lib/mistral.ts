@@ -51,22 +51,29 @@ export async function ocrDocument(source: DocSource): Promise<{ pages: MistralOc
     ? { type: "image_url", image_url: ref }
     : { type: "document_url", document_url: ref };
 
-  const res = await fetch(OCR_ENDPOINT, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model: OCR_MODEL,
-      document,
-      include_image_base64: true, // التقاط الأشكال/المخطّطات لإعادة بنائها
-    }),
+  const body = JSON.stringify({
+    model: OCR_MODEL,
+    document,
+    include_image_base64: true, // التقاط الأشكال/المخطّطات لإعادة بنائها
   });
 
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(`Mistral OCR ${res.status}: ${t.slice(0, 300)}`);
+  // إعادة محاولة عند الأخطاء العابرة (٤٢٩/٥xx) — لا نفشل لمجرّد ازدحام مؤقّت
+  let res: Response | null = null;
+  let lastErr = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    res = await fetch(OCR_ENDPOINT, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+      body,
+    });
+    if (res.ok) break;
+    lastErr = `Mistral OCR ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`;
+    // أعِد المحاولة فقط للأخطاء العابرة
+    if (res.status !== 429 && res.status < 500) break;
+    await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+  }
+  if (!res || !res.ok) {
+    throw new Error(lastErr || "Mistral OCR فشل");
   }
 
   const data = (await res.json()) as {

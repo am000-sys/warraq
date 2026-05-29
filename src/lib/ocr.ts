@@ -11,6 +11,7 @@ import { formatOcrPage } from "@/lib/ocr-format";
 import type { ClaudeModel } from "@prisma/client";
 
 export const isOcrConfigured = isMistralConfigured || isClaudeConfigured;
+export { isMistralConfigured };
 
 export type OcrPageResult = {
   text: string;
@@ -18,6 +19,20 @@ export type OcrPageResult = {
   inputTokens: number;
   outputTokens: number;
 };
+
+// تفريغ مستند كامل عبر Mistral في نداء واحد (الأسرع والأضمن — كما في موقع Mistral).
+// يقبل رابطاً موقّعاً (R2) أو data URI، ويعيد كلّ الصفحات منسّقة.
+export async function ocrFullDocument(source: {
+  url?: string;
+  dataUri?: string;
+  isImage: boolean;
+}): Promise<OcrPageResult[]> {
+  const { pages } = await ocrDocument(source);
+  return pages.map((p) => {
+    const f = formatOcrPage(p.text ?? "");
+    return { text: f.text, printedNumber: f.printedNumber, inputTokens: 0, outputTokens: 0 };
+  });
+}
 
 // تفريغ صورة مفردة (base64)
 export async function ocrImage(

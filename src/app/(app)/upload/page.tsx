@@ -82,7 +82,7 @@ export default function UploadPage() {
       const jobId: string = jd.job.id;
 
       // ٤) عالج على دفعات من التخزين حتى تنتهي كلّ الصفحات (دون إعادة إرسال)
-      setProgress("جارٍ المعالجة بـ Claude...");
+      setProgress("جارٍ تفريغ النصّ...");
       let done = false;
       while (!done) {
         const pr = await fetch(`/api/jobs/${jobId}/process`, { method: "POST" });
@@ -100,7 +100,7 @@ export default function UploadPage() {
 
   // مسار احتياطي: لو لم يُضبط R2، نعالج عبر الرفع المباشر على دفعات
   async function processDirect(file: File) {
-    setProgress("جارٍ الرفع والمعالجة بـ Claude...");
+    setProgress("جارٍ الرفع والتفريغ...");
     const fd = new FormData();
     fd.append("file", file);
     fd.append("model", model);
@@ -128,7 +128,7 @@ export default function UploadPage() {
     if (data.total && data.total > 1) {
       setProgress(`تمّت معالجة ${data.processed ?? 0} من ${data.total} صفحة...`);
     } else {
-      setProgress("جارٍ المعالجة بـ Claude...");
+      setProgress("جارٍ تفريغ النصّ...");
     }
   }
 

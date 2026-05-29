@@ -8,7 +8,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { isOcrConfigured, ocrImage, ocrPdfPage } from "@/lib/ocr";
+import { isOcrConfigured, isMistralConfigured, ocrImage, ocrPdfPage, ocrFullDocument } from "@/lib/ocr";
 import { isImageFile, isPdfFile, imageBufferToPage } from "@/lib/pdf";
 import { modelCredits } from "@/lib/models";
 import type { ClaudeModel } from "@prisma/client";
@@ -115,7 +115,79 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ jobId: job.id, processed: 1, total: 1, done: true });
     }
 
-    // ===== PDF: إنشاء/استئناف ثمّ معالجة دفعة ضمن ميزانيّة الوقت =====
+    // ===== PDF عبر Mistral: المستند كاملاً في نداء واحد (الأسرع والأضمن) =====
+    if (isMistralConfigured) {
+      if (user.pagesBalance < credits) {
+        return NextResponse.json(
+          { error: "رصيد غير كافٍ", available: user.pagesBalance },
+          { status: 402 },
+        );
+      }
+      const dataUri = `data:application/pdf;base64,${buffer.toString("base64")}`;
+      const results = await ocrFullDocument({ dataUri, isImage: false });
+      if (results.length === 0) throw new Error("لم يُستخرَج نصّ من المستند");
+
+      const affordable = Math.floor(user.pagesBalance / credits);
+      const toSave = results.slice(0, Math.max(0, affordable));
+      if (toSave.length < 1) {
+        return NextResponse.json(
+          { error: "رصيد غير كافٍ", available: user.pagesBalance },
+          { status: 402 },
+        );
+      }
+
+      const job = await db.job.create({
+        data: {
+          userId: session.user.id,
+          fileName: file.name,
+          fileSize: buffer.length,
+          fileChecksum: "direct",
+          storageKey: "direct",
+          totalPages: toSave.length,
+          processedPages: 0,
+          model,
+          status: "PROCESSING",
+          startedAt: new Date(),
+        },
+      });
+      jobId = job.id;
+      await db.jobPage.createMany({
+        data: toSave.map((r, i) => ({
+          jobId: job.id,
+          sequentialNumber: i + 1,
+          printedNumber: r.printedNumber,
+          status: "COMPLETED" as const,
+          textContent: r.text,
+          inputTokens: 0,
+          outputTokens: 0,
+          processedAt: new Date(),
+        })),
+      });
+      const charged = toSave.length * credits;
+      await db.$transaction([
+        db.user.update({
+          where: { id: user.id },
+          data: { pagesBalance: { decrement: charged } },
+        }),
+        db.job.update({
+          where: { id: job.id },
+          data: {
+            status: "COMPLETED",
+            processedPages: toSave.length,
+            pagesCharged: charged,
+            completedAt: new Date(),
+          },
+        }),
+      ]);
+      return NextResponse.json({
+        jobId: job.id,
+        processed: toSave.length,
+        total: toSave.length,
+        done: true,
+      });
+    }
+
+    // ===== PDF عبر Claude (بديل): إنشاء/استئناف ثمّ معالجة دفعة ضمن ميزانيّة الوقت =====
     const { PDFDocument } = await import("pdf-lib");
     const src = await PDFDocument.load(buffer, { ignoreEncryption: true });
     const pdfTotal = src.getPageCount();
