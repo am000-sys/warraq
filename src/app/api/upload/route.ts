@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import crypto from "crypto";
 import { auth } from "@/lib/auth";
-import { getUploadUrl, isStorageConfigured } from "@/lib/storage";
+import { getUploadUrl, isStorageConfigured, isBlobConfigured } from "@/lib/storage";
 
 const schema = z.object({
   fileName: z.string().min(1).max(500),
@@ -17,12 +17,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 401 });
   }
 
+  // أفضليّة التخزين: R2 ثمّ Vercel Blob (كلاهما يتجاوز حدّ جسم الطلب 4.5م)
   if (!isStorageConfigured) {
+    if (isBlobConfigured) {
+      return NextResponse.json({ method: "blob" });
+    }
     return NextResponse.json(
       {
-        error: "تخزين R2 غير مُعَدّ بعد",
+        error: "التخزين غير مُعَدّ بعد",
         details:
-          "لتفعيل الرفع، يحتاج المالك ضبط متغيّرات R2_ACCOUNT_ID، R2_ACCESS_KEY_ID، R2_SECRET_ACCESS_KEY، R2_BUCKET على Vercel.",
+          "فعّل Vercel Blob (نقرة واحدة) أو اضبط متغيّرات R2 على Vercel لرفع الملفّات الكبيرة.",
         configRequired: true,
       },
       { status: 503 },
@@ -36,7 +40,7 @@ export async function POST(req: NextRequest) {
       .randomBytes(8)
       .toString("hex")}.${ext}`;
     const uploadUrl = await getUploadUrl(storageKey, data.contentType);
-    return NextResponse.json({ uploadUrl, storageKey });
+    return NextResponse.json({ method: "r2", uploadUrl, storageKey });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(

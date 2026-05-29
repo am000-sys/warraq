@@ -12,6 +12,9 @@ export const isStorageConfigured = Boolean(
   accountId && accessKey && secretKey && accountId !== "stub",
 );
 
+// Vercel Blob — تخزين بديل سهل (المتصفّح يرفع مباشرةً، يتجاوز حدّ جسم الطلب 4.5م)
+export const isBlobConfigured = Boolean(process.env.BLOB_READ_WRITE_TOKEN);
+
 const s3 = isStorageConfigured
   ? new S3Client({
       region: "auto",
@@ -41,6 +44,8 @@ export async function getDownloadUrl(
   storageKey: string,
   expiresIn = 600,
 ): Promise<string> {
+  // مفاتيح Vercel Blob (وأي تخزين عامّ) هي روابط كاملة — تُستعمل كما هي
+  if (/^https?:\/\//.test(storageKey)) return storageKey;
   if (!s3) throw new Error("R2_NOT_CONFIGURED");
   const cmd = new GetObjectCommand({
     Bucket: bucket,

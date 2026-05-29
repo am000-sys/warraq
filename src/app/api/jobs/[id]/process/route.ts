@@ -30,12 +30,6 @@ export async function POST(
   if (!session?.user?.id) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 401 });
   }
-  if (!isStorageConfigured) {
-    return NextResponse.json(
-      { error: "تخزين R2 غير مُعَدّ", configRequired: true },
-      { status: 503 },
-    );
-  }
   if (!isOcrConfigured) {
     return NextResponse.json(
       { error: "خدمة المعالجة غير مهيّأة", configRequired: true },
@@ -45,6 +39,14 @@ export async function POST(
 
   const job = await db.job.findUnique({ where: { id } });
   if (!job) return NextResponse.json({ error: "غير موجود" }, { status: 404 });
+  // الملفّ مخزّن إمّا برابط عامّ (Blob) أو مفتاح R2؛ نتأكّد أنّ أحدهما متاح
+  const isUrlKey = /^https?:\/\//.test(job.storageKey);
+  if (!isUrlKey && !isStorageConfigured) {
+    return NextResponse.json(
+      { error: "التخزين غير مُعَدّ", configRequired: true },
+      { status: 503 },
+    );
+  }
   if (job.userId !== session.user.id) {
     return NextResponse.json({ error: "ممنوع" }, { status: 403 });
   }

@@ -40,35 +40,47 @@ export default function UploadPage() {
     try {
       const contentType = file.type || "application/octet-stream";
 
-      // ١) اطلب رابط رفع موقّع لـ R2 (رفع الملفّ مرّة واحدة)
+      // ١) اسأل الخادم عن طريقة التخزين المتاحة (R2 / Blob / مباشر)
       const up = await fetch("/api/upload", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ fileName: file.name, fileSize: file.size, contentType }),
       });
 
-      // إن لم يُضبط R2 بعد: ارجع للمسار المباشر (دون تخزين)
+      // إن لم يُضبط أيّ تخزين: المسار المباشر (للملفّات الصغيرة فقط)
       if (up.status === 503) {
         return await processDirect(file);
       }
       const upData = await up.json().catch(() => ({}));
       if (!up.ok) throw new Error(upData?.error ?? "تعذّر تحضير الرفع");
 
-      // ٢) ارفع الملفّ مباشرةً إلى R2 (يتجاوز حدود حجم/زمن الخادم)
+      // ٢) ارفع الملفّ مباشرةً إلى التخزين (يتجاوز حدّ جسم الطلب)
       setProgress("جارٍ رفع الملفّ...");
-      const put = await fetch(upData.uploadUrl, {
-        method: "PUT",
-        headers: { "content-type": contentType },
-        body: file,
-      });
-      if (!put.ok) throw new Error("فشل رفع الملفّ إلى التخزين");
+      let storageKey: string;
+      if (upData.method === "blob") {
+        const { upload } = await import("@vercel/blob/client");
+        const blob = await upload(file.name, file, {
+          access: "public",
+          handleUploadUrl: "/api/blob-upload",
+          contentType,
+        });
+        storageKey = blob.url; // رابط عامّ يُمرَّر لـ Mistral
+      } else {
+        const put = await fetch(upData.uploadUrl, {
+          method: "PUT",
+          headers: { "content-type": contentType },
+          body: file,
+        });
+        if (!put.ok) throw new Error("فشل رفع الملفّ إلى التخزين");
+        storageKey = upData.storageKey;
+      }
 
       // ٣) أنشئ الوظيفة المرتبطة بالملفّ المخزّن
       const jr = await fetch("/api/jobs", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          storageKey: upData.storageKey,
+          storageKey,
           fileName: file.name,
           fileSize: file.size,
           model,
