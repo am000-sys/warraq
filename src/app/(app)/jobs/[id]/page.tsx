@@ -8,6 +8,7 @@ import { modelName } from "@/lib/models";
 import { ArrowRight, Download } from "lucide-react";
 import { JobAutoRefresh } from "@/components/job-auto-refresh";
 import { ClaudePanel } from "@/components/claude-panel";
+import { JobRetry } from "@/components/job-retry";
 import { MarkdownView } from "@/components/markdown-view";
 import { getClaudeAccess } from "@/lib/claude-addon";
 
@@ -181,6 +182,7 @@ export default async function JobDetailPage({
           >
             فشلت المعالجة: {job.errorMessage}
           </p>
+          {job.storageKey !== "direct" && <JobRetry jobId={job.id} />}
         </div>
       )}
 

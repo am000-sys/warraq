@@ -41,8 +41,13 @@ function inlineImages(
   return out;
 }
 
-// يستخرج نصّ المستند كاملاً عبر Mistral OCR (بأقصى دقّة: جداول كـ markdown + أشكال مضمّنة)
-export async function ocrDocument(source: DocSource): Promise<{ pages: MistralOcrPage[] }> {
+// يستخرج نصّ المستند كاملاً عبر Mistral OCR (جداول كـ markdown).
+// withImages=false افتراضياً للموثوقيّة: تضمين الأشكال base64 يضخّم الاستجابة لعدّة
+// ميغابايت فيتسبّب فشلاً على بيئات serverless. يُفعَّل عند الحاجة فقط.
+export async function ocrDocument(
+  source: DocSource,
+  withImages = false,
+): Promise<{ pages: MistralOcrPage[] }> {
   if (!apiKey) throw new Error("MISTRAL_NOT_CONFIGURED");
   const ref = source.url ?? source.dataUri;
   if (!ref) throw new Error("لا يوجد مصدر للمستند");
@@ -54,7 +59,7 @@ export async function ocrDocument(source: DocSource): Promise<{ pages: MistralOc
   const body = JSON.stringify({
     model: OCR_MODEL,
     document,
-    include_image_base64: true, // التقاط الأشكال/المخطّطات لإعادة بنائها
+    include_image_base64: withImages,
   });
 
   // إعادة محاولة عند الأخطاء العابرة (٤٢٩/٥xx) — لا نفشل لمجرّد ازدحام مؤقّت
@@ -84,10 +89,16 @@ export async function ocrDocument(source: DocSource): Promise<{ pages: MistralOc
       images?: { id?: string; image_base64?: string }[];
     }[];
   };
-  const pages: MistralOcrPage[] = (data.pages ?? []).map((p, i) => ({
-    index: typeof p.index === "number" ? p.index : i,
-    text: inlineImages((p.markdown ?? p.text ?? "").trim(), p.images),
-  }));
+  const pages: MistralOcrPage[] = (data.pages ?? []).map((p, i) => {
+    let text = (p.markdown ?? p.text ?? "").trim();
+    if (withImages) {
+      text = inlineImages(text, p.images);
+    } else {
+      // أزِل مراجع الصور المعلّقة حتى لا تظهر صوراً مكسورة
+      text = text.replace(/!\[[^\]]*\]\((?!data:|https?:)[^)]*\)/g, "");
+    }
+    return { index: typeof p.index === "number" ? p.index : i, text };
+  });
   return { pages };
 }
 
