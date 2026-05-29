@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, Lock, FileText, MessageSquare, Loader2, Wand2 } from "lucide-react";
+import { Sparkles, Lock, FileText, MessageSquare, Loader2, Wand2, Languages, ListTree } from "lucide-react";
 
 export type ClaudeAccessClient = {
   enabled: boolean;
@@ -90,6 +90,8 @@ function ClaudeActive({ jobId, access }: { jobId: string; access: ClaudeAccessCl
   const [busy, setBusy] = useState<null | "ask" | string>(null);
   const [error, setError] = useState("");
   const [enhanceMsg, setEnhanceMsg] = useState("");
+  const [toolResult, setToolResult] = useState("");
+  const [lang, setLang] = useState("en");
 
   async function enhance() {
     if (busy) return;
@@ -156,6 +158,27 @@ function ClaudeActive({ jobId, access }: { jobId: string; access: ClaudeAccessCl
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error ?? "تعذّر توليد التقرير");
       setReport(data.report ?? "");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function transform(type: "translate" | "index") {
+    if (busy) return;
+    setBusy(type);
+    setError("");
+    setToolResult("");
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/transform`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(type === "translate" ? { type, lang } : { type }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error ?? "تعذّر تنفيذ العمليّة");
+      setToolResult(data.result ?? "");
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -287,6 +310,67 @@ function ClaudeActive({ jobId, access }: { jobId: string; access: ClaudeAccessCl
             }}
           >
             {report}
+          </pre>
+        )}
+      </div>
+
+      {/* أدوات إضافيّة: ترجمة + فهرسة ذكيّة */}
+      <div style={{ marginTop: 18, borderTop: "1px solid var(--border-sub)", paddingTop: 16 }}>
+        <label
+          className="flex items-center gap-1.5"
+          style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif", marginBottom: 10 }}
+        >
+          <Languages size={13} /> أدوات إضافيّة
+        </label>
+        <div className="flex flex-wrap items-center" style={{ gap: 8 }}>
+          <select
+            value={lang}
+            onChange={(e) => setLang(e.target.value)}
+            className="field"
+            style={{ width: "auto", padding: "8px 12px", fontFamily: "Tajawal, sans-serif" }}
+          >
+            <option value="en">إنجليزي</option>
+            <option value="fr">فرنسي</option>
+            <option value="tr">تركي</option>
+            <option value="ur">أردو</option>
+            <option value="id">إندونيسي</option>
+            <option value="es">إسباني</option>
+          </select>
+          <button
+            onClick={() => transform("translate")}
+            disabled={busy !== null}
+            className="btn-ghost"
+            style={{ fontSize: 12, padding: "8px 14px", opacity: busy && busy !== "translate" ? 0.6 : 1 }}
+          >
+            {busy === "translate" ? <Loader2 size={13} className="animate-spin" /> : <Languages size={13} />}
+            ترجمة
+          </button>
+          <button
+            onClick={() => transform("index")}
+            disabled={busy !== null}
+            className="btn-ghost"
+            style={{ fontSize: 12, padding: "8px 14px", opacity: busy && busy !== "index" ? 0.6 : 1 }}
+          >
+            {busy === "index" ? <Loader2 size={13} className="animate-spin" /> : <ListTree size={13} />}
+            فهرسة ذكيّة
+          </button>
+        </div>
+        {toolResult && (
+          <pre
+            dir="rtl"
+            style={{
+              whiteSpace: "pre-wrap",
+              fontSize: 14,
+              lineHeight: 2,
+              fontFamily: "Tajawal, sans-serif",
+              color: "var(--midnight)",
+              background: "var(--fog)",
+              borderRadius: 12,
+              padding: 16,
+              marginTop: 12,
+            }}
+          >
+            {toolResult}
           </pre>
         )}
       </div>

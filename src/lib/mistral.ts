@@ -152,3 +152,36 @@ export async function proofreadMistral(pageText: string): Promise<string> {
     "- أعِد النصّ المصحَّح فقط دون أيّ تعليق.";
   return mistralChat(system, pageText.slice(0, MAX_CONTEXT_CHARS), 8192);
 }
+
+// ─── أدوات نصّيّة إضافيّة عبر Mistral ───────────────────
+export type TranslateLang = "en" | "fr" | "tr" | "ur" | "id" | "es";
+
+const LANG_NAMES: Record<TranslateLang, string> = {
+  en: "الإنجليزيّة",
+  fr: "الفرنسيّة",
+  tr: "التركيّة",
+  ur: "الأرديّة",
+  id: "الإندونيسيّة",
+  es: "الإسبانيّة",
+};
+
+// الفهرسة الذكيّة: استخراج الأعلام والأماكن والمصطلحات والموضوعات من المستند
+export async function extractIndexMistral(text: string): Promise<string> {
+  const ctx = text.slice(0, MAX_CONTEXT_CHARS);
+  const system =
+    "أنت مفهرس خبير في الكتب العربيّة والتراثيّة. استخرج من نصّ المستند المرفق فقط فهرساً منظّماً يشمل الأقسام: " +
+    "«الأعلام (الأشخاص)»، «الأماكن»، «المصطلحات والمفاهيم»، «الموضوعات الرئيسيّة». " +
+    "رتّب كلّ قسم في قائمة نقطيّة، واذكر رقم الصفحة بين قوسين إن أمكن. " +
+    "لا تُضِف ما ليس في المستند، واحذف القسم الذي لا عناصر له. أعِد الفهرس بصيغة Markdown فقط دون تعليق.";
+  return mistralChat(system, ctx, 4096);
+}
+
+// الترجمة: ترجمة النصّ العربيّ إلى اللغة المطلوبة مع حفظ البنية
+export async function translateMistral(text: string, lang: TranslateLang): Promise<string> {
+  const ctx = text.slice(0, MAX_CONTEXT_CHARS);
+  const langName = LANG_NAMES[lang] ?? LANG_NAMES.en;
+  const system =
+    `أنت مترجم محترف. ترجم النصّ العربيّ المرفق إلى ${langName} ترجمةً أمينةً وواضحة، ` +
+    "مع الحفاظ على بنية الفقرات والعناوين والتنسيق (Markdown). أعِد الترجمة فقط دون تعليق.";
+  return mistralChat(system, ctx, 8192);
+}
