@@ -2,17 +2,13 @@
 // يُنزّل الملفّ من R2 (مرّة لكلّ طلب)، ويعالج ما يسعه الوقت من الصفحات بدءاً من
 // processedPages، ويعيد done=false حتى تكتمل كلّ الصفحات. يقود المتصفّحُ السلسلة
 // باستدعاء هذا المسار مراراً (دون إعادة رفع الملفّ).
+// التفريغ صفحةً صفحة عبر طبقة OCR الموحّدة (Mistral أساسي / Claude بديل) لتفادي
+// فشل المستندات متعدّدة الصفحات.
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getDownloadUrl, isStorageConfigured } from "@/lib/storage";
-import {
-  isClaudeConfigured,
-  extractTextFromImage,
-  extractTextFromPdfPage,
-} from "@/lib/claude";
-import { isMistralConfigured, ocrDocument } from "@/lib/mistral";
-import { formatOcrPage } from "@/lib/ocr-format";
+import { isOcrConfigured, ocrImage, ocrPdfPage } from "@/lib/ocr";
 import { isImageFile, isPdfFile, imageBufferToPage } from "@/lib/pdf";
 import { modelCredits } from "@/lib/models";
 
@@ -34,8 +30,7 @@ export async function POST(
       { status: 503 },
     );
   }
-  // خدمة التفريغ الأساسيّة: Mistral (مفضّلة)، وإلّا Claude كبديل
-  if (!isMistralConfigured && !isClaudeConfigured) {
+  if (!isOcrConfigured) {
     return NextResponse.json(
       { error: "خدمة المعالجة غير مهيّأة", configRequired: true },
       { status: 503 },
@@ -64,81 +59,18 @@ export async function POST(
       });
     }
 
-    // ===== Mistral OCR: الخدمة الأساسيّة (نداء واحد للمستند كاملاً) =====
-    if (isMistralConfigured) {
-      const user = await db.user.findUnique({ where: { id: job.userId } });
-      if (!user) throw new Error("مستخدم غير موجود");
-      const credits = modelCredits(job.model) || 1;
-
-      const signedUrl = await getDownloadUrl(job.storageKey);
-      const { pages } = await ocrDocument({
-        url: signedUrl,
-        isImage: isImageFile(job.fileName),
-      });
-      if (pages.length === 0) throw new Error("لم يُستخرَج نصّ من المستند");
-
-      const affordable = Math.floor(user.pagesBalance / credits);
-      const toSave = pages.slice(0, Math.max(0, affordable));
-      if (toSave.length < 1) {
-        return NextResponse.json(
-          { error: "رصيد غير كافٍ", available: user.pagesBalance },
-          { status: 402 },
-        );
-      }
-
-      await db.jobPage.deleteMany({ where: { jobId: id } });
-      await db.jobPage.createMany({
-        data: toSave.map((p, i) => {
-          const f = formatOcrPage(p.text);
-          return {
-            jobId: id,
-            sequentialNumber: i + 1,
-            printedNumber: f.printedNumber,
-            status: "COMPLETED" as const,
-            textContent: f.text,
-            inputTokens: 0,
-            outputTokens: 0,
-            processedAt: new Date(),
-          };
-        }),
-      });
-
-      const charged = toSave.length * credits;
-      await db.$transaction([
-        db.user.update({
-          where: { id: user.id },
-          data: { pagesBalance: { decrement: charged } },
-        }),
-        db.job.update({
-          where: { id },
-          data: {
-            status: "COMPLETED",
-            totalPages: toSave.length,
-            processedPages: toSave.length,
-            pagesCharged: charged,
-            completedAt: new Date(),
-          },
-        }),
-      ]);
-
-      return NextResponse.json({
-        ok: true,
-        processed: toSave.length,
-        total: toSave.length,
-        done: true,
-      });
-    }
-
-    // ===== Claude OCR: بديل عند غياب Mistral (معالجة على دفعات) =====
-    // تنزيل الملفّ من R2
+    // تنزيل الملفّ من R2 (مع التحقّق من اكتمال الرفع)
     const url = await getDownloadUrl(job.storageKey);
     const res = await fetch(url);
     if (!res.ok) throw new Error("تعذّر تنزيل الملفّ من التخزين");
     const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length === 0) {
+      throw new Error("الملفّ لم يكتمل رفعه — أعد المحاولة");
+    }
 
     const user = await db.user.findUnique({ where: { id: job.userId } });
     if (!user) throw new Error("مستخدم غير موجود");
-    const credits = modelCredits(job.model);
+    const credits = modelCredits(job.model) || 1;
 
     // ===== صورة مفردة =====
     if (isImageFile(job.fileName)) {
@@ -149,13 +81,13 @@ export async function POST(
         );
       }
       const page = imageBufferToPage(buffer, job.fileName);
-      const r = await extractTextFromImage(page.base64, page.mediaType, job.model);
+      const r = await ocrImage(page.base64, page.mediaType, job.model);
       await db.jobPage.deleteMany({ where: { jobId: id } });
       await db.jobPage.create({
         data: {
           jobId: id,
           sequentialNumber: 1,
-          printedNumber: r.printedPageNumber,
+          printedNumber: r.printedNumber,
           status: "COMPLETED",
           textContent: r.text,
           inputTokens: r.inputTokens,
@@ -188,7 +120,7 @@ export async function POST(
       throw new Error("صيغة ملفّ غير مدعومة");
     }
 
-    // ===== PDF على دفعات =====
+    // ===== PDF على دفعات (صفحة صفحة) =====
     const { PDFDocument } = await import("pdf-lib");
     const src = await PDFDocument.load(buffer, { ignoreEncryption: true });
     const pdfTotal = src.getPageCount();
@@ -201,7 +133,7 @@ export async function POST(
       total = Math.min(pdfTotal, affordable);
       if (total < 1) {
         return NextResponse.json(
-          { error: "رصيد غير كافٍ لهذا النموذج", available: user.pagesBalance },
+          { error: "رصيد غير كافٍ", available: user.pagesBalance },
           { status: 402 },
         );
       }
@@ -220,7 +152,7 @@ export async function POST(
       doc.addPage(copied);
       const pageB64 = Buffer.from(await doc.save()).toString("base64");
 
-      const r = await extractTextFromPdfPage(pageB64, job.model);
+      const r = await ocrPdfPage(pageB64, job.model);
       inTok += r.inputTokens;
       outTok += r.outputTokens;
 
@@ -228,7 +160,7 @@ export async function POST(
         data: {
           jobId: id,
           sequentialNumber: offset + 1,
-          printedNumber: r.printedPageNumber,
+          printedNumber: r.printedNumber,
           status: "COMPLETED",
           textContent: r.text,
           inputTokens: r.inputTokens,

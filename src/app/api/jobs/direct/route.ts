@@ -1,19 +1,14 @@
 // src/app/api/jobs/direct/route.ts
-// رفع ومعالجة مباشرة قابلة للاستئناف (chunked):
+// رفع ومعالجة مباشرة قابلة للاستئناف (chunked) — مسار احتياطي عند غياب R2:
 // - الصور: صفحة واحدة في طلب واحد.
 // - PDF: يُنشأ السجلّ في الطلب الأوّل، ثمّ يعالج كلّ طلب ما يسعه الوقت من الصفحات
 //   (بدءاً من processedPages المحفوظة) ويعيد done=false حتى تكتمل كلّ الصفحات.
 //   يقود المتصفّحُ السلسلة بإعادة الاستدعاء مع jobId حتى done=true.
+// التفريغ عبر طبقة OCR الموحّدة (Mistral أساسي / Claude بديل).
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import {
-  isClaudeConfigured,
-  extractTextFromImage,
-  extractTextFromPdfPage,
-} from "@/lib/claude";
-import { isMistralConfigured, ocrDocument } from "@/lib/mistral";
-import { formatOcrPage } from "@/lib/ocr-format";
+import { isOcrConfigured, ocrImage, ocrPdfPage } from "@/lib/ocr";
 import { isImageFile, isPdfFile, imageBufferToPage } from "@/lib/pdf";
 import { modelCredits } from "@/lib/models";
 import type { ClaudeModel } from "@prisma/client";
@@ -21,7 +16,6 @@ import type { ClaudeModel } from "@prisma/client";
 export const maxDuration = 300;
 
 // أقصى زمن نقضيه في معالجة الصفحات داخل طلب واحد قبل أن نعيد التحكّم للمتصفّح
-// (نُبقيه دون حدّ Vercel — يعمل حتى على Hobby بحدّ ٦٠ ثانية).
 const TIME_BUDGET_MS = 45_000;
 
 export async function POST(req: NextRequest) {
@@ -29,7 +23,7 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 401 });
   }
-  if (!isMistralConfigured && !isClaudeConfigured) {
+  if (!isOcrConfigured) {
     return NextResponse.json(
       { error: "خدمة الـ OCR غير مُعَدّة بعد", configRequired: true },
       { status: 503 },
@@ -51,8 +45,11 @@ export async function POST(req: NextRequest) {
     const user = await db.user.findUnique({ where: { id: session.user.id } });
     if (!user) return NextResponse.json({ error: "مستخدم غير موجود" }, { status: 404 });
 
-    const credits = modelCredits(model);
+    const credits = modelCredits(model) || 1;
     const buffer = Buffer.from(await file.arrayBuffer());
+    if (buffer.length === 0) {
+      return NextResponse.json({ error: "الملفّ فارغ أو لم يكتمل رفعه" }, { status: 400 });
+    }
     const isPdf = isPdfFile(file.name);
     const isImg = isImageFile(file.name);
     if (!isPdf && !isImg) {
@@ -60,83 +57,6 @@ export async function POST(req: NextRequest) {
         { error: "صيغة غير مدعومة — استعمل PNG أو JPG أو PDF" },
         { status: 400 },
       );
-    }
-
-    // ===== Mistral OCR: الخدمة الأساسيّة (نداء واحد للمستند كاملاً) =====
-    if (isMistralConfigured) {
-      if (user.pagesBalance < credits) {
-        return NextResponse.json(
-          { error: "رصيد غير كافٍ", available: user.pagesBalance },
-          { status: 402 },
-        );
-      }
-      const b64 = buffer.toString("base64");
-      const dataUri = isImg
-        ? `data:${imageBufferToPage(buffer, file.name).mediaType};base64,${b64}`
-        : `data:application/pdf;base64,${b64}`;
-      const { pages } = await ocrDocument({ dataUri, isImage: isImg });
-      if (pages.length === 0) throw new Error("لم يُستخرَج نصّ من المستند");
-
-      const affordable = Math.floor(user.pagesBalance / credits);
-      const toSave = pages.slice(0, Math.max(0, affordable));
-      if (toSave.length < 1) {
-        return NextResponse.json(
-          { error: "رصيد غير كافٍ", available: user.pagesBalance },
-          { status: 402 },
-        );
-      }
-
-      const job = await db.job.create({
-        data: {
-          userId: session.user.id,
-          fileName: file.name,
-          fileSize: buffer.length,
-          fileChecksum: "direct",
-          storageKey: "direct",
-          totalPages: toSave.length,
-          model,
-          status: "PROCESSING",
-          startedAt: new Date(),
-        },
-      });
-      jobId = job.id;
-      await db.jobPage.createMany({
-        data: toSave.map((p, i) => {
-          const f = formatOcrPage(p.text);
-          return {
-            jobId: job.id,
-            sequentialNumber: i + 1,
-            printedNumber: f.printedNumber,
-            status: "COMPLETED" as const,
-            textContent: f.text,
-            inputTokens: 0,
-            outputTokens: 0,
-            processedAt: new Date(),
-          };
-        }),
-      });
-      const charged = toSave.length * credits;
-      await db.$transaction([
-        db.user.update({
-          where: { id: user.id },
-          data: { pagesBalance: { decrement: charged } },
-        }),
-        db.job.update({
-          where: { id: job.id },
-          data: {
-            status: "COMPLETED",
-            processedPages: toSave.length,
-            pagesCharged: charged,
-            completedAt: new Date(),
-          },
-        }),
-      ]);
-      return NextResponse.json({
-        jobId: job.id,
-        processed: toSave.length,
-        total: toSave.length,
-        done: true,
-      });
     }
 
     // ===== صورة مفردة: طلب واحد =====
@@ -162,12 +82,12 @@ export async function POST(req: NextRequest) {
       });
       jobId = job.id;
       const page = imageBufferToPage(buffer, file.name);
-      const r = await extractTextFromImage(page.base64, page.mediaType, model);
+      const r = await ocrImage(page.base64, page.mediaType, model);
       await db.jobPage.create({
         data: {
           jobId: job.id,
           sequentialNumber: 1,
-          printedNumber: r.printedPageNumber,
+          printedNumber: r.printedNumber,
           status: "COMPLETED",
           textContent: r.text,
           inputTokens: r.inputTokens,
@@ -207,7 +127,7 @@ export async function POST(req: NextRequest) {
       const totalPages = Math.min(pdfTotal, affordablePages);
       if (totalPages < 1) {
         return NextResponse.json(
-          { error: "رصيد غير كافٍ لهذا النموذج", available: user.pagesBalance },
+          { error: "رصيد غير كافٍ", available: user.pagesBalance },
           { status: 402 },
         );
       }
@@ -249,13 +169,12 @@ export async function POST(req: NextRequest) {
     let outTok = 0;
 
     while (offset < total && Date.now() - start < TIME_BUDGET_MS) {
-      // استخرج صفحة PDF مفردة عند الإزاحة الحاليّة
       const doc = await PDFDocument.create();
       const [copied] = await doc.copyPages(src, [offset]);
       doc.addPage(copied);
       const pageB64 = Buffer.from(await doc.save()).toString("base64");
 
-      const r = await extractTextFromPdfPage(pageB64, model);
+      const r = await ocrPdfPage(pageB64, model);
       inTok += r.inputTokens;
       outTok += r.outputTokens;
 
@@ -263,7 +182,7 @@ export async function POST(req: NextRequest) {
         data: {
           jobId: job.id,
           sequentialNumber: offset + 1,
-          printedNumber: r.printedPageNumber,
+          printedNumber: r.printedNumber,
           status: "COMPLETED",
           textContent: r.text,
           inputTokens: r.inputTokens,

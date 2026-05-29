@@ -1,5 +1,6 @@
 // src/app/api/jobs/[id]/export/route.ts — تصدير نتائج الوظيفة
 import { NextRequest, NextResponse } from "next/server";
+import { marked } from "marked";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -73,13 +74,21 @@ export async function GET(
   }
 
   if (format === "docx") {
-    // DOCX حقيقي يحتاج مكتبة docx — نُصدّر HTML متوافق مع Word كحلّ مبدئي
-    const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><style>body{font-family:'Tajawal',Arial;direction:rtl;line-height:2}</style></head><body>${job.pages
-      .map(
-        (p) =>
-          `<h2>صفحة ${p.printedNumber ?? p.sequentialNumber}</h2><p>${stripFigures(p.textContent ?? "").replace(/\n/g, "<br>")}</p>`,
-      )
-      .join("<hr>")}</body></html>`;
+    // HTML متوافق مع Word — نحوّل Markdown (جداول + صور) إلى HTML حقيقي
+    const pagesHtml = job.pages
+      .map((p) => {
+        const inner = marked.parse(p.textContent ?? "", { async: false }) as string;
+        return `<h2>صفحة ${p.printedNumber ?? p.sequentialNumber}</h2>${inner}`;
+      })
+      .join("<hr>");
+    const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><style>
+body{font-family:'Tajawal',Arial;direction:rtl;line-height:2}
+table{border-collapse:collapse;width:100%;margin:8px 0}
+th,td{border:1px solid #999;padding:6px 10px;text-align:right}
+th{background:#f2f2f2}
+img{max-width:100%;height:auto}
+h2{font-size:16pt}
+</style></head><body>${pagesHtml}</body></html>`;
     return new NextResponse(html, {
       headers: {
         "Content-Type": "application/msword; charset=utf-8",
