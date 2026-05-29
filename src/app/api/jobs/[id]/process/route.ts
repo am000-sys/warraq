@@ -126,49 +126,33 @@ export async function POST(
       throw new Error("صيغة ملفّ غير مدعومة");
     }
 
-    // ===== PDF عبر Mistral: على دفعات بنطاقات صفحات (قابل للاستئناف، لا يتجاوز المهلة) =====
+    // ===== PDF عبر Mistral: المستند كاملاً في نداء واحد (المسار المُثبت) =====
     if (isMistralConfigured) {
-      // عدد صفحات المستند (رخيص وموثوق — لا يُعيد بناء الصفحات)
-      const { PDFDocument } = await import("pdf-lib");
-      const src = await PDFDocument.load(buffer, { ignoreEncryption: true });
-      const pdfTotal = src.getPageCount();
-      if (pdfTotal === 0) throw new Error("ملفّ PDF فارغ أو تالف");
-
-      // احسب الإجمالي (بحدود الرصيد) واحفظه مرّة واحدة
-      let total = job.totalPages;
-      if (!total || total < 1) {
-        const affordable = Math.floor(user.pagesBalance / credits);
-        total = Math.min(pdfTotal, affordable);
-        if (total < 1) {
-          return NextResponse.json(
-            { error: "رصيد غير كافٍ", available: user.pagesBalance },
-            { status: 402 },
-          );
-        }
-        await db.job.update({ where: { id }, data: { totalPages: total } });
-        await db.jobPage.deleteMany({ where: { jobId: id } });
-      }
-
-      // الدفعات الصغيرة تبقى نداءً واحداً؛ الكبيرة تُعالَج على دفعات قابلة للاستئناف
-      const CHUNK = 30;
-      const offset = job.processedPages;
-      const end = Math.min(total, offset + CHUNK);
-      const pageIdx = Array.from({ length: end - offset }, (_, i) => offset + i);
-
+      // نجرّب الرابط الموقّع أولاً، وإن تعذّر على Mistral جلبه نُعيد بإرسال البايتات
       let results;
       try {
-        results = await ocrFullDocument({ url, isImage: false }, pageIdx);
+        results = await ocrFullDocument({ url, isImage: false });
       } catch (e) {
         console.error("[process] url OCR failed, retrying with bytes:", (e as Error).message);
         const dataUri = `data:application/pdf;base64,${buffer.toString("base64")}`;
-        results = await ocrFullDocument({ dataUri, isImage: false }, pageIdx);
+        results = await ocrFullDocument({ dataUri, isImage: false });
       }
       if (results.length === 0) throw new Error("لم يُستخرَج نصّ من المستند");
 
+      const affordable = Math.floor(user.pagesBalance / credits);
+      const toSave = results.slice(0, Math.max(0, affordable));
+      if (toSave.length < 1) {
+        return NextResponse.json(
+          { error: "رصيد غير كافٍ", available: user.pagesBalance },
+          { status: 402 },
+        );
+      }
+
+      await db.jobPage.deleteMany({ where: { jobId: id } });
       await db.jobPage.createMany({
-        data: results.map((r, i) => ({
+        data: toSave.map((r, i) => ({
           jobId: id,
-          sequentialNumber: offset + i + 1,
+          sequentialNumber: i + 1,
           printedNumber: r.printedNumber,
           status: "COMPLETED" as const,
           textContent: r.text,
@@ -178,9 +162,7 @@ export async function POST(
         })),
       });
 
-      const processedNow = offset + results.length;
-      const charged = results.length * credits;
-      const done = processedNow >= total;
+      const charged = toSave.length * credits;
       await db.$transaction([
         db.user.update({
           where: { id: user.id },
@@ -189,13 +171,20 @@ export async function POST(
         db.job.update({
           where: { id },
           data: {
-            processedPages: processedNow,
-            pagesCharged: { increment: charged },
-            ...(done ? { status: "COMPLETED", completedAt: new Date() } : {}),
+            status: "COMPLETED",
+            totalPages: toSave.length,
+            processedPages: toSave.length,
+            pagesCharged: charged,
+            completedAt: new Date(),
           },
         }),
       ]);
-      return NextResponse.json({ ok: true, processed: processedNow, total, done });
+      return NextResponse.json({
+        ok: true,
+        processed: toSave.length,
+        total: toSave.length,
+        done: true,
+      });
     }
 
     // ===== PDF عبر Claude (بديل): معالجة على دفعات (صفحة صفحة) =====

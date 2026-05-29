@@ -302,7 +302,10 @@ export async function POST(req: NextRequest) {
         })
         .catch(() => {});
     }
-    return NextResponse.json({ error: friendlyError(raw) }, { status: 500 });
+    return NextResponse.json(
+      { error: `${friendlyError(raw)} — (${raw.slice(0, 160)})` },
+      { status: 500 },
+    );
   }
 }
 
