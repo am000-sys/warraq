@@ -7,6 +7,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isClaudeConfigured, proofreadText } from "@/lib/claude";
+import { isMistralConfigured, proofreadMistral } from "@/lib/mistral";
 import { getClaudeAccess, trackClaudeUsage, claudeMonthlyUsage } from "@/lib/claude-addon";
 
 export const maxDuration = 300;
@@ -23,9 +24,9 @@ export async function POST(
   if (!session?.user?.id) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 401 });
   }
-  if (!isClaudeConfigured) {
+  if (!isMistralConfigured && !isClaudeConfigured) {
     return NextResponse.json(
-      { error: "خدمة Claude غير مهيّأة", configRequired: true },
+      { error: "خدمة الذكاء الاصطناعي غير مهيّأة", configRequired: true },
       { status: 503 },
     );
   }
@@ -92,11 +93,13 @@ export async function POST(
       const page = pages[i];
       const original = page.textContent ?? "";
       if (original.trim()) {
-        const r = await proofreadText(original, access.textModel);
-        if (r.text && r.text.trim()) {
+        const corrected = isMistralConfigured
+          ? await proofreadMistral(original)
+          : (await proofreadText(original, access.textModel)).text;
+        if (corrected && corrected.trim()) {
           await db.jobPage.update({
             where: { id: page.id },
-            data: { textContent: r.text },
+            data: { textContent: corrected },
           });
         }
       }

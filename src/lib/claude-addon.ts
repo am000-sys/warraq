@@ -34,7 +34,7 @@ export type ClaudeConfig = {
 };
 
 const DEFAULTS: ClaudeConfig = {
-  enabled: false, // مُعطّلة مؤقّتاً — تُخفى مميزات Claude من الواجهة والـ backend ريثما تُطوَّر
+  enabled: true, // مفعّلة — مدعومة بـ Mistral chat (سريعة)
   mode: "plan",
   includedPlanSlugs: ["researcher", "verifier"],
   costPerAction: 5,

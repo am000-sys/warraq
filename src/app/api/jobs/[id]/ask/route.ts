@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isClaudeConfigured, askDocument } from "@/lib/claude";
+import { isMistralConfigured, askDocumentMistral } from "@/lib/mistral";
 import {
   getClaudeAccess,
   trackClaudeUsage,
@@ -23,9 +24,9 @@ export async function POST(
   if (!session?.user?.id) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 401 });
   }
-  if (!isClaudeConfigured) {
+  if (!isMistralConfigured && !isClaudeConfigured) {
     return NextResponse.json(
-      { error: "خدمة Claude غير مهيّأة", configRequired: true },
+      { error: "خدمة الذكاء الاصطناعي غير مهيّأة", configRequired: true },
       { status: 503 },
     );
   }
@@ -81,13 +82,15 @@ export async function POST(
     .join("\n\n");
 
   try {
-    const r = await askDocument(context, question, access.textModel);
+    const answer = isMistralConfigured
+      ? await askDocumentMistral(context, question)
+      : (await askDocument(context, question, access.textModel)).text;
     await trackClaudeUsage(session.user.id, "ask", {
       jobId: id,
       mode: access.mode,
       costPerAction: access.costPerAction,
     });
-    return NextResponse.json({ answer: r.text });
+    return NextResponse.json({ answer });
   } catch (err) {
     console.error("[jobs.ask]", err);
     return NextResponse.json({ error: "تعذّر تنفيذ السؤال. حاول مجدّداً." }, { status: 500 });

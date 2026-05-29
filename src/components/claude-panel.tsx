@@ -43,7 +43,7 @@ function SectionHeader() {
   return (
     <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
       <Sparkles size={16} color="var(--orange)" />
-      <span style={titleStyle}>فهم المستند عبر Claude</span>
+      <span style={titleStyle}>مساعد المستند الذكي</span>
       <span className="badge" style={{ fontSize: 10 }}>
         إضافة مدفوعة
       </span>
@@ -65,8 +65,8 @@ function ClaudeLocked() {
           margin: "8px 0 14px",
         }}
       >
-        «اسأل المستند» و«توليد تقرير» خدمتان إضافيّتان عبر Claude، غير مشمولتين في
-        التفريغ النصّي الأساسي. فعّلهما بترقية خطّتك بما يناسب تسعيرة موقعك.
+        «اسأل المستند» و«توليد تقرير» و«تحسين الدقّة» مزايا ذكاء اصطناعيّ إضافيّة،
+        غير مشمولة في التفريغ النصّي الأساسي. فعّلها بترقية خطّتك بما يناسب تسعيرة موقعك.
       </p>
       <div className="flex items-center gap-2">
         <Lock size={14} color="var(--pebble)" />
@@ -190,7 +190,7 @@ function ClaudeActive({ jobId, access }: { jobId: string; access: ClaudeAccessCl
             تحسين دقّة القراءة
           </div>
           <div style={{ fontSize: 11, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>
-            {enhanceMsg || "يصحّح Claude أخطاء التعرّف في النصّ المستخرَج دون تغيير المعنى."}
+            {enhanceMsg || "يصحّح الذكاء الاصطناعي أخطاء التعرّف في النصّ المستخرَج دون تغيير المعنى."}
           </div>
         </div>
         <button

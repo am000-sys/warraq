@@ -131,7 +131,7 @@ async function main() {
     { key: "free_signup_pages", value: 50, description: "صفحات مجانية عند التسجيل" },
     { key: "max_pages_per_file", value: 2000, description: "الحدّ الأقصى للصفحات في الملف" },
     // ── إعدادات إضافة Claude (Ask/Report) — قابلة للتحكّم من لوحة الإدارة ──
-    { key: "claude_addon_enabled", value: false, description: "تفعيل خدمات Claude الإضافيّة (Ask/Report) — مُعطّلة مؤقّتاً ريثما تُطوَّر" },
+    { key: "claude_addon_enabled", value: true, description: "تفعيل مساعد المستند الذكي (Ask/Report/تحسين) — مدعوم بـ Mistral" },
     { key: "claude_addon_mode", value: "plan", description: "طريقة الأهليّة: plan | usage | plan_or_usage" },
     { key: "claude_addon_included_plans", value: ["researcher", "verifier"], description: "الخطط التي تتضمّن إضافة Claude" },
     { key: "claude_addon_cost_per_action", value: 5, description: "تكلفة العمليّة الواحدة بالرصيد (وضع usage)" },

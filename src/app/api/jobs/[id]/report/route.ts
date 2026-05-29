@@ -4,6 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isClaudeConfigured, generateReport, type ReportType } from "@/lib/claude";
+import { isMistralConfigured, generateReportMistral } from "@/lib/mistral";
 import {
   getClaudeAccess,
   trackClaudeUsage,
@@ -26,9 +27,9 @@ export async function POST(
   if (!session?.user?.id) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 401 });
   }
-  if (!isClaudeConfigured) {
+  if (!isMistralConfigured && !isClaudeConfigured) {
     return NextResponse.json(
-      { error: "خدمة Claude غير مهيّأة", configRequired: true },
+      { error: "خدمة الذكاء الاصطناعي غير مهيّأة", configRequired: true },
       { status: 503 },
     );
   }
@@ -82,13 +83,15 @@ export async function POST(
     .join("\n\n");
 
   try {
-    const r = await generateReport(context, type, access.textModel);
+    const report = isMistralConfigured
+      ? await generateReportMistral(context, type)
+      : (await generateReport(context, type, access.textModel)).text;
     await trackClaudeUsage(session.user.id, `report-${type}` as ClaudeActionType, {
       jobId: id,
       mode: access.mode,
       costPerAction: access.costPerAction,
     });
-    return NextResponse.json({ report: r.text, type });
+    return NextResponse.json({ report, type });
   } catch (err) {
     console.error("[jobs.report]", err);
     return NextResponse.json({ error: "تعذّر توليد التقرير. حاول مجدّداً." }, { status: 500 });
