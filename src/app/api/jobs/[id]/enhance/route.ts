@@ -7,7 +7,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isClaudeConfigured, proofreadText } from "@/lib/claude";
-import { isMistralConfigured, proofreadMistral } from "@/lib/mistral";
+import { isMistralConfigured, refinePageMistral } from "@/lib/mistral";
 import { getClaudeAccess, trackClaudeUsage, claudeMonthlyUsage } from "@/lib/claude-addon";
 
 export const maxDuration = 300;
@@ -93,14 +93,26 @@ export async function POST(
       const page = pages[i];
       const original = page.textContent ?? "";
       if (original.trim()) {
-        const corrected = isMistralConfigured
-          ? await proofreadMistral(original)
-          : (await proofreadText(original, access.textModel)).text;
-        if (corrected && corrected.trim()) {
-          await db.jobPage.update({
-            where: { id: page.id },
-            data: { textContent: corrected },
-          });
+        if (isMistralConfigured) {
+          // تدقيق + تنسيق + فصل الحواشي + رقم الصفحة
+          const r = await refinePageMistral(original);
+          if (r.text && r.text.trim()) {
+            await db.jobPage.update({
+              where: { id: page.id },
+              data: {
+                textContent: r.text,
+                ...(r.printedNumber ? { printedNumber: r.printedNumber } : {}),
+              },
+            });
+          }
+        } else {
+          const corrected = (await proofreadText(original, access.textModel)).text;
+          if (corrected && corrected.trim()) {
+            await db.jobPage.update({
+              where: { id: page.id },
+              data: { textContent: corrected },
+            });
+          }
         }
       }
       i++;

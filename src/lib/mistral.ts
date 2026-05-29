@@ -142,46 +142,50 @@ export async function generateReportMistral(documentText: string, type: ReportTy
   return mistralChat(system, `=== نصّ المستند ===\n${ctx}`, 4096);
 }
 
-// تدقيق/تصحيح أخطاء القراءة في نصّ صفحة (تصحيح فقط، بلا إعادة صياغة)
-export async function proofreadMistral(pageText: string): Promise<string> {
+// تدقيق وتنسيق ذكيّ لصفحة: تصحيح أخطاء القراءة + تنسيق Markdown + فصل الحواشي +
+// استخراج رقم الصفحة المطبوع. يعيد JSON: { text, printedNumber }.
+export async function refinePageMistral(
+  pageText: string,
+): Promise<{ text: string; printedNumber: string | null }> {
+  if (!apiKey) throw new Error("MISTRAL_NOT_CONFIGURED");
   const system =
-    "أنت مدقّق نصوص عربيّة خبير. صحّح أخطاء القراءة الضوئيّة فقط في النصّ المرفق:\n" +
-    "- صحّح الكلمات المقروءة خطأً والحروف المشوّهة بما يوافق السياق العربيّ الصحيح.\n" +
-    "- حافظ حرفيّاً على المعنى والترتيب وفواصل الأسطر والتشكيل وأرقام الصفحات والحواشي وعلامات التنسيق (Markdown/الجداول/الصور).\n" +
-    "- لا تُضِف ولا تحذف ولا تختصر ولا تُعِد الصياغة، ولا تترجم.\n" +
-    "- أعِد النصّ المصحَّح فقط دون أيّ تعليق.";
-  return mistralChat(system, pageText.slice(0, MAX_CONTEXT_CHARS), 8192);
-}
+    "أنت مدقّق ومنسّق نصوص عربيّة خبير في كتب التراث. أمامك نصّ صفحة من تفريغ ضوئيّ (OCR) قد يحوي أخطاء. مهمّتك:\n" +
+    "١. صحّح أخطاء القراءة (الكلمات والحروف المشوّهة) وفق السياق العربيّ الصحيح، دون إضافة محتوى أو حذفه أو إعادة صياغته أو ترجمته.\n" +
+    "٢. حسّن التنسيق بصيغة Markdown (عناوين/فقرات/قوائم)، وحافظ على الجداول والصور كما هي.\n" +
+    "٣. افصل الحواشي عن المتن: ضعها في آخر الصفحة تحت عنوان «## الحواشي» مرقّمةً، إن وُجدت.\n" +
+    "٤. استخرج رقم الصفحة المطبوع إن ظهر، وأزله من المتن.\n" +
+    'أعِد ردّك بصيغة JSON فقط بهذا الشكل: {"text": "المتن المنسّق متبوعاً بالحواشي", "printedNumber": "رقم الصفحة أو null"}';
 
-// ─── أدوات نصّيّة إضافيّة عبر Mistral ───────────────────
-export type TranslateLang = "en" | "fr" | "tr" | "ur" | "id" | "es";
-
-const LANG_NAMES: Record<TranslateLang, string> = {
-  en: "الإنجليزيّة",
-  fr: "الفرنسيّة",
-  tr: "التركيّة",
-  ur: "الأرديّة",
-  id: "الإندونيسيّة",
-  es: "الإسبانيّة",
-};
-
-// الفهرسة الذكيّة: استخراج الأعلام والأماكن والمصطلحات والموضوعات من المستند
-export async function extractIndexMistral(text: string): Promise<string> {
-  const ctx = text.slice(0, MAX_CONTEXT_CHARS);
-  const system =
-    "أنت مفهرس خبير في الكتب العربيّة والتراثيّة. استخرج من نصّ المستند المرفق فقط فهرساً منظّماً يشمل الأقسام: " +
-    "«الأعلام (الأشخاص)»، «الأماكن»، «المصطلحات والمفاهيم»، «الموضوعات الرئيسيّة». " +
-    "رتّب كلّ قسم في قائمة نقطيّة، واذكر رقم الصفحة بين قوسين إن أمكن. " +
-    "لا تُضِف ما ليس في المستند، واحذف القسم الذي لا عناصر له. أعِد الفهرس بصيغة Markdown فقط دون تعليق.";
-  return mistralChat(system, ctx, 4096);
-}
-
-// الترجمة: ترجمة النصّ العربيّ إلى اللغة المطلوبة مع حفظ البنية
-export async function translateMistral(text: string, lang: TranslateLang): Promise<string> {
-  const ctx = text.slice(0, MAX_CONTEXT_CHARS);
-  const langName = LANG_NAMES[lang] ?? LANG_NAMES.en;
-  const system =
-    `أنت مترجم محترف. ترجم النصّ العربيّ المرفق إلى ${langName} ترجمةً أمينةً وواضحة، ` +
-    "مع الحفاظ على بنية الفقرات والعناوين والتنسيق (Markdown). أعِد الترجمة فقط دون تعليق.";
-  return mistralChat(system, ctx, 8192);
+  const res = await fetch(CHAT_ENDPOINT, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model: CHAT_MODEL,
+      temperature: 0.1,
+      max_tokens: 8192,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: pageText.slice(0, MAX_CONTEXT_CHARS) },
+      ],
+    }),
+  });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Mistral refine ${res.status}: ${t.slice(0, 300)}`);
+  }
+  const data = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+  const raw = (data.choices?.[0]?.message?.content ?? "").trim();
+  try {
+    const m = raw.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(m ? m[0] : raw);
+    const text = typeof parsed.text === "string" ? parsed.text.trim() : pageText;
+    const pn =
+      parsed.printedNumber && parsed.printedNumber !== "null"
+        ? String(parsed.printedNumber)
+        : null;
+    return { text: text || pageText, printedNumber: pn };
+  } catch {
+    return { text: pageText, printedNumber: null };
+  }
 }
