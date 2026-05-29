@@ -128,7 +128,15 @@ export async function POST(
 
     // ===== PDF عبر Mistral: المستند كاملاً في نداء واحد (الأسرع والأضمن) =====
     if (isMistralConfigured) {
-      const results = await ocrFullDocument({ url, isImage: false });
+      // نجرّب الرابط الموقّع أولاً، وإن تعذّر على Mistral جلبه نُعيد بإرسال البايتات
+      let results;
+      try {
+        results = await ocrFullDocument({ url, isImage: false });
+      } catch (e) {
+        console.error("[process] url OCR failed, retrying with bytes:", (e as Error).message);
+        const dataUri = `data:application/pdf;base64,${buffer.toString("base64")}`;
+        results = await ocrFullDocument({ dataUri, isImage: false });
+      }
       if (results.length === 0) throw new Error("لم يُستخرَج نصّ من المستند");
 
       const affordable = Math.floor(user.pagesBalance / credits);
