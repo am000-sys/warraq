@@ -38,81 +38,61 @@ export default function UploadPage() {
     setProgress("جارٍ التحضير...");
 
     try {
-      const contentType = file.type || "application/octet-stream";
-
       // الملفّات الصغيرة (< ٤م) عبر المسار المباشر — أبسط وأوثق (تحت حدّ جسم الطلب)
       const SMALL = 4 * 1024 * 1024;
       if (file.size < SMALL) {
         return await processDirect(file);
       }
 
-      // ١) للملفّات الكبيرة: اسأل الخادم عن طريقة التخزين (R2 / Blob)
-      const up = await fetch("/api/upload", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ fileName: file.name, fileSize: file.size, contentType }),
-      });
-
-      // إن لم يُضبط أيّ تخزين: المسار المباشر (قد يفشل للكبير، لكن نحاول)
-      if (up.status === 503) {
-        return await processDirect(file);
-      }
-      const upData = await up.json().catch(() => ({}));
-      if (!up.ok) throw new Error(upData?.error ?? "تعذّر تحضير الرفع");
-
-      // ٢) ارفع الملفّ مباشرةً إلى التخزين (يتجاوز حدّ جسم الطلب)
-      setProgress("جارٍ رفع الملفّ...");
-      let storageKey: string;
-      if (upData.method === "blob") {
-        const { upload } = await import("@vercel/blob/client");
-        const blob = await upload(file.name, file, {
-          access: "public",
-          handleUploadUrl: "/api/blob-upload",
-        });
-        storageKey = blob.url; // رابط عامّ يُمرَّر لـ Mistral
-      } else {
-        const put = await fetch(upData.uploadUrl, {
-          method: "PUT",
-          headers: { "content-type": contentType },
-          body: file,
-        });
-        if (!put.ok) throw new Error("فشل رفع الملفّ إلى التخزين");
-        storageKey = upData.storageKey;
+      // الكبيرة: إن كانت PDF نقسّمها في المتصفّح ونرسل أجزاءً صغيرة (بلا Blob ولا حدّ حجم)
+      const isPdf = file.name.toLowerCase().endsWith(".pdf") || file.type === "application/pdf";
+      if (isPdf) {
+        return await processChunkedPdf(file);
       }
 
-      // ٣) أنشئ الوظيفة المرتبطة بالملفّ المخزّن
-      const jr = await fetch("/api/jobs", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          storageKey,
-          fileName: file.name,
-          fileSize: file.size,
-          model,
-        }),
-      });
-      const jd = await jr.json().catch(() => ({}));
-      if (!jr.ok) {
-        if (jr.status === 402) throw new Error(`رصيد غير كافٍ. لديك ${jd.available ?? 0} صفحة.`);
-        throw new Error(jd?.error ?? "تعذّر إنشاء الوظيفة");
-      }
-      const jobId: string = jd.job.id;
-
-      // ٤) عالج على دفعات من التخزين حتى تنتهي كلّ الصفحات (دون إعادة إرسال)
-      setProgress("جارٍ تفريغ النصّ...");
-      let done = false;
-      while (!done) {
-        const pr = await fetch(`/api/jobs/${jobId}/process`, { method: "POST" });
-        const pd = await parseRes(pr);
-        done = Boolean(pd.done);
-        showProgress(pd);
-      }
-
-      router.push(`/jobs/${jobId}`);
+      // صورة كبيرة (نادر): المسار المباشر
+      return await processDirect(file);
     } catch (err) {
       setError((err as Error).message);
       setProgress("");
     }
+  }
+
+  // يقسّم PDF كبيراً في المتصفّح إلى أجزاء (٦ صفحات) ويرسل كلّ جزء للخادم→Mistral
+  async function processChunkedPdf(file: File) {
+    setProgress("جارٍ تجهيز الملفّ...");
+    const { PDFDocument } = await import("pdf-lib");
+    const srcBytes = new Uint8Array(await file.arrayBuffer());
+    const src = await PDFDocument.load(srcBytes, { ignoreEncryption: true });
+    const total = src.getPageCount();
+    if (total === 0) throw new Error("ملفّ PDF فارغ أو تالف");
+
+    const PER = 6; // صفحات لكلّ جزء — تبقي الجزء صغيراً تحت حدّ جسم الطلب
+    let jobId = "";
+    for (let offset = 0; offset < total; offset += PER) {
+      const end = Math.min(total, offset + PER);
+      const chunkDoc = await PDFDocument.create();
+      const idx = Array.from({ length: end - offset }, (_, i) => offset + i);
+      const copied = await chunkDoc.copyPages(src, idx);
+      copied.forEach((p) => chunkDoc.addPage(p));
+      const chunkBytes = await chunkDoc.save();
+      const blob = new Blob([chunkBytes.slice()], { type: "application/pdf" });
+
+      const fd = new FormData();
+      fd.append("chunk", blob, "chunk.pdf");
+      fd.append("fileName", file.name);
+      fd.append("model", model);
+      fd.append("offset", String(offset));
+      fd.append("totalPages", String(total));
+      if (jobId) fd.append("jobId", jobId);
+      if (end >= total) fd.append("final", "1");
+
+      const res = await fetch("/api/jobs/chunk", { method: "POST", body: fd });
+      const data = await parseRes(res);
+      jobId = data.jobId;
+      setProgress(`تمّت معالجة ${data.processed ?? end} من ${total} صفحة...`);
+    }
+    router.push(`/jobs/${jobId}`);
   }
 
   // مسار احتياطي: لو لم يُضبط R2، نعالج عبر الرفع المباشر على دفعات
