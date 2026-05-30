@@ -101,13 +101,27 @@ function separateFootnotes(text: string): string {
   return `${main}\n\n———— الحواشي ————\n${notes}`;
 }
 
+// يطبّع مراجع الحواشي إلى صيغة ظاهرة ثابتة (N) — حتى لا تختفي في العرض أو التصدير.
+// Mistral قد يُخرج الحواشي بصيغة markdown ‎[^N]‎ التي يحوّلها العارض لروابط قد تختفي.
+function normalizeFootnoteMarkers(text: string): string {
+  return (
+    text
+      // تعريف الحاشية: ‎[^N]: نص‎ → ‎(N) نص‎
+      .replace(new RegExp(`\\[\\^([${DIGITS}]{1,3})\\]\\s*:`, "g"), "($1)")
+      // مرجع الحاشية داخل النص: ‎[^N]‎ → ‎(N)‎
+      .replace(new RegExp(`\\[\\^([${DIGITS}]{1,3})\\]`, "g"), "($1)")
+      // صيغة superscript ‎^N^‎ → ‎(N)‎
+      .replace(new RegExp(`\\^([${DIGITS}]{1,3})\\^`, "g"), "($1)")
+  );
+}
+
 export function formatOcrPage(raw: string): FormattedPage {
   if (!raw || !raw.trim()) return { text: "", printedNumber: null };
 
   const lines = raw.replace(/\r/g, "").split("\n");
   const printedNumber = extractPrintedNumber(lines);
 
-  let text = lines.join("\n");
+  let text = normalizeFootnoteMarkers(lines.join("\n"));
   // لا نُعيد ترتيب الحواشي في صفحات فيها جداول أو أشكال (حفاظاً على بنيتها)
   const hasTableOrImage = /\|.*\|/.test(text) || text.includes("![");
   if (!hasTableOrImage) text = separateFootnotes(text);

@@ -74,11 +74,25 @@ export async function GET(
   }
 
   if (format === "docx") {
-    // HTML متوافق مع Word — نحوّل Markdown (جداول + صور) إلى HTML حقيقي
+    // HTML متوافق مع Word — جداول + صور + حواشٍ بأسلوب Word (مراجع علويّة + قسم مفصول)
+    const FN_SEP = "———— الحواشي ————";
+    // يجعل مراجع الحواشي (N) علويّة superscript (أرقام فقط بين قوسين)
+    const supRefs = (html: string) =>
+      html.replace(/\(([0-9٠-٩]{1,3})\)/g, "<sup>($1)</sup>");
+
     const pagesHtml = job.pages
       .map((p) => {
-        const inner = marked.parse(p.textContent ?? "", { async: false }) as string;
-        return `<h2>صفحة ${p.printedNumber ?? p.sequentialNumber}</h2>${inner}`;
+        const raw = p.textContent ?? "";
+        const [body, notes] = raw.includes(FN_SEP)
+          ? [raw.slice(0, raw.indexOf(FN_SEP)), raw.slice(raw.indexOf(FN_SEP) + FN_SEP.length)]
+          : [raw, ""];
+        const bodyHtml = supRefs(marked.parse(body, { async: false }) as string);
+        const notesHtml = notes.trim()
+          ? `<div class="footnotes"><hr class="fn-sep">${supRefs(
+              marked.parse(notes, { async: false }) as string,
+            )}</div>`
+          : "";
+        return `<h2>صفحة ${p.printedNumber ?? p.sequentialNumber}</h2>${bodyHtml}${notesHtml}`;
       })
       .join("<hr>");
     const html = `<!DOCTYPE html><html dir="rtl" lang="ar"><head><meta charset="utf-8"><style>
@@ -88,6 +102,9 @@ th,td{border:1px solid #999;padding:6px 10px;text-align:right}
 th{background:#f2f2f2}
 img{max-width:100%;height:auto}
 h2{font-size:16pt}
+sup{font-size:9pt;vertical-align:super}
+.footnotes{font-size:9pt;color:#333;margin-top:10px}
+.fn-sep{width:33%;margin:6px 0;border:none;border-top:1px solid #000;margin-inline-start:0}
 </style></head><body>${pagesHtml}</body></html>`;
     return new NextResponse(html, {
       headers: {
