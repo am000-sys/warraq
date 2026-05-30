@@ -67,73 +67,39 @@ export async function POST(
       });
     }
 
-    // تنزيل الملفّ من R2 (مع التحقّق من اكتمال الرفع)
+    // رابط الملفّ المخزّن (Blob/R2). لا ننزّله إلّا عند الحاجة (Mistral يجلب الرابط بنفسه)
     const url = await getDownloadUrl(job.storageKey);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("تعذّر تنزيل الملفّ من التخزين");
-    const buffer = Buffer.from(await res.arrayBuffer());
-    if (buffer.length === 0) {
-      throw new Error("الملفّ لم يكتمل رفعه — أعد المحاولة");
-    }
 
     const user = await db.user.findUnique({ where: { id: job.userId } });
     if (!user) throw new Error("مستخدم غير موجود");
     const credits = modelCredits(job.model) || 1;
+    const isImg = isImageFile(job.fileName);
+    if (!isImg && !isPdfFile(job.fileName)) {
+      throw new Error("صيغة ملفّ غير مدعومة");
+    }
 
-    // ===== صورة مفردة =====
-    if (isImageFile(job.fileName)) {
+    // ===== Mistral: نمرّر الرابط مباشرةً ليجلبه Mistral (بلا تنزيل/base64 — مهمّ للكتب الكبيرة) =====
+    if (isMistralConfigured) {
       if (user.pagesBalance < credits) {
         return NextResponse.json(
           { error: "رصيد غير كافٍ", available: user.pagesBalance },
           { status: 402 },
         );
       }
-      const page = imageBufferToPage(buffer, job.fileName);
-      const r = await ocrImage(page.base64, page.mediaType, job.model);
-      await db.jobPage.deleteMany({ where: { jobId: id } });
-      await db.jobPage.create({
-        data: {
-          jobId: id,
-          sequentialNumber: 1,
-          printedNumber: r.printedNumber,
-          status: "COMPLETED",
-          textContent: r.text,
-          inputTokens: r.inputTokens,
-          outputTokens: r.outputTokens,
-          processedAt: new Date(),
-        },
-      });
-      await db.$transaction([
-        db.user.update({
-          where: { id: user.id },
-          data: { pagesBalance: { decrement: credits } },
-        }),
-        db.job.update({
-          where: { id },
-          data: {
-            status: "COMPLETED",
-            totalPages: 1,
-            processedPages: 1,
-            pagesCharged: credits,
-            inputTokens: r.inputTokens,
-            outputTokens: r.outputTokens,
-            completedAt: new Date(),
-          },
-        }),
-      ]);
-      return NextResponse.json({ ok: true, processed: 1, total: 1, done: true });
-    }
-
-    if (!isPdfFile(job.fileName)) {
-      throw new Error("صيغة ملفّ غير مدعومة");
-    }
-
-    // ===== PDF عبر Mistral: نداء واحد بإرسال البايتات مباشرةً (أبسط وأضمن مسار) =====
-    if (isMistralConfigured) {
-      // نرسل بايتات الملفّ إلى Mistral مباشرةً — لا نعتمد على جلبه لرابط Blob/R2،
-      // ولا نستعمل معامل pages (تجنّباً لأيّ تعارض). نداء واحد يعيد كلّ الصفحات.
-      const dataUri = `data:application/pdf;base64,${buffer.toString("base64")}`;
-      const results = await ocrFullDocument({ dataUri, isImage: false });
+      let results;
+      try {
+        results = await ocrFullDocument({ url, isImage: isImg });
+      } catch (e) {
+        // احتياط: إن تعذّر على Mistral جلب الرابط، ننزّل الملفّ ونرسل البايتات
+        console.error("[process] url OCR failed, retrying with bytes:", (e as Error).message);
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("تعذّر تنزيل الملفّ من التخزين");
+        const buf = Buffer.from(await res.arrayBuffer());
+        if (buf.length === 0) throw new Error("الملفّ لم يكتمل رفعه — أعد المحاولة");
+        const mime = isImg ? imageBufferToPage(buf, job.fileName).mediaType : "application/pdf";
+        const dataUri = `data:${mime};base64,${buf.toString("base64")}`;
+        results = await ocrFullDocument({ dataUri, isImage: isImg });
+      }
       if (results.length === 0) throw new Error("لم يُستخرَج نصّ من المستند");
 
       const affordable = Math.floor(user.pagesBalance / credits);
@@ -182,6 +148,50 @@ export async function POST(
         total: toSave.length,
         done: true,
       });
+    }
+
+    // ===== Claude (بديل): يحتاج تنزيل الملفّ =====
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("تعذّر تنزيل الملفّ من التخزين");
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (buffer.length === 0) throw new Error("الملفّ لم يكتمل رفعه — أعد المحاولة");
+
+    // ===== صورة مفردة (Claude) =====
+    if (isImg) {
+      const page = imageBufferToPage(buffer, job.fileName);
+      const r = await ocrImage(page.base64, page.mediaType, job.model);
+      await db.jobPage.deleteMany({ where: { jobId: id } });
+      await db.jobPage.create({
+        data: {
+          jobId: id,
+          sequentialNumber: 1,
+          printedNumber: r.printedNumber,
+          status: "COMPLETED",
+          textContent: r.text,
+          inputTokens: r.inputTokens,
+          outputTokens: r.outputTokens,
+          processedAt: new Date(),
+        },
+      });
+      await db.$transaction([
+        db.user.update({
+          where: { id: user.id },
+          data: { pagesBalance: { decrement: credits } },
+        }),
+        db.job.update({
+          where: { id },
+          data: {
+            status: "COMPLETED",
+            totalPages: 1,
+            processedPages: 1,
+            pagesCharged: credits,
+            inputTokens: r.inputTokens,
+            outputTokens: r.outputTokens,
+            completedAt: new Date(),
+          },
+        }),
+      ]);
+      return NextResponse.json({ ok: true, processed: 1, total: 1, done: true });
     }
 
     // ===== PDF عبر Claude (بديل): معالجة على دفعات (صفحة صفحة) =====
