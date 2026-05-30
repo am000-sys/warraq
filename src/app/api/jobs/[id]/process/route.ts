@@ -128,33 +128,51 @@ export async function POST(
       throw new Error("صيغة ملفّ غير مدعومة");
     }
 
-    // ===== PDF عبر Mistral: المستند كاملاً في نداء واحد (المسار المُثبت) =====
+    // ===== PDF عبر Mistral: على دفعات قابلة للاستئناف (تقدّم مرئيّ، لا تتجاوز المهلة) =====
     if (isMistralConfigured) {
-      // نجرّب الرابط الموقّع أولاً، وإن تعذّر على Mistral جلبه نُعيد بإرسال البايتات
+      const { PDFDocument } = await import("pdf-lib");
+      const src = await PDFDocument.load(buffer, { ignoreEncryption: true });
+      const pdfTotal = src.getPageCount();
+      if (pdfTotal === 0) throw new Error("ملفّ PDF فارغ أو تالف");
+
+      // الإجمالي (بحدود الرصيد) يُحسب ويُحفظ مرّة واحدة
+      let total = job.totalPages;
+      if (!total || total < 1) {
+        const affordable = Math.floor(user.pagesBalance / credits);
+        total = Math.min(pdfTotal, affordable);
+        if (total < 1) {
+          return NextResponse.json(
+            { error: "رصيد غير كافٍ", available: user.pagesBalance },
+            { status: 402 },
+          );
+        }
+        await db.job.update({ where: { id }, data: { totalPages: total } });
+        await db.jobPage.deleteMany({ where: { jobId: id } });
+      }
+
+      const CHUNK = 40; // صفحات لكلّ طلب — تبقي كلّ نداء قصيراً تحت أي مهلة
+      const offset = job.processedPages;
+      const end = Math.min(total, offset + CHUNK);
+      const pageIdx = Array.from({ length: end - offset }, (_, i) => offset + i);
+
+      // نجرّب النطاق عبر الرابط ثمّ البايتات
       let results;
       try {
-        results = await ocrFullDocument({ url, isImage: false });
+        results = await ocrFullDocument({ url, isImage: false }, pageIdx);
       } catch (e) {
-        console.error("[process] url OCR failed, retrying with bytes:", (e as Error).message);
+        console.error("[process] url chunk OCR failed, retrying with bytes:", (e as Error).message);
         const dataUri = `data:application/pdf;base64,${buffer.toString("base64")}`;
-        results = await ocrFullDocument({ dataUri, isImage: false });
+        results = await ocrFullDocument({ dataUri, isImage: false }, pageIdx);
       }
       if (results.length === 0) throw new Error("لم يُستخرَج نصّ من المستند");
 
-      const affordable = Math.floor(user.pagesBalance / credits);
-      const toSave = results.slice(0, Math.max(0, affordable));
-      if (toSave.length < 1) {
-        return NextResponse.json(
-          { error: "رصيد غير كافٍ", available: user.pagesBalance },
-          { status: 402 },
-        );
-      }
+      // احتياط: إن تجاهَل Mistral نطاق الصفحات وأعاد المستند كاملاً، نقصّه على النطاق
+      const slice = results.length > pageIdx.length ? results.slice(offset, end) : results;
 
-      await db.jobPage.deleteMany({ where: { jobId: id } });
       await db.jobPage.createMany({
-        data: toSave.map((r, i) => ({
+        data: slice.map((r, i) => ({
           jobId: id,
-          sequentialNumber: i + 1,
+          sequentialNumber: offset + i + 1,
           printedNumber: r.printedNumber,
           status: "COMPLETED" as const,
           textContent: r.text,
@@ -164,7 +182,9 @@ export async function POST(
         })),
       });
 
-      const charged = toSave.length * credits;
+      const processedNow = offset + slice.length;
+      const charged = slice.length * credits;
+      const done = processedNow >= total;
       await db.$transaction([
         db.user.update({
           where: { id: user.id },
@@ -173,20 +193,13 @@ export async function POST(
         db.job.update({
           where: { id },
           data: {
-            status: "COMPLETED",
-            totalPages: toSave.length,
-            processedPages: toSave.length,
-            pagesCharged: charged,
-            completedAt: new Date(),
+            processedPages: processedNow,
+            pagesCharged: { increment: charged },
+            ...(done ? { status: "COMPLETED", completedAt: new Date() } : {}),
           },
         }),
       ]);
-      return NextResponse.json({
-        ok: true,
-        processed: toSave.length,
-        total: toSave.length,
-        done: true,
-      });
+      return NextResponse.json({ ok: true, processed: processedNow, total, done });
     }
 
     // ===== PDF عبر Claude (بديل): معالجة على دفعات (صفحة صفحة) =====
