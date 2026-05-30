@@ -18,8 +18,10 @@ export async function POST(req: NextRequest) {
       onBeforeGenerateToken: async () => ({
         allowedContentTypes: [
           "application/pdf",
+          "application/octet-stream",
           "image/png",
           "image/jpeg",
+          "image/jpg",
           "image/tiff",
           "image/webp",
         ],

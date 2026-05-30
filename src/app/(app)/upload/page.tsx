@@ -40,14 +40,20 @@ export default function UploadPage() {
     try {
       const contentType = file.type || "application/octet-stream";
 
-      // ١) اسأل الخادم عن طريقة التخزين المتاحة (R2 / Blob / مباشر)
+      // الملفّات الصغيرة (< ٤م) عبر المسار المباشر — أبسط وأوثق (تحت حدّ جسم الطلب)
+      const SMALL = 4 * 1024 * 1024;
+      if (file.size < SMALL) {
+        return await processDirect(file);
+      }
+
+      // ١) للملفّات الكبيرة: اسأل الخادم عن طريقة التخزين (R2 / Blob)
       const up = await fetch("/api/upload", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ fileName: file.name, fileSize: file.size, contentType }),
       });
 
-      // إن لم يُضبط أيّ تخزين: المسار المباشر (للملفّات الصغيرة فقط)
+      // إن لم يُضبط أيّ تخزين: المسار المباشر (قد يفشل للكبير، لكن نحاول)
       if (up.status === 503) {
         return await processDirect(file);
       }
@@ -62,7 +68,6 @@ export default function UploadPage() {
         const blob = await upload(file.name, file, {
           access: "public",
           handleUploadUrl: "/api/blob-upload",
-          contentType,
         });
         storageKey = blob.url; // رابط عامّ يُمرَّر لـ Mistral
       } else {
