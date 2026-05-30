@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { marked } from "marked";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { buildDocx } from "@/lib/docx-export";
 
 export async function GET(
   req: NextRequest,
@@ -74,7 +75,24 @@ export async function GET(
   }
 
   if (format === "docx") {
-    // HTML متوافق مع Word — جداول + صور + حواشٍ بأسلوب Word (مراجع علويّة + قسم مفصول)
+    // Word حقيقيّ (.docx) بحواشٍ أصليّة (ترقيم تلقائي قابل للنقر). عند أيّ خطأ → HTML احتياطاً.
+    try {
+      const buf = await buildDocx(baseName, job.pages);
+      return new NextResponse(new Uint8Array(buf), {
+        headers: {
+          "Content-Type":
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "Content-Disposition": `attachment; filename="${encodeURIComponent(baseName)}.docx"`,
+        },
+      });
+    } catch (err) {
+      console.error("[export.docx]", err);
+      // fallthrough إلى HTML أدناه
+    }
+  }
+
+  if (format === "docx" || format === "docx-html") {
+    // HTML متوافق مع Word (يحفظ الجداول والصور) — احتياطيّ
     const FN_SEP = "———— الحواشي ————";
     // يجعل مراجع الحواشي (N) علويّة superscript (أرقام فقط بين قوسين)
     const supRefs = (html: string) =>
