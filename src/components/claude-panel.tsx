@@ -44,9 +44,6 @@ function SectionHeader() {
     <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
       <Sparkles size={16} color="var(--orange)" />
       <span style={titleStyle}>مساعد المستند الذكي</span>
-      <span className="badge" style={{ fontSize: 10 }}>
-        إضافة مدفوعة
-      </span>
     </div>
   );
 }

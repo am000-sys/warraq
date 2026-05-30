@@ -114,20 +114,10 @@ export async function getClaudeAccess(userId: string): Promise<ClaudeAccess> {
     return { ...base, eligible: false, mode: "none", reason: "no_user", balance: 0, planSlug: "free" };
   }
 
-  // المالك دائماً مؤهّل (وضع الخطّة، بلا خصم)
-  if (user.systemRole === "SYSTEM_ADMIN") {
-    return {
-      ...base,
-      eligible: true,
-      mode: "plan",
-      reason: "ok",
-      balance: user.pagesBalance,
-      planSlug: "admin",
-    };
-  }
-
-  let planSlug = "free";
-  if (user.subscriptionId) {
+  // أدوات المستند تابعة للمعالجة: متاحة لكلّ مستخدم بلا قفل ولا خصم إضافيّ
+  // ما دامت مفعّلة عالمياً (يضبط المالك التفعيل من الإعدادات). mode=plan ⇒ بلا خصم.
+  let planSlug = user.systemRole === "SYSTEM_ADMIN" ? "admin" : "user";
+  if (user.systemRole !== "SYSTEM_ADMIN" && user.subscriptionId) {
     const sub = await db.subscription
       .findUnique({
         where: { id: user.subscriptionId },
@@ -137,41 +127,11 @@ export async function getClaudeAccess(userId: string): Promise<ClaudeAccess> {
     if (sub && sub.status === "ACTIVE") planSlug = sub.plan.slug;
   }
 
-  const planEligible = cfg.includedPlanSlugs.includes(planSlug);
-  const usageEligible = user.pagesBalance >= cfg.costPerAction;
-
-  let eligible = false;
-  let mode: "plan" | "usage" | "none" = "none";
-  let reason: ClaudeAccess["reason"] = "no_plan";
-
-  if (cfg.mode === "plan") {
-    eligible = planEligible;
-    mode = planEligible ? "plan" : "none";
-    reason = planEligible ? "ok" : "no_plan";
-  } else if (cfg.mode === "usage") {
-    eligible = usageEligible;
-    mode = usageEligible ? "usage" : "none";
-    reason = usageEligible ? "ok" : "no_balance";
-  } else {
-    // plan_or_usage
-    if (planEligible) {
-      eligible = true;
-      mode = "plan";
-      reason = "ok";
-    } else if (usageEligible) {
-      eligible = true;
-      mode = "usage";
-      reason = "ok";
-    } else {
-      reason = "no_balance";
-    }
-  }
-
   return {
     ...base,
-    eligible,
-    mode,
-    reason,
+    eligible: true,
+    mode: "plan",
+    reason: "ok",
     balance: user.pagesBalance,
     planSlug,
   };
