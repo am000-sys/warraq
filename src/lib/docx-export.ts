@@ -13,7 +13,11 @@ import {
 
 const FN_SEP = "———— الحواشي ————";
 const AR_DIGITS = "0-9\\u0660-\\u0669";
-const ARABIC_FONT = "Arial";
+// خطّ عربيّ تقليدي (نسخيّ) مناسب للنصوص التراثيّة، مدعوم في Word افتراضيّاً
+const ARABIC_FONT = "Traditional Arabic";
+const BODY_SIZE = 28; // 14pt (docx بأنصاف النقاط)
+const NOTE_SIZE = 22; // 11pt للحواشي
+const LINE_SPACING = 360; // تباعد سطور ١٫٥
 
 type Page = { sequentialNumber: number; printedNumber: string | null; textContent: string | null };
 
@@ -148,6 +152,8 @@ function buildParagraph(
   nextId: { v: number },
 ): Paragraph {
   const children: (TextRun | FootnoteReferenceRun)[] = [];
+  const run = (text: string) =>
+    new TextRun({ text, rightToLeft: true, font: ARABIC_FONT, size: BODY_SIZE });
   // مرجع داخل المتن: رقم محصور بقوسين/معقوفين (N) · [N] · ⁽N⁾ — آمن لأنّ الحاشية
   // لا تُنشأ إلّا إذا وُجد تعريف مطابق لها في خريطة الحواشي.
   const refRe = new RegExp(`[\\(\\[⁽]([${AR_DIGITS}]{1,3})[\\)\\]⁾]`, "g");
@@ -157,7 +163,7 @@ function buildParagraph(
     const noteText = notes.get(m[1]);
     // نصّ قبل المرجع
     if (m.index > last) {
-      children.push(new TextRun({ text: line.slice(last, m.index), rightToLeft: true, font: ARABIC_FONT }));
+      children.push(run(line.slice(last, m.index)));
     }
     if (noteText) {
       // حاشية سفليّة حقيقيّة: Word يضع رقمها تلقائياً في المتن وفي أسفل الصفحة
@@ -166,24 +172,24 @@ function buildParagraph(
         children: [
           new Paragraph({
             bidirectional: true,
-            children: [new TextRun({ text: noteText, rightToLeft: true, font: ARABIC_FONT, size: 18 })],
+            children: [new TextRun({ text: noteText, rightToLeft: true, font: ARABIC_FONT, size: NOTE_SIZE })],
           }),
         ],
       };
       children.push(new FootnoteReferenceRun(id));
     } else {
       // لا حاشية مطابقة → أبقِ الرقم كنصّ كما هو
-      children.push(new TextRun({ text: m[0], rightToLeft: true, font: ARABIC_FONT }));
+      children.push(run(m[0]));
     }
     last = m.index + m[0].length;
   }
   if (last < line.length) {
-    children.push(new TextRun({ text: line.slice(last), rightToLeft: true, font: ARABIC_FONT }));
+    children.push(run(line.slice(last)));
   }
   if (children.length === 0) {
-    children.push(new TextRun({ text: line, rightToLeft: true, font: ARABIC_FONT }));
+    children.push(run(line));
   }
-  return new Paragraph({ bidirectional: true, spacing: { line: 360 }, children });
+  return new Paragraph({ bidirectional: true, spacing: { line: LINE_SPACING }, children });
 }
 
 export async function buildDocx(fileName: string, pages: Page[]): Promise<Buffer> {
@@ -221,6 +227,15 @@ export async function buildDocx(fileName: string, pages: Page[]): Promise<Buffer
   const doc = new Document({
     creator: "Warraq",
     title: fileName,
+    // نمط افتراضيّ للمستند: خطّ عربيّ تقليدي + حجم المتن + تباعد ١٫٥
+    styles: {
+      default: {
+        document: {
+          run: { font: ARABIC_FONT, size: BODY_SIZE },
+          paragraph: { spacing: { line: LINE_SPACING } },
+        },
+      },
+    },
     footnotes,
     sections: [{ children: blocks }],
   });
