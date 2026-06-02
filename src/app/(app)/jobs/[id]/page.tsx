@@ -5,34 +5,41 @@ import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { ar } from "@/lib/utils";
 import { modelName } from "@/lib/models";
-import { ArrowRight, Download } from "lucide-react";
+import { ArrowRight, Download, ChevronRight, ChevronLeft } from "lucide-react";
 import { JobAutoRefresh } from "@/components/job-auto-refresh";
 import { ClaudePanel } from "@/components/claude-panel";
 import { JobRetry } from "@/components/job-retry";
 import { MarkdownView } from "@/components/markdown-view";
 import { getClaudeAccess } from "@/lib/claude-addon";
+import { PageJump } from "@/components/page-jump";
+
+const PER_PAGE = 10;
 
 export default async function JobDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ p?: string; q?: string }>;
 }) {
   const { id } = await params;
+  const { p, q } = await searchParams;
   const user = (await getCurrentUser())!;
 
+  // نجلب معلومات الوظيفة بدون محتوى الصفحات أوّلاً (خفيف)
   const job = await db.job.findUnique({
     where: { id },
-    include: {
-      pages: {
-        orderBy: { sequentialNumber: "asc" },
-        select: {
-          id: true,
-          sequentialNumber: true,
-          printedNumber: true,
-          status: true,
-          textContent: true,
-        },
-      },
+    select: {
+      id: true,
+      fileName: true,
+      totalPages: true,
+      processedPages: true,
+      status: true,
+      model: true,
+      errorMessage: true,
+      storageKey: true,
+      userId: true,
+      orgId: true,
     },
   });
 
@@ -47,12 +54,55 @@ export default async function JobDetailPage({
     if (!member) notFound();
   }
 
-  const completedPages = job.pages.filter((p) => p.status === "COMPLETED");
+  // عدد الصفحات المكتملة (للتنقّل)
+  const totalCompleted = await db.jobPage.count({
+    where: { jobId: id, status: "COMPLETED" },
+  });
+
+  const totalPagesCount = Math.ceil(totalCompleted / PER_PAGE);
+
+  // البحث بالرقم المطبوع
+  let jumpSeq: number | null = null;
+  if (q) {
+    const found = await db.jobPage.findFirst({
+      where: { jobId: id, status: "COMPLETED", printedNumber: q },
+      select: { sequentialNumber: true },
+    });
+    if (found) {
+      jumpSeq = found.sequentialNumber;
+    }
+  }
+
+  // الصفحة الحاليّة من الترقيم
+  let currentPage = Math.max(1, parseInt(p ?? "1") || 1);
+  if (jumpSeq !== null) {
+    currentPage = Math.ceil(jumpSeq / PER_PAGE);
+  }
+  currentPage = Math.min(currentPage, Math.max(1, totalPagesCount));
+
+  const skip = (currentPage - 1) * PER_PAGE;
+
+  // نجلب فقط صفحات هذا الجزء
+  const pages = await db.jobPage.findMany({
+    where: { jobId: id, status: "COMPLETED" },
+    orderBy: { sequentialNumber: "asc" },
+    skip,
+    take: PER_PAGE,
+    select: {
+      id: true,
+      sequentialNumber: true,
+      printedNumber: true,
+      textContent: true,
+    },
+  });
+
   const pct = (job.processedPages / Math.max(1, job.totalPages)) * 100;
 
-  // أهليّة خدمات Claude الإضافيّة (للعرض المقفل/المفتوح)
+  // أهليّة خدمات Claude الإضافيّة
   const claudeAccess =
     job.status === "COMPLETED" ? await getClaudeAccess(user.id) : null;
+
+  const baseUrl = `/jobs/${id}`;
 
   return (
     <div>
@@ -62,18 +112,14 @@ export default async function JobDetailPage({
       <Link
         href="/jobs"
         className="inline-flex items-center gap-1.5 mb-4 no-underline transition-colors"
-        style={{
-          fontSize: 13,
-          color: "var(--stone)",
-          fontFamily: "Tajawal, sans-serif",
-        }}
+        style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}
       >
         <ArrowRight size={14} />
         الوظائف
       </Link>
 
       {/* Header */}
-      <div className="flex justify-between items-start" style={{ marginBottom: 28 }}>
+      <div className="flex justify-between items-start flex-wrap" style={{ marginBottom: 28, gap: 12 }}>
         <div>
           <h1
             style={{
@@ -89,11 +135,7 @@ export default async function JobDetailPage({
           </h1>
           <p
             className="font-light"
-            style={{
-              fontSize: 13,
-              color: "var(--stone)",
-              fontFamily: "Tajawal, sans-serif",
-            }}
+            style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}
           >
             {ar(job.totalPages)} صفحة · {modelName(job.model)} · {statusLabel(job.status)}
             {job.status === "PROCESSING" && ` · ${ar(job.processedPages)}/${ar(job.totalPages)}`}
@@ -101,7 +143,7 @@ export default async function JobDetailPage({
         </div>
 
         {job.status === "COMPLETED" && (
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {[
               { f: "txt", l: "TXT" },
               { f: "md", l: "MD" },
@@ -134,18 +176,8 @@ export default async function JobDetailPage({
           }}
         >
           <div className="flex items-center gap-2 mb-3">
-            <div
-              className="w-1.5 h-1.5 rounded-full animate-pulse-dot"
-              style={{ background: "var(--orange)" }}
-            />
-            <p
-              style={{
-                fontSize: 13,
-                color: "var(--orange)",
-                fontFamily: "Tajawal, sans-serif",
-                fontWeight: 500,
-              }}
-            >
+            <div className="w-1.5 h-1.5 rounded-full animate-pulse-dot" style={{ background: "var(--orange)" }} />
+            <p style={{ fontSize: 13, color: "var(--orange)", fontFamily: "Tajawal, sans-serif", fontWeight: 500 }}>
               جارٍ المعالجة... ستحدّث الصفحة تلقائياً عند الاكتمال.
             </p>
           </div>
@@ -173,13 +205,7 @@ export default async function JobDetailPage({
             padding: 18,
           }}
         >
-          <p
-            style={{
-              fontSize: 13,
-              color: "var(--rose)",
-              fontFamily: "Tajawal, sans-serif",
-            }}
-          >
+          <p style={{ fontSize: 13, color: "var(--rose)", fontFamily: "Tajawal, sans-serif" }}>
             فشلت المعالجة: {job.errorMessage}
           </p>
           {job.storageKey !== "direct" && <JobRetry jobId={job.id} />}
@@ -187,41 +213,71 @@ export default async function JobDetailPage({
       )}
 
       {/* Pages */}
-      {completedPages.length > 0 && (
-        <div className="flex flex-col" style={{ gap: 16 }}>
-          {completedPages.slice(0, 10).map((page) => (
-            <div key={page.id} className="card" style={{ borderRadius: 16, padding: 28 }}>
-              <div
-                className="flex justify-between mb-3.5"
-                style={{
-                  fontSize: 11,
-                  color: "var(--pebble)",
-                  fontFamily: "Tajawal, sans-serif",
-                }}
-              >
-                <span>صفحة {page.printedNumber || "—"}</span>
-                <span>تسلسلي: {ar(page.sequentialNumber)}</span>
-              </div>
-              <MarkdownView content={page.textContent ?? ""} />
-            </div>
-          ))}
-          {completedPages.length > 10 && (
-            <p
-              className="text-center mt-2"
-              style={{
-                fontSize: 13,
-                color: "var(--pebble)",
-                fontFamily: "Tajawal, sans-serif",
-              }}
-            >
-              عُرضت أوّل ١٠ صفحات. حمّل الملف للحصول على الكل.
+      {totalCompleted > 0 && (
+        <>
+          {/* شريط التنقّل + البحث */}
+          <div
+            className="flex items-center justify-between flex-wrap"
+            style={{ marginBottom: 16, gap: 10 }}
+          >
+            <p style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>
+              {ar(totalCompleted)} صفحة مكتملة
+              {totalPagesCount > 1 && ` · جزء ${ar(currentPage)} من ${ar(totalPagesCount)}`}
             </p>
+            <PageJump baseUrl={baseUrl} />
+          </div>
+
+          <div className="flex flex-col" style={{ gap: 16 }}>
+            {pages.map((page) => (
+              <div
+                key={page.id}
+                id={`page-${page.sequentialNumber}`}
+                className="card"
+                style={{ borderRadius: 16, padding: 28 }}
+              >
+                <div
+                  className="flex justify-between mb-3.5"
+                  style={{ fontSize: 11, color: "var(--pebble)", fontFamily: "Tajawal, sans-serif" }}
+                >
+                  <span>صفحة {page.printedNumber || "—"}</span>
+                  <span>تسلسلي: {ar(page.sequentialNumber)}</span>
+                </div>
+                <MarkdownView content={page.textContent ?? ""} />
+              </div>
+            ))}
+          </div>
+
+          {/* أزرار التنقّل بين الأجزاء */}
+          {totalPagesCount > 1 && (
+            <div className="flex justify-between items-center" style={{ marginTop: 24 }}>
+              <Link
+                href={currentPage > 1 ? `${baseUrl}?p=${currentPage - 1}` : "#"}
+                className={`btn-ghost no-underline flex items-center gap-1.5 ${currentPage <= 1 ? "opacity-30 pointer-events-none" : ""}`}
+                style={{ fontSize: 13, padding: "9px 18px" }}
+              >
+                <ChevronRight size={15} />
+                السابق
+              </Link>
+
+              <span style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>
+                {ar(currentPage)} / {ar(totalPagesCount)}
+              </span>
+
+              <Link
+                href={currentPage < totalPagesCount ? `${baseUrl}?p=${currentPage + 1}` : "#"}
+                className={`btn-ghost no-underline flex items-center gap-1.5 ${currentPage >= totalPagesCount ? "opacity-30 pointer-events-none" : ""}`}
+                style={{ fontSize: 13, padding: "9px 18px" }}
+              >
+                التالي
+                <ChevronLeft size={15} />
+              </Link>
+            </div>
           )}
-        </div>
+        </>
       )}
 
-      {/* مساعد المستند الذكي (تحسين/تقرير/سؤال) — مفتوح للمؤهّلين، مقفل مع upsell لغيرهم */}
-      {claudeAccess && completedPages.length > 0 && (
+      {/* مساعد المستند الذكي */}
+      {claudeAccess && totalCompleted > 0 && (
         <ClaudePanel
           jobId={job.id}
           access={{
