@@ -22,9 +22,11 @@ function asPageNumber(line: string): string | null {
     .trim();
   if (!t) return null;
 
-  // أنماط شائعة لرقم الصفحة: "32" · "- ٣٢ -" · "[32]" · "صفحة ٣٢" · "ص ٣٢" · "ص: ٣٢"
+  // أنماط شائعة لرقم الصفحة (سطر شبه مستقلّ): "32" · "- ٣٢ -" · "[32]" ·
+  // "• ٣٢ •" · "/ ٣٢ /" · "صفحة ٣٢" · "ص ٣٢" · "ص: ٣٢"
+  const ORN = "\\[\\(\\)\\]\\-—–~•·.\\s/|=";
   const patterns = [
-    new RegExp(`^[\\[\\(\\-—–\\s]*([${DIGITS}]{1,4})[\\]\\)\\-—–\\.\\s]*$`),
+    new RegExp(`^[${ORN}]*([${DIGITS}]{1,4})[${ORN}]*$`),
     new RegExp(`^(?:صفحة|ص)\\s*[:\\-]?\\s*([${DIGITS}]{1,4})$`),
   ];
   for (const re of patterns) {
@@ -34,30 +36,31 @@ function asPageNumber(line: string): string | null {
   return null;
 }
 
-// يلتقط رقم الصفحة من أوّل/آخر سطر غير فارغ (يُفضّل الأسفل في كتب التراث)
+// يلتقط رقم الصفحة من نافذة أعلى/أسفل الصفحة (يُفضّل الأسفل في كتب التراث).
+// لا يقتصر على أوّل/آخر سطر بل يفحص حتّى ٣ أسطر غير فارغة من كلّ طرف، لأنّ الرقم
+// قد يقع فوق حاشية أو تحت ترويسة جارية لا في الحافّة تماماً.
 function extractPrintedNumber(lines: string[]): string | null {
-  const firstIdx = lines.findIndex((l) => l.trim());
-  let lastIdx = -1;
-  for (let i = lines.length - 1; i >= 0; i--) {
-    if (lines[i].trim()) {
-      lastIdx = i;
-      break;
-    }
-  }
+  const WINDOW = 3;
+  // فهارس الأسطر غير الفارغة
+  const nonEmpty: number[] = [];
+  for (let i = 0; i < lines.length; i++) if (lines[i].trim()) nonEmpty.push(i);
+  if (nonEmpty.length === 0) return null;
 
-  // الأسفل أوّلاً
-  if (lastIdx >= 0) {
-    const n = asPageNumber(lines[lastIdx]);
+  // الأسفل أوّلاً: من الحافّة السفلى صعوداً ضمن النافذة
+  const bottom = nonEmpty.slice(-WINDOW).reverse();
+  for (const idx of bottom) {
+    const n = asPageNumber(lines[idx]);
     if (n) {
-      lines.splice(lastIdx, 1);
+      lines.splice(idx, 1);
       return n;
     }
   }
-  // ثمّ الأعلى
-  if (firstIdx >= 0 && firstIdx !== lastIdx) {
-    const n = asPageNumber(lines[firstIdx]);
+  // ثمّ الأعلى: من الحافّة العليا نزولاً ضمن النافذة (مع تجنّب تكرار ما فُحص)
+  const top = nonEmpty.slice(0, WINDOW).filter((i) => !bottom.includes(i));
+  for (const idx of top) {
+    const n = asPageNumber(lines[idx]);
     if (n) {
-      lines.splice(firstIdx, 1);
+      lines.splice(idx, 1);
       return n;
     }
   }
