@@ -5,6 +5,10 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { buildDocx } from "@/lib/docx-export";
 
+// توليد Word (docx) يحتاج بيئة Node كاملة (مكتبة docx + jszip) لا Edge
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -75,7 +79,9 @@ export async function GET(
   }
 
   if (format === "docx") {
-    // Word حقيقيّ (.docx) بحواشٍ أصليّة (ترقيم تلقائي قابل للنقر). عند أيّ خطأ → HTML احتياطاً.
+    // Word حقيقيّ (.docx) بحواشٍ سفليّة أصليّة (ترقيم تلقائي قابل للنقر).
+    // لا نسقط على HTML بصمت — فذلك يُنتج «حواشي في المتن» تُربك المستخدم.
+    // عند الفشل نكشف السبب صراحةً (يساعد التشخيص بدل التدهور الصامت).
     try {
       const buf = await buildDocx(baseName, job.pages);
       return new NextResponse(new Uint8Array(buf), {
@@ -87,11 +93,19 @@ export async function GET(
       });
     } catch (err) {
       console.error("[export.docx]", err);
-      // fallthrough إلى HTML أدناه
+      const detail = err instanceof Error ? err.message : String(err);
+      return NextResponse.json(
+        {
+          error: "تعذّر توليد ملفّ Word بحواشٍ سفليّة.",
+          detail: detail.slice(0, 600),
+          hint: "جرّب صيغة docx-html كبديل يحفظ الجداول والصور.",
+        },
+        { status: 500 },
+      );
     }
   }
 
-  if (format === "docx" || format === "docx-html") {
+  if (format === "docx-html") {
     // HTML متوافق مع Word (يحفظ الجداول والصور) — احتياطيّ
     const FN_SEP = "———— الحواشي ————";
     // يجعل مراجع الحواشي (N) علويّة superscript (أرقام فقط بين قوسين)

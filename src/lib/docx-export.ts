@@ -1,6 +1,7 @@
-// src/lib/docx-export.ts — توليد ملفّ Word (.docx) حقيقيّ بحواشي Word الأصليّة
-// (ترقيم تلقائي، قابلة للنقر، أسفل الصفحة). يحوّل نصّ الصفحات المستخرَج إلى فقرات،
-// ويربط مراجع (N) داخل النصّ بحواشي Word عبر FootnoteReferenceRun.
+// src/lib/docx-export.ts — توليد ملفّ Word (.docx) بحواشي سفليّة حقيقيّة (Footnotes)
+// يحوّل نصّ الصفحات المستخرَج إلى فقرات ويربط مراجع (N) داخل المتن بحواشٍ سفليّة
+// أصليّة في أسفل الصفحة عبر FootnoteReferenceRun — مرقّمة تلقائيًّا وقابلة للنقر،
+// وتنتقل مع النصّ إن نُقل (سلوك حواشي Word القياسي).
 import {
   Document,
   Packer,
@@ -95,7 +96,7 @@ function splitBodyNotes(raw: string): { body: string; notes: Map<string, string>
   return { body, notes };
 }
 
-// يبني فقرة Word من سطر نصّ، مع ربط مراجع (N) بحواشي Word
+// يبني فقرة Word من سطر نصّ، مع ربط مراجع (N) بحواشي Word السفليّة الحقيقيّة
 function buildParagraph(
   line: string,
   notes: Map<string, string>,
@@ -115,7 +116,7 @@ function buildParagraph(
       children.push(new TextRun({ text: line.slice(last, m.index), rightToLeft: true, font: ARABIC_FONT }));
     }
     if (noteText) {
-      // حاشية Word حقيقيّة
+      // حاشية سفليّة حقيقيّة: Word يضع رقمها تلقائياً في المتن وفي أسفل الصفحة
       const id = nextId.v++;
       footnotes[id] = {
         children: [
@@ -127,7 +128,7 @@ function buildParagraph(
       };
       children.push(new FootnoteReferenceRun(id));
     } else {
-      // لا حاشية مطابقة → أبقِ الرقم كنصّ
+      // لا حاشية مطابقة → أبقِ الرقم كنصّ كما هو
       children.push(new TextRun({ text: m[0], rightToLeft: true, font: ARABIC_FONT }));
     }
     last = m.index + m[0].length;
