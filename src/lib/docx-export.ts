@@ -76,13 +76,57 @@ function locateNotesBlock(raw: string): { body: string; notesBlock: string } {
   return { body: raw, notesBlock: "" };
 }
 
+// مرجع حاشية «داخل المتن»: رقم محصور (N) · [N] · ⁽N⁾ — يُستثنى ما كان في صدر السطر
+// (لأنّ صدر السطر يكون تعريف حاشية أو بند قائمة، لا مرجعاً).
+function collectInlineRefs(raw: string): Set<string> {
+  const refs = new Set<string>();
+  const re = new RegExp(`[\\(\\[⁽]([${AR_DIGITS}]{1,3})[\\)\\]⁾]`, "g");
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    let m: RegExpExecArray | null;
+    re.lastIndex = 0;
+    while ((m = re.exec(line)) !== null) {
+      // تجاهل المطابقة إن كانت في صدر السطر (تعريف/بند لا مرجع)
+      const lead = line.slice(0, m.index).trim();
+      if (lead === "" && trimmed.startsWith(m[0])) continue;
+      refs.add(m[1]);
+    }
+  }
+  return refs;
+}
+
+// يبني كتلة الحواشي بالاعتماد على المراجع: تعريف الحاشية سطرٌ يبدأ بـ (N)
+// ورقمُه N ظهر مرجعاً داخل المتن — هذا يميّز الحاشية عن «بند قائمة مرقّم»
+// (مثل «(١) حجة إبراهيم») الذي لا يُشار إليه مرجعاً. مستقلّ عن وجود فاصل.
+function locateNotesByRefs(raw: string): { body: string; notesBlock: string } {
+  const refs = collectInlineRefs(raw);
+  if (refs.size === 0) return { body: raw, notesBlock: "" };
+  const lines = raw.split("\n");
+  const minIdx = Math.floor(lines.length * 0.4); // الحواشي في أسفل الصفحة
+  for (let i = minIdx; i < lines.length; i++) {
+    const m = matchNoteStart(lines[i]);
+    if (m && refs.has(m[0])) {
+      return {
+        body: lines.slice(0, i).join("\n"),
+        notesBlock: lines.slice(i).join("\n"),
+      };
+    }
+  }
+  return { body: raw, notesBlock: "" };
+}
+
 // يفصل المتن عن الحواشي، ويبني خريطة رقم→نصّ الحاشية
 function splitBodyNotes(raw: string): { body: string; notes: Map<string, string> } {
-  const { body, notesBlock } = locateNotesBlock(raw);
+  // (١) الفاصل الصريح أو القاعدة الأفقيّة، ثمّ (٢) الاعتماد على المراجع كاحتياط
+  let { body, notesBlock } = locateNotesBlock(raw);
+  if (!notesBlock.trim()) {
+    ({ body, notesBlock } = locateNotesByRefs(raw));
+  }
   const notes = new Map<string, string>();
   if (notesBlock.trim()) {
     let current: string | null = null;
     for (const line of notesBlock.split("\n")) {
+      if (isRuleLine(line)) continue; // تجاهل سطر الفصل إن بقي
       const m = matchNoteStart(line);
       if (m) {
         current = m[0];
