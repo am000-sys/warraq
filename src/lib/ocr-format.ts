@@ -36,6 +36,43 @@ function asPageNumber(line: string): string | null {
   return null;
 }
 
+// يلتقط رقماً مدمجاً في «ترويسة/تذييل جارٍ» قصير مثل: «الفصل الأول ٤٥» أو
+// «٤٥ باب الطهارة». محافِظ جدّاً لتفادي التقاط سنة (١٤٢٥) أو رقم من جملة نثريّة:
+//   • السطر قصير (≤ ٥ كلمات) — سمة الترويسات لا الجُمل.
+//   • الرقم في الحافّة القصوى للسطر (بدايته أو نهايته).
+//   • بقيّة السطر حروف عربيّة (عنوان)، لا تنتهي بعلامة جملة.
+function pageNumberInHeader(line: string): string | null {
+  const t = line
+    .trim()
+    .replace(/[*_#>`~]/g, "")
+    .replace(/‏|‎/g, "")
+    .trim();
+  if (!t) return null;
+  const words = t.split(/\s+/);
+  if (words.length < 2 || words.length > 4) return null;
+  // لا نلتقط من جملة تنتهي بنقطة/فاصلة (نثر لا ترويسة)
+  if (/[.،؛!؟:]$/.test(t)) return null;
+  // كلمات سياق تدلّ على عدد لا رقم صفحة (سنة/عدد/آية...) — نتجنّبها
+  if (/(?:^|\s)(?:عام|سنة|سنه|آية|الآية|حديث|عدد|رقم)(?:\s|$)/.test(t)) return null;
+
+  // ٣ أرقام كحدّ أقصى: يستبعد السنوات (٤ أرقام) تماماً مع تغطية الصفحات حتّى ٩٩٩
+  const reEnd = new RegExp(`^(.*?\\S)\\s+([${DIGITS}]{1,3})$`); // الرقم في النهاية
+  const reStart = new RegExp(`^([${DIGITS}]{1,3})\\s+(\\S.*)$`); // الرقم في البداية
+  for (const [re, restGroup, numGroup] of [
+    [reEnd, 1, 2],
+    [reStart, 2, 1],
+  ] as const) {
+    const m = t.match(re);
+    if (!m) continue;
+    const rest = m[restGroup];
+    // بقيّة السطر يجب أن تكون عنواناً عربيّاً (لا أرقام أخرى/رموز نثر)
+    if (new RegExp(`[${DIGITS}]`).test(rest)) continue;
+    if (!/[؀-ۿ]/.test(rest)) continue;
+    return m[numGroup];
+  }
+  return null;
+}
+
 // يلتقط رقم الصفحة من نافذة أعلى/أسفل الصفحة (يُفضّل الأسفل في كتب التراث).
 // لا يقتصر على أوّل/آخر سطر بل يفحص حتّى ٣ أسطر غير فارغة من كلّ طرف، لأنّ الرقم
 // قد يقع فوق حاشية أو تحت ترويسة جارية لا في الحافّة تماماً.
@@ -59,6 +96,17 @@ function extractPrintedNumber(lines: string[]): string | null {
   const top = nonEmpty.slice(0, WINDOW).filter((i) => !bottom.includes(i));
   for (const idx of top) {
     const n = asPageNumber(lines[idx]);
+    if (n) {
+      lines.splice(idx, 1);
+      return n;
+    }
+  }
+
+  // الطبقة الثانية (احتياط): رقم مدمج في ترويسة/تذييل قصير — على الحافّتين فقط
+  const edges = [nonEmpty[nonEmpty.length - 1], nonEmpty[0]];
+  for (const idx of edges) {
+    if (idx === undefined) continue;
+    const n = pageNumberInHeader(lines[idx]);
     if (n) {
       lines.splice(idx, 1);
       return n;
