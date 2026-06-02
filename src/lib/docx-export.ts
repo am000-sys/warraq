@@ -28,26 +28,66 @@ function stripMd(s: string): string {
     .trim();
 }
 
-// يفصل المتن عن الحواشي، ويبني خريطة رقم→نصّ الحاشية
-function splitBodyNotes(raw: string): { body: string; notes: Map<string, string> } {
-  let body = raw;
-  let notesBlock = "";
+// يكشف سطر فاصل أفقي (قاعدة) يفصل المتن عن الحواشي: --- · *** · ___ · ـــــ
+function isRuleLine(line: string): boolean {
+  const t = line.trim().replace(/[‏‎*_]/g, "");
+  if (t === "---" || t === "***" || t === "___") return true;
+  return /^[-_—–=ـ.\s]{4,}$/.test(t) && /[-_—–=ـ]/.test(t);
+}
+
+// بداية تعريف حاشية مرقّمة بأشكالها الشائعة: (N) · N) · N- · N. · [N] · ⁽N⁾
+// يعيد [الرقم، بقيّة السطر] أو null
+function matchNoteStart(line: string): [string, string] | null {
+  const t = line.trim().replace(/^[*_>\s]+/, "");
+  const re = new RegExp(
+    `^[\\[\\(⁽]?\\s*([${AR_DIGITS}]{1,3})\\s*[\\)\\]\\.\\-–—⁾:]\\s*(.*)$`,
+  );
+  const m = t.match(re);
+  if (!m) return null;
+  return [m[1], m[2] ?? ""];
+}
+
+// يحدّد كتلة الحواشي: يفضّل الفاصل الصريح FN_SEP، وإلّا يبحث عن سطر فاصل أفقي
+// في النصف الأسفل يتبعه أسطر حواشٍ مرقّمة (يغطّي الصفحات التي لم تُفصَل سابقاً —
+// كصفحات الجداول/الأشكال التي تتخطّاها طبقة التنسيق).
+function locateNotesBlock(raw: string): { body: string; notesBlock: string } {
   const sepIdx = raw.indexOf(FN_SEP);
   if (sepIdx >= 0) {
-    body = raw.slice(0, sepIdx);
-    notesBlock = raw.slice(sepIdx + FN_SEP.length);
+    return {
+      body: raw.slice(0, sepIdx),
+      notesBlock: raw.slice(sepIdx + FN_SEP.length),
+    };
   }
+  // احتياط: ابحث عن قاعدة أفقيّة في النصف الأسفل متبوعة بحاشية مرقّمة
+  const lines = raw.split("\n");
+  const startScan = Math.floor(lines.length / 2);
+  for (let i = startScan; i < lines.length; i++) {
+    if (!isRuleLine(lines[i])) continue;
+    const after = lines.slice(i + 1);
+    const firstAfter = after.find((l) => l.trim());
+    if (firstAfter && matchNoteStart(firstAfter)) {
+      return {
+        body: lines.slice(0, i).join("\n"),
+        notesBlock: after.join("\n"),
+      };
+    }
+  }
+  return { body: raw, notesBlock: "" };
+}
+
+// يفصل المتن عن الحواشي، ويبني خريطة رقم→نصّ الحاشية
+function splitBodyNotes(raw: string): { body: string; notes: Map<string, string> } {
+  const { body, notesBlock } = locateNotesBlock(raw);
   const notes = new Map<string, string>();
   if (notesBlock.trim()) {
-    // كلّ سطر حاشية: (N) نصّ...
-    const re = new RegExp(`^\\s*\\(([${AR_DIGITS}]{1,3})\\)\\s*(.*)$`);
     let current: string | null = null;
     for (const line of notesBlock.split("\n")) {
-      const m = line.match(re);
+      const m = matchNoteStart(line);
       if (m) {
-        current = m[1];
-        notes.set(current, stripMd(m[2]));
+        current = m[0];
+        notes.set(current, stripMd(m[1]));
       } else if (current && line.trim()) {
+        // سطر متابعة لنصّ الحاشية السابقة
         notes.set(current, (notes.get(current) ?? "") + " " + stripMd(line));
       }
     }
@@ -63,7 +103,9 @@ function buildParagraph(
   nextId: { v: number },
 ): Paragraph {
   const children: (TextRun | FootnoteReferenceRun)[] = [];
-  const refRe = new RegExp(`\\(([${AR_DIGITS}]{1,3})\\)`, "g");
+  // مرجع داخل المتن: رقم محصور بقوسين/معقوفين (N) · [N] · ⁽N⁾ — آمن لأنّ الحاشية
+  // لا تُنشأ إلّا إذا وُجد تعريف مطابق لها في خريطة الحواشي.
+  const refRe = new RegExp(`[\\(\\[⁽]([${AR_DIGITS}]{1,3})[\\)\\]⁾]`, "g");
   let last = 0;
   let m: RegExpExecArray | null;
   while ((m = refRe.exec(line)) !== null) {
