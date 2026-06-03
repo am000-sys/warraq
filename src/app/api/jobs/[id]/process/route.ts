@@ -17,6 +17,7 @@ import {
 } from "@/lib/ocr";
 import { isImageFile, isPdfFile, imageBufferToPage } from "@/lib/pdf";
 import { modelCredits } from "@/lib/models";
+import { sendEmail, jobCompletedEmail } from "@/lib/email";
 
 export const maxDuration = 300;
 const TIME_BUDGET_MS = 45_000;
@@ -142,6 +143,13 @@ export async function POST(
           },
         }),
       ]);
+      // إشعار المستخدم بالبريد عند الاكتمال (fire-and-forget)
+      if (user.email) {
+        sendEmail({
+          to: user.email,
+          ...jobCompletedEmail(user.name ?? user.email, job.fileName, toSave.length, id),
+        }).catch(() => {});
+      }
       return NextResponse.json({
         ok: true,
         processed: toSave.length,
@@ -191,6 +199,12 @@ export async function POST(
           },
         }),
       ]);
+      if (user.email) {
+        sendEmail({
+          to: user.email,
+          ...jobCompletedEmail(user.name ?? user.email, job.fileName, 1, id),
+        }).catch(() => {});
+      }
       return NextResponse.json({ ok: true, processed: 1, total: 1, done: true });
     }
 
@@ -267,6 +281,12 @@ export async function POST(
       }),
     ]);
 
+    if (done && user.email) {
+      sendEmail({
+        to: user.email,
+        ...jobCompletedEmail(user.name ?? user.email, job.fileName, offset, id),
+      }).catch(() => {});
+    }
     return NextResponse.json({ ok: true, processed: offset, total, done });
   } catch (err) {
     console.error("[process]", err);
