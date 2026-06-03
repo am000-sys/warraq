@@ -12,6 +12,7 @@ import { JobRetry } from "@/components/job-retry";
 import { MarkdownView } from "@/components/markdown-view";
 import { getClaudeAccess } from "@/lib/claude-addon";
 import { PageJump } from "@/components/page-jump";
+import { scorePageQuality, extractFootnotes } from "@/lib/page-quality";
 
 const PER_PAGE = 10;
 
@@ -228,23 +229,103 @@ export default async function JobDetailPage({
           </div>
 
           <div className="flex flex-col" style={{ gap: 16 }}>
-            {pages.map((page) => (
-              <div
-                key={page.id}
-                id={`page-${page.sequentialNumber}`}
-                className="card"
-                style={{ borderRadius: 16, padding: 28 }}
-              >
+            {pages.map((page) => {
+              const quality = scorePageQuality(page.textContent ?? "");
+              const { main, footnotes } = extractFootnotes(page.textContent ?? "");
+              const qualityColor =
+                quality.label === "high"
+                  ? "#16a34a"
+                  : quality.label === "medium"
+                  ? "#ca8a04"
+                  : "#dc2626";
+              const qualityBg =
+                quality.label === "high"
+                  ? "rgba(22,163,74,0.08)"
+                  : quality.label === "medium"
+                  ? "rgba(202,138,4,0.08)"
+                  : "rgba(220,38,38,0.08)";
+              const qualityLabel =
+                quality.label === "high"
+                  ? "جودة ممتازة"
+                  : quality.label === "medium"
+                  ? "جودة متوسّطة"
+                  : "قد تحتاج مراجعة";
+
+              return (
                 <div
-                  className="flex justify-between mb-3.5"
-                  style={{ fontSize: 11, color: "var(--pebble)", fontFamily: "Tajawal, sans-serif" }}
+                  key={page.id}
+                  id={`page-${page.sequentialNumber}`}
+                  className="card"
+                  style={{ borderRadius: 16, padding: 28 }}
                 >
-                  <span>صفحة {page.printedNumber || "—"}</span>
-                  <span>تسلسلي: {ar(page.sequentialNumber)}</span>
+                  {/* رأس البطاقة: أرقام الصفحة + مؤشّر الجودة */}
+                  <div
+                    className="flex justify-between items-center mb-3.5 flex-wrap"
+                    style={{ gap: 8 }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 11,
+                        color: "var(--pebble)",
+                        fontFamily: "Tajawal, sans-serif",
+                        display: "flex",
+                        gap: 12,
+                      }}
+                    >
+                      <span>صفحة {page.printedNumber || "—"}</span>
+                      <span>تسلسلي: {ar(page.sequentialNumber)}</span>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontFamily: "Tajawal, sans-serif",
+                        color: qualityColor,
+                        background: qualityBg,
+                        borderRadius: 100,
+                        padding: "3px 10px",
+                        fontWeight: 500,
+                      }}
+                    >
+                      {qualityLabel} · {ar(quality.score)}٪
+                    </span>
+                  </div>
+
+                  {/* المتن */}
+                  <MarkdownView content={main} />
+
+                  {/* الحواشي (مطوية افتراضياً) */}
+                  {footnotes && (
+                    <details
+                      style={{
+                        marginTop: 16,
+                        borderTop: "1px solid var(--border)",
+                        paddingTop: 14,
+                      }}
+                    >
+                      <summary
+                        style={{
+                          fontSize: 11,
+                          color: "var(--stone)",
+                          fontFamily: "Tajawal, sans-serif",
+                          cursor: "pointer",
+                          userSelect: "none",
+                          listStyle: "none",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 6,
+                        }}
+                      >
+                        <span style={{ fontSize: 13 }}>📎</span>
+                        الحواشي
+                      </summary>
+                      <div style={{ marginTop: 10 }}>
+                        <MarkdownView content={footnotes} />
+                      </div>
+                    </details>
+                  )}
                 </div>
-                <MarkdownView content={page.textContent ?? ""} />
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* أزرار التنقّل بين الأجزاء */}
