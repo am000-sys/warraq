@@ -9,6 +9,7 @@ import { ArrowRight, Download, ChevronRight, ChevronLeft } from "lucide-react";
 import { JobAutoRefresh } from "@/components/job-auto-refresh";
 import { ClaudePanel } from "@/components/claude-panel";
 import { JobRetry } from "@/components/job-retry";
+import { FailureHintCard } from "@/components/failure-hint";
 import { MarkdownView } from "@/components/markdown-view";
 import { getClaudeAccess } from "@/lib/claude-addon";
 import { PageJump } from "@/components/page-jump";
@@ -209,6 +210,8 @@ export default async function JobDetailPage({
           <p style={{ fontSize: 13, color: "var(--rose)", fontFamily: "Tajawal, sans-serif" }}>
             فشلت المعالجة: {job.errorMessage}
           </p>
+          {/* تلميح عمليّ — كثير من حالات الفشل سببها كِبَر الحجم (يُحلّ بالضغط) */}
+          <FailureHintCard errorMessage={job.errorMessage} />
           {job.storageKey !== "direct" && <JobRetry jobId={job.id} />}
         </div>
       )}

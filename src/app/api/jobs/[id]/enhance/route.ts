@@ -7,6 +7,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isMistralConfigured, refinePageMistral } from "@/lib/mistral";
+import { correctQuranQuotes } from "@/lib/quran-correct";
 import { getClaudeAccess, trackClaudeUsage, claudeMonthlyUsage } from "@/lib/claude-addon";
 
 export const maxDuration = 300;
@@ -98,7 +99,8 @@ export async function POST(
           await db.jobPage.update({
             where: { id: page.id },
             data: {
-              textContent: r.text,
+              // نُبقي الآيات القرآنيّة صحيحة حتى بعد تدقيق Mistral
+              textContent: correctQuranQuotes(r.text),
               ...(r.printedNumber ? { printedNumber: r.printedNumber } : {}),
             },
           });

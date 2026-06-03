@@ -4,8 +4,11 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Upload as UploadIcon, FileText, X } from "lucide-react";
+import { Upload as UploadIcon, FileText, X, Info } from "lucide-react";
 import { ProcessingView } from "@/components/processing-view";
+import { FailureHintCard } from "@/components/failure-hint";
+import { largeFileMB } from "@/lib/failure-hints";
+import { ar } from "@/lib/utils";
 
 // مؤقّتاً: نعتمد النموذج الفائق فقط بالتسعيرة الأساسيّة (بلا اختيار)
 const MODEL = "OPUS" as const;
@@ -18,6 +21,9 @@ export default function UploadPage() {
   const [progress, setProgress] = useState("");
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
+
+  // أكبر حجم ملفّ مختار بالميجابايت إن تجاوز الحدّ الآمن (لتنبيه استباقيّ بالضغط)
+  const bigFileMB = files.reduce((m, f) => Math.max(m, largeFileMB(f.size) ?? 0), 0);
 
   function addFiles(list: FileList | File[]) {
     const arr = Array.from(list);
@@ -273,20 +279,42 @@ export default function UploadPage() {
         </div>
       )}
 
-      {error && (
+      {/* تنبيه استباقيّ: الملفّ كبير — يُفضّل ضغطه قبل المعالجة لتفادي الفشل */}
+      {bigFileMB > 0 && !progress && !error && (
         <div
-          className="mb-4"
+          className="mb-4 flex items-start gap-2.5"
           style={{
-            background: "rgba(201,123,132,0.10)",
-            border: "1px solid rgba(201,123,132,0.20)",
-            color: "var(--rose)",
+            background: "var(--orange-soft)",
+            border: "1px solid rgba(246,146,81,0.22)",
             borderRadius: 12,
-            padding: 12,
-            fontSize: 13,
-            fontFamily: "Tajawal, sans-serif",
+            padding: 14,
           }}
         >
-          {error}
+          <Info size={16} color="var(--orange)" strokeWidth={1.8} style={{ marginTop: 1, flexShrink: 0 }} />
+          <p style={{ fontSize: 12.5, lineHeight: 1.7, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>
+            حجم الملفّ كبير ({ar(bigFileMB)} ميجابايت). لضمان نجاح المعالجة، يُفضَّل ضغطه أو
+            تقليل دقّة المسح قبل الرفع — فكِبَر الحجم سبب شائع لفشل المعالجة.
+          </p>
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4">
+          <div
+            style={{
+              background: "rgba(201,123,132,0.10)",
+              border: "1px solid rgba(201,123,132,0.20)",
+              color: "var(--rose)",
+              borderRadius: 12,
+              padding: 12,
+              fontSize: 13,
+              fontFamily: "Tajawal, sans-serif",
+            }}
+          >
+            {error}
+          </div>
+          {/* تلميح عمليّ بعد الفشل (الضغط غالباً يحلّ المشكلة) */}
+          <FailureHintCard errorMessage={error} />
         </div>
       )}
 
