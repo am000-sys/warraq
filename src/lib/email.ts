@@ -16,7 +16,14 @@ export async function sendEmail(opts: {
     console.warn("[email] RESEND_API_KEY not set — skipping send");
     return;
   }
-  await resend.emails.send({ from: FROM, ...opts });
+  // Resend لا يرمي استثناءً عند فشل الإرسال — بل يُرجع { error }.
+  // نتحقّق منه صراحةً لئلّا يُبتلَع الخطأ بصمت (نطاق غير موثَّق، عنوان مرسِل خاطئ...).
+  const { data, error } = await resend.emails.send({ from: FROM, ...opts });
+  if (error) {
+    console.error("[email] Resend rejected the send:", error);
+    throw new Error(`Resend: ${error.message || error.name || "فشل الإرسال"}`);
+  }
+  return data;
 }
 
 export function passwordResetEmail(name: string, resetUrl: string) {
