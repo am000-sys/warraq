@@ -4,6 +4,8 @@
 //  2) فصل الحواشي عن المتن وإبرازها بفاصل واضح.
 //  3) تنظيف الفراغات الزائدة.
 // محافِظة عمداً: لا تُعيد البناء إلّا عند ثقة كافية حتى لا تُفسد مخرجاً جيّداً.
+//  4) تصحيح الآيات القرآنيّة المقتبسة بين ﴿ ﴾ مقابل النصّ العثمانيّ المرجعيّ.
+import { correctQuranQuotes } from "@/lib/quran-correct";
 
 export type FormattedPage = {
   text: string;
@@ -177,6 +179,8 @@ export function formatOcrPage(raw: string): FormattedPage {
   const hasTableOrImage = /\|.*\|/.test(text) || text.includes("![");
   if (!hasTableOrImage) text = separateFootnotes(text);
   text = text.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+  // تصحيح مرجعيّ للآيات القرآنيّة المقتبسة بين ﴿ ﴾ (بلا نداء API ولا تكلفة)
+  text = correctQuranQuotes(text);
 
   return { text, printedNumber };
 }

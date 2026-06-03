@@ -8,6 +8,7 @@ import {
   extractTextFromPdfPage,
 } from "@/lib/claude";
 import { formatOcrPage } from "@/lib/ocr-format";
+import { correctQuranQuotes } from "@/lib/quran-correct";
 import type { ClaudeModel } from "@prisma/client";
 
 export const isOcrConfigured = isMistralConfigured || isClaudeConfigured;
@@ -49,7 +50,7 @@ export async function ocrImage(
   }
   const r = await extractTextFromImage(base64, mediaType, model);
   return {
-    text: r.text,
+    text: correctQuranQuotes(r.text),
     printedNumber: r.printedPageNumber,
     inputTokens: r.inputTokens,
     outputTokens: r.outputTokens,
@@ -71,7 +72,7 @@ export async function ocrPdfPage(
   }
   const r = await extractTextFromPdfPage(pageBase64, model);
   return {
-    text: r.text,
+    text: correctQuranQuotes(r.text),
     printedNumber: r.printedPageNumber,
     inputTokens: r.inputTokens,
     outputTokens: r.outputTokens,
