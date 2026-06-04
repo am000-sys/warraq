@@ -148,7 +148,7 @@ export async function POST(
         sendEmail({
           to: user.email,
           ...jobCompletedEmail(user.name ?? user.email, job.fileName, toSave.length, id),
-        }).catch(() => {});
+        }).catch((err) => console.error("[email] job-completed:", err));
       }
       return NextResponse.json({
         ok: true,
@@ -203,7 +203,7 @@ export async function POST(
         sendEmail({
           to: user.email,
           ...jobCompletedEmail(user.name ?? user.email, job.fileName, 1, id),
-        }).catch(() => {});
+        }).catch((err) => console.error("[email] job-completed:", err));
       }
       return NextResponse.json({ ok: true, processed: 1, total: 1, done: true });
     }
@@ -285,7 +285,7 @@ export async function POST(
       sendEmail({
         to: user.email,
         ...jobCompletedEmail(user.name ?? user.email, job.fileName, offset, id),
-      }).catch(() => {});
+      }).catch((err) => console.error("[email] job-completed:", err));
     }
     return NextResponse.json({ ok: true, processed: offset, total, done });
   } catch (err) {
@@ -298,7 +298,7 @@ export async function POST(
           errorMessage: (err as Error).message?.slice(0, 800) ?? "خطأ غير معروف",
         },
       })
-      .catch(() => {});
+      .catch((err) => console.error("[jobs] status-update failed:", err));
     return NextResponse.json(
       { error: (err as Error).message ?? "فشلت المعالجة" },
       { status: 500 },
