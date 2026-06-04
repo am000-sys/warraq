@@ -17,7 +17,7 @@ import {
 } from "@/lib/ocr";
 import { isImageFile, isPdfFile, imageBufferToPage } from "@/lib/pdf";
 import { modelCredits } from "@/lib/models";
-import { sendEmail, jobCompletedEmail } from "@/lib/email";
+import { queueEmail, jobCompletedEmail } from "@/lib/email";
 
 export const maxDuration = 300;
 const TIME_BUDGET_MS = 45_000;
@@ -145,10 +145,10 @@ export async function POST(
       ]);
       // إشعار المستخدم بالبريد عند الاكتمال (fire-and-forget)
       if (user.email) {
-        sendEmail({
+        queueEmail({
           to: user.email,
           ...jobCompletedEmail(user.name ?? user.email, job.fileName, toSave.length, id),
-        }).catch((err) => console.error("[email] job-completed:", err));
+        }, "job-completed");
       }
       return NextResponse.json({
         ok: true,
@@ -200,10 +200,10 @@ export async function POST(
         }),
       ]);
       if (user.email) {
-        sendEmail({
+        queueEmail({
           to: user.email,
           ...jobCompletedEmail(user.name ?? user.email, job.fileName, 1, id),
-        }).catch((err) => console.error("[email] job-completed:", err));
+        }, "job-completed");
       }
       return NextResponse.json({ ok: true, processed: 1, total: 1, done: true });
     }
@@ -282,10 +282,10 @@ export async function POST(
     ]);
 
     if (done && user.email) {
-      sendEmail({
+      queueEmail({
         to: user.email,
         ...jobCompletedEmail(user.name ?? user.email, job.fileName, offset, id),
-      }).catch((err) => console.error("[email] job-completed:", err));
+      }, "job-completed");
     }
     return NextResponse.json({ ok: true, processed: offset, total, done });
   } catch (err) {

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { sendEmail, topupApprovedEmail } from "@/lib/email";
+import { queueEmail, topupApprovedEmail } from "@/lib/email";
 
 const schema = z.object({
   action: z.enum(["approve", "reject"]),
@@ -58,8 +58,9 @@ export async function POST(
         select: { email: true, name: true },
       });
       if (u) {
-        sendEmail({ to: u.email, ...topupApprovedEmail(u.name ?? "", request.pages) }).catch(
-          () => {},
+        queueEmail(
+          { to: u.email, ...topupApprovedEmail(u.name ?? "", request.pages) },
+          "topup-approved",
         );
       }
     } else {

@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
-import { sendEmail, welcomeEmail } from "@/lib/email";
+import { queueEmail, welcomeEmail } from "@/lib/email";
 
 const signupSchema = z.object({
   email: z.string().email(),
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
     });
 
     // رسالة ترحيب (تُتجاهَل بصمت إن لم يُضبط Resend)
-    sendEmail({ to: user.email, ...welcomeEmail(user.name ?? "") }).catch(() => {});
+    queueEmail({ to: user.email, ...welcomeEmail(user.name ?? "") }, "welcome");
 
     return NextResponse.json({ user });
   } catch (err: any) {

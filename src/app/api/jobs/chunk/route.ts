@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 import { ocrFullDocument } from "@/lib/ocr";
 import { modelCredits } from "@/lib/models";
 import { isMistralConfigured } from "@/lib/mistral";
-import { sendEmail, jobCompletedEmail } from "@/lib/email";
+import { queueEmail, jobCompletedEmail } from "@/lib/email";
 import type { ClaudeModel } from "@prisma/client";
 
 export const maxDuration = 120;
@@ -112,10 +112,10 @@ export async function POST(req: NextRequest) {
     ]);
 
     if (isFinal && user.email) {
-      sendEmail({
+      queueEmail({
         to: user.email,
         ...jobCompletedEmail(user.name ?? user.email, fileName, processedNow, jobId!),
-      }).catch((err) => console.error("[email] job-completed:", err));
+      }, "job-completed");
     }
     return NextResponse.json({
       jobId,
