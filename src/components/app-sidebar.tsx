@@ -14,7 +14,9 @@ import {
   ShieldCheck,
   Menu,
   X,
+  LogOut,
 } from "lucide-react";
+import { signOut } from "next-auth/react";
 
 const items = [
   { k: "/dashboard", l: "لوحة التحكم", icon: LayoutDashboard },
@@ -205,7 +207,7 @@ export function AppSidebar({ user }: Props) {
             >
               {initial}
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div
                 className="truncate"
                 style={{ fontSize: 13, fontWeight: 500, color: "var(--carbon)", fontFamily: "Tajawal, sans-serif" }}
@@ -216,6 +218,26 @@ export function AppSidebar({ user }: Props) {
                 {user.plan}
               </div>
             </div>
+            <button
+              onClick={() => signOut({ callbackUrl: "/" })}
+              title="تسجيل الخروج"
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "var(--pebble)",
+                padding: 6,
+                borderRadius: 8,
+                display: "flex",
+                alignItems: "center",
+                transition: "color 0.15s",
+                flexShrink: 0,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--carbon)")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--pebble)")}
+            >
+              <LogOut size={15} strokeWidth={1.8} />
+            </button>
           </div>
         </div>
       </div>

@@ -6,7 +6,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Logo } from "@/components/logo";
-import { Activity, Users, Briefcase, DollarSign, Server, Menu, X, Wallet, LayoutDashboard, Crown } from "lucide-react";
+import { Activity, Users, Briefcase, DollarSign, Server, Menu, X, Wallet, LayoutDashboard, Crown, LogOut } from "lucide-react";
+import { signOut } from "next-auth/react";
 
 const items = [
   { k: "/admin", l: "النظرة العامة", icon: Activity },
@@ -167,7 +168,7 @@ export function AdminSidebar({ name }: { name: string }) {
                 <Crown size={10} color="var(--orange)" strokeWidth={2.2} />
               </div>
             </div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div
                 className="truncate"
                 style={{ fontSize: 13, fontWeight: 600, color: "#fff", fontFamily: "Tajawal, sans-serif" }}
@@ -182,6 +183,26 @@ export function AdminSidebar({ name }: { name: string }) {
                 صاحب المنصّة
               </div>
             </div>
+            <button
+              onClick={() => signOut({ callbackUrl: "/" })}
+              title="تسجيل الخروج"
+              style={{
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                color: "rgba(255,255,255,0.4)",
+                padding: 6,
+                borderRadius: 8,
+                display: "flex",
+                alignItems: "center",
+                transition: "color 0.15s",
+                flexShrink: 0,
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.8)")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.4)")}
+            >
+              <LogOut size={15} strokeWidth={1.8} />
+            </button>
           </div>
         </div>
       </div>
