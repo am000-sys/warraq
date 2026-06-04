@@ -20,8 +20,10 @@ const SURAHS = (quranData as { surahs: Surah[] }).surahs;
 const OPEN = "﴿"; // ﴿
 const CLOSE = "﴾"; // ﴾
 
-// مسار ١: أقواس زخرفيّة (غير جشِعة)
-const ORNATE_RE = /[﴾﴿]([^﴾﴿]{1,2000}?)[﴾﴿]/g;
+// مسار ١: أقواس زخرفيّة. نلتقط النصّ من ﴿ حتّى ﴾ أو حتّى بداية زخرفة تالية ﴿
+// (شائع في كتب التراث: «﴿ نصّ الآية ﴿رقم﴾» بلا إغلاق صريح للآية قبل رقمها).
+// هكذا لا نبتلع رمز رقم الآية ولا نُفسده.
+const ORNATE_RE = /﴿([^﴾﴿]{1,2000}?)(?:﴾|(?=﴿))/g;
 
 // مسار ٢: أقواس اقتباس شائعة يستخدمها OCR بدلاً من الزخرفيّة
 // «...» · "..." · "..." · ❝...❞
@@ -58,6 +60,7 @@ type Corpus = {
   orig: string[];
   norm: string[];
   surah: number[];
+  ayah: number[]; // معرّف الآية لكلّ كلمة (لربط الحدود)
   bigram: Map<string, number[]>;
 };
 let CORPUS: Corpus | null = null;
@@ -67,15 +70,19 @@ function buildCorpus(): Corpus {
   const orig: string[] = [];
   const norm: string[] = [];
   const surah: number[] = [];
+  const ayah: number[] = [];
+  let ayahId = 0;
   for (const su of SURAHS) {
-    for (const ayah of su.ayat) {
-      for (const w of ayah.split(/\s+/)) {
+    for (const a of su.ayat) {
+      ayahId++;
+      for (const w of a.split(/\s+/)) {
         if (!w) continue;
         const nw = normalizeArabic(w);
         if (!nw) continue;
         orig.push(w);
         norm.push(nw);
         surah.push(su.n);
+        ayah.push(ayahId);
       }
     }
   }
@@ -86,10 +93,14 @@ function buildCorpus(): Corpus {
     if (arr) arr.push(i);
     else bigram.set(key, [i]);
   }
-  CORPUS = { orig, norm, surah, bigram };
+  CORPUS = { orig, norm, surah, ayah, bigram };
   return CORPUS;
 }
 
+// يبحث عن أفضل مطابقة لتسلسل الكلمات المطبّعة داخل النصّ المرجعيّ.
+// يربط على عدّة ثنائيّات عبر المقطع (لا الأوّل فقط) فيصمد أمام فساد الكلمات
+// في الحافّتين (مثلاً «أَلَمۡ تَرَ» يقرؤها OCR «المرتمر»). كلّ ثنائيّ سليم في
+// الموضع j يقترح بداية مرشّحة start = p - j؛ ثمّ نُقيّم المقطع كاملاً على كلّ مرشّح.
 function matchSpan(
   fragNorm: string[],
   c: Corpus,
@@ -97,10 +108,22 @@ function matchSpan(
 ): { start: number; len: number } | null {
   const L = fragNorm.length;
   if (L < MIN_WORDS) return null;
-  const cands = c.bigram.get(fragNorm[0] + " " + fragNorm[1]);
-  if (!cands) return null;
+
+  // اجمع بدايات مرشّحة من ثنائيّات المقطع (حتّى ٢٤ ثنائيّاً للسرعة)
+  const starts = new Set<number>();
+  const scan = Math.min(L - 1, 24);
+  for (let j = 0; j < scan; j++) {
+    const hits = c.bigram.get(fragNorm[j] + " " + fragNorm[j + 1]);
+    if (!hits) continue;
+    for (const p of hits) {
+      const s = p - j; // محاذاة بداية المقطع مع بداية الآية
+      if (s >= 0 && s < c.norm.length) starts.add(s);
+    }
+  }
+  if (starts.size === 0) return null;
+
   let best: { start: number; len: number; score: number } | null = null;
-  for (const start of cands) {
+  for (const start of starts) {
     for (const len of [L, L - 1, L + 1, L - 2, L + 2]) {
       if (len < MIN_WORDS || start + len > c.norm.length) continue;
       if (c.surah[start] !== c.surah[start + len - 1]) continue;
@@ -111,7 +134,27 @@ function matchSpan(
       if (!best || score > best.score) best = { start, len, score };
     }
   }
-  return best && best.score >= threshold ? { start: best.start, len: best.len } : null;
+  if (!best || best.score < threshold) return null;
+
+  // ربط الحدود: لو بدأ/انتهى المقطع داخل آية واحدة على بُعد كلمات قليلة من حدّها،
+  // نمدّه إلى حدّ الآية — لاستعادة كلمات الحافّة التي أفسدها OCR (مثل «أَلَمۡ»
+  // التي تُقرأ ملتصقة بما بعدها). محافِظ: حتّى ٣ كلمات فقط من كلّ طرف.
+  let { start, len } = best;
+  let end = start + len - 1;
+  const SNAP = 3;
+  // للخلف حتّى بداية الآية
+  for (let k = 0; k < SNAP && start > 0; k++) {
+    if (c.ayah[start - 1] !== c.ayah[start]) break; // لا نعبر إلى آية سابقة
+    start--;
+    len++;
+  }
+  // للأمام حتّى نهاية الآية
+  for (let k = 0; k < SNAP && end + 1 < c.norm.length; k++) {
+    if (c.ayah[end + 1] !== c.ayah[end]) break;
+    end++;
+    len++;
+  }
+  return { start, len };
 }
 
 // يُحاول تصحيح مقطع نصّيّ (مستخرَج من داخل أقواس)
@@ -171,6 +214,8 @@ export function correctQuranQuotes(text: string): string {
     let out = text.replace(ORNATE_RE, (full, inner: string) =>
       correctFragment(inner, full, c),
     );
+    // مسافة بين إغلاق آية وزخرفة تالية (رمز رقم الآية) للقراءة: ﴾﴿ → ﴾ ﴿
+    out = out.replace(/﴾﴿/g, "﴾ ﴿");
 
     // مسار ٢: أقواس الاقتباس الشائعة «» ""
     for (const re of QUOTE_PATTERNS) {
