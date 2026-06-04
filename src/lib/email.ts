@@ -1,13 +1,8 @@
-// src/lib/email.ts — Resend wrapper
-import { Resend } from "resend";
+// src/lib/email.ts — Resend REST wrapper (direct fetch, avoids SDK connectivity issues)
 
-const resend = process.env.RESEND_API_KEY
-  ? new Resend(process.env.RESEND_API_KEY)
-  : null;
-
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM = process.env.EMAIL_FROM || "warraq <noreply@warraq.sa>";
 
-// رابط التطبيق الأساسيّ — قيمة احتياطيّة موحَّدة لئلّا تخرج روابط مكسورة (undefined/...)
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://warraq-nu.vercel.app";
 
 export async function sendEmail(opts: {
@@ -15,18 +10,39 @@ export async function sendEmail(opts: {
   subject: string;
   html: string;
 }) {
-  if (!resend) {
+  if (!RESEND_API_KEY) {
     console.warn("[email] RESEND_API_KEY not set — skipping send");
     return;
   }
-  // Resend لا يرمي استثناءً عند فشل الإرسال — بل يُرجع { error }.
-  // نتحقّق منه صراحةً لئلّا يُبتلَع الخطأ بصمت (نطاق غير موثَّق، عنوان مرسِل خاطئ...).
-  const { data, error } = await resend.emails.send({ from: FROM, ...opts });
-  if (error) {
-    console.error("[email] Resend rejected the send:", error);
-    throw new Error(`Resend: ${error.message || error.name || "فشل الإرسال"}`);
+
+  const body = JSON.stringify({ from: FROM, to: opts.to, subject: opts.subject, html: opts.html });
+
+  let res: Response;
+  try {
+    res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body,
+    });
+  } catch (err) {
+    console.error("[email] fetch to Resend API failed (network):", err);
+    throw err;
   }
-  return data;
+
+  if (!res.ok) {
+    let detail: unknown;
+    try { detail = await res.json(); } catch { detail = await res.text().catch(() => ""); }
+    console.error("[email] Resend rejected the send:", detail);
+    const msg = typeof detail === "object" && detail !== null && "message" in detail
+      ? String((detail as Record<string, unknown>).message)
+      : `HTTP ${res.status}`;
+    throw new Error(`Resend: ${msg}`);
+  }
+
+  return res.json();
 }
 
 export function passwordResetEmail(name: string, resetUrl: string) {
