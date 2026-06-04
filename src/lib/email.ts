@@ -3,6 +3,8 @@
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM = process.env.EMAIL_FROM || "warraq <noreply@warraq.sa>";
 
+export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://warraq-nu.vercel.app";
+
 export async function sendEmail(opts: {
   to: string;
   subject: string;
