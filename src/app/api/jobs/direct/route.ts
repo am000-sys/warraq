@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { isOcrConfigured, isMistralConfigured, ocrImage, ocrPdfPage, ocrFullDocument } from "@/lib/ocr";
-import { sendEmail, jobCompletedEmail } from "@/lib/email";
+import { queueEmail, jobCompletedEmail } from "@/lib/email";
 import { isImageFile, isPdfFile, imageBufferToPage } from "@/lib/pdf";
 import { modelCredits } from "@/lib/models";
 import type { ClaudeModel } from "@prisma/client";
@@ -114,10 +114,10 @@ export async function POST(req: NextRequest) {
         }),
       ]);
       if (user.email) {
-        sendEmail({
+        queueEmail({
           to: user.email,
           ...jobCompletedEmail(user.name ?? user.email, file.name, 1, job.id),
-        }).catch((err) => console.error("[email] job-completed:", err));
+        }, "job-completed");
       }
       return NextResponse.json({ jobId: job.id, processed: 1, total: 1, done: true });
     }
@@ -187,10 +187,10 @@ export async function POST(req: NextRequest) {
         }),
       ]);
       if (user.email) {
-        sendEmail({
+        queueEmail({
           to: user.email,
           ...jobCompletedEmail(user.name ?? user.email, file.name, toSave.length, job.id),
-        }).catch((err) => console.error("[email] job-completed:", err));
+        }, "job-completed");
       }
       return NextResponse.json({
         jobId: job.id,
@@ -304,10 +304,10 @@ export async function POST(req: NextRequest) {
     ]);
 
     if (done && user.email) {
-      sendEmail({
+      queueEmail({
         to: user.email,
         ...jobCompletedEmail(user.name ?? user.email, file.name, offset, job.id),
-      }).catch((err) => console.error("[email] job-completed:", err));
+      }, "job-completed");
     }
     return NextResponse.json({ jobId: job.id, processed: offset, total, done });
   } catch (err) {

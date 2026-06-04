@@ -1,9 +1,41 @@
-// src/lib/email.ts — Resend REST wrapper (direct fetch, avoids SDK connectivity issues)
+// src/lib/email.ts — Resend REST wrapper (direct fetch + إعادة محاولة على أخطاء الشبكة العابرة)
+//
+// لماذا الإعادة؟ على Vercel/Node قد يُعيد undici استخدام socket قديم أُغلق من الطرف
+// الآخر، فيظهر ECONNRESET «قبل إنشاء اتّصال TLS» مع api.resend.com. محاولة جديدة
+// تفتح اتّصالاً نظيفاً وتنجح غالباً. ولماذا queueEmail؟ لئلّا تُجمَّد دالّة serverless
+// بعد إرجاع الاستجابة فتقتل الإرسال الجاري — فنُؤجّله عبر after() ليصمد بعد الردّ.
+
+import { after } from "next/server";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM = process.env.EMAIL_FROM || "warraq <noreply@warraq.sa>";
 
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://warraq-nu.vercel.app";
+
+// فترات الانتظار قبل كلّ محاولة إعادة (ميلي ثانية)؛ المحاولة الأولى بلا انتظار
+const RETRY_DELAYS_MS = [500, 2000];
+const REQUEST_TIMEOUT_MS = 20000;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// هل الخطأ شبكيّ عابر يستحقّ إعادة المحاولة؟ (ECONNRESET، انقطاع socket، مهلة، DNS عابر)
+function isTransientNetworkError(err: unknown): boolean {
+  if (!err || typeof err !== "object") return false;
+  const e = err as { name?: string; code?: string; cause?: { code?: string } };
+  if (e.name === "AbortError") return true; // انتهت المهلة المحلّيّة
+  const code = e.code ?? e.cause?.code;
+  return (
+    code === "ECONNRESET" ||
+    code === "ETIMEDOUT" ||
+    code === "ECONNREFUSED" ||
+    code === "EPIPE" ||
+    code === "EAI_AGAIN" ||
+    code === "UND_ERR_SOCKET" ||
+    code === "UND_ERR_CONNECT_TIMEOUT" ||
+    code === "UND_ERR_HEADERS_TIMEOUT" ||
+    code === "UND_ERR_BODY_TIMEOUT"
+  );
+}
 
 export async function sendEmail(opts: {
   to: string;
@@ -16,33 +48,86 @@ export async function sendEmail(opts: {
   }
 
   const body = JSON.stringify({ from: FROM, to: opts.to, subject: opts.subject, html: opts.html });
+  const maxAttempts = RETRY_DELAYS_MS.length + 1;
+  let lastErr: unknown;
 
-  let res: Response;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    // مهلة لكلّ محاولة لئلّا تتعلّق الدالّة إلى ما لا نهاية
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+    let res: Response;
+    try {
+      res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${RESEND_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body,
+        signal: controller.signal,
+      });
+    } catch (err) {
+      lastErr = err;
+      // أخطاء الشبكة العابرة: أعد المحاولة ما دامت هناك محاولات متبقّية
+      if (isTransientNetworkError(err) && attempt < maxAttempts) {
+        console.warn(
+          `[email] network error (attempt ${attempt}/${maxAttempts}), retrying:`,
+          (err as Error)?.message ?? err,
+        );
+        await sleep(RETRY_DELAYS_MS[attempt - 1]);
+        continue;
+      }
+      console.error("[email] fetch to Resend API failed (network):", err);
+      throw err;
+    } finally {
+      clearTimeout(timer);
+    }
+
+    // 5xx و429: أخطاء عابرة من الخادم — أعد المحاولة
+    if ((res.status >= 500 || res.status === 429) && attempt < maxAttempts) {
+      console.warn(`[email] Resend HTTP ${res.status} (attempt ${attempt}/${maxAttempts}), retrying`);
+      lastErr = new Error(`Resend HTTP ${res.status}`);
+      await sleep(RETRY_DELAYS_MS[attempt - 1]);
+      continue;
+    }
+
+    // 4xx (مفتاح خاطئ، نطاق غير موثَّق...): لا تُعِد المحاولة — اعرض السبب
+    if (!res.ok) {
+      let detail: unknown;
+      try { detail = await res.json(); } catch { detail = await res.text().catch(() => ""); }
+      console.error("[email] Resend rejected the send:", detail);
+      const msg = typeof detail === "object" && detail !== null && "message" in detail
+        ? String((detail as Record<string, unknown>).message)
+        : `HTTP ${res.status}`;
+      throw new Error(`Resend: ${msg}`);
+    }
+
+    return res.json();
+  }
+
+  // استُنفدت كلّ المحاولات بأخطاء شبكة
+  console.error("[email] all retries exhausted:", lastErr);
+  throw lastErr instanceof Error
+    ? lastErr
+    : new Error("Resend: تعذّر الاتّصال بخدمة البريد بعد عدّة محاولات");
+}
+
+// أرسل بريداً دون حجب الاستجابة، مع ضمان تنفيذه بعد إرسال الردّ (يصمد في serverless).
+// يبتلع الأخطاء ويسجّلها فقط — فلا يُسقِط الطلب الأساسيّ بسبب فشل البريد.
+export function queueEmail(
+  opts: { to: string; subject: string; html: string },
+  context = "send",
+) {
+  const run = () =>
+    sendEmail(opts).catch((err) => console.error(`[email] ${context} failed:`, err));
   try {
-    res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        "Authorization": `Bearer ${RESEND_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body,
-    });
-  } catch (err) {
-    console.error("[email] fetch to Resend API failed (network):", err);
-    throw err;
+    // after() يؤجّل العمل لما بعد الاستجابة ويُبقي الدالّة حيّة حتى يكتمل
+    after(run);
+  } catch {
+    // إن استُدعي خارج سياق طلب (after غير متاح)، أرسل مباشرةً كحلّ احتياطيّ
+    void run();
   }
-
-  if (!res.ok) {
-    let detail: unknown;
-    try { detail = await res.json(); } catch { detail = await res.text().catch(() => ""); }
-    console.error("[email] Resend rejected the send:", detail);
-    const msg = typeof detail === "object" && detail !== null && "message" in detail
-      ? String((detail as Record<string, unknown>).message)
-      : `HTTP ${res.status}`;
-    throw new Error(`Resend: ${msg}`);
-  }
-
-  return res.json();
 }
 
 export function passwordResetEmail(name: string, resetUrl: string) {

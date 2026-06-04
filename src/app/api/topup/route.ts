@@ -4,7 +4,7 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPackage, getFlexiblePackage } from "@/lib/packages";
-import { sendEmail, newTopupForOwnerEmail } from "@/lib/email";
+import { queueEmail, newTopupForOwnerEmail } from "@/lib/email";
 
 const schema = z.object({
   packageId: z.enum(["small", "medium", "large", "flex"]),
@@ -63,10 +63,10 @@ export async function POST(req: NextRequest) {
       select: { email: true },
     });
     for (const a of admins) {
-      sendEmail({
+      queueEmail({
         to: a.email,
         ...newTopupForOwnerEmail(me?.email ?? "مستخدم", pkg.pages, Math.round(pkg.amountSar * 100)),
-      }).catch(() => {});
+      }, "topup-admin-notify");
     }
 
     return NextResponse.json({ request });
