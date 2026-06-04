@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
         sendEmail({
           to: user.email,
           ...jobCompletedEmail(user.name ?? user.email, file.name, 1, job.id),
-        }).catch(() => {});
+        }).catch((err) => console.error("[email] job-completed:", err));
       }
       return NextResponse.json({ jobId: job.id, processed: 1, total: 1, done: true });
     }
@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
         sendEmail({
           to: user.email,
           ...jobCompletedEmail(user.name ?? user.email, file.name, toSave.length, job.id),
-        }).catch(() => {});
+        }).catch((err) => console.error("[email] job-completed:", err));
       }
       return NextResponse.json({
         jobId: job.id,
@@ -307,7 +307,7 @@ export async function POST(req: NextRequest) {
       sendEmail({
         to: user.email,
         ...jobCompletedEmail(user.name ?? user.email, file.name, offset, job.id),
-      }).catch(() => {});
+      }).catch((err) => console.error("[email] job-completed:", err));
     }
     return NextResponse.json({ jobId: job.id, processed: offset, total, done });
   } catch (err) {
@@ -319,7 +319,7 @@ export async function POST(req: NextRequest) {
           where: { id: jobId },
           data: { status: "FAILED", errorMessage: raw.slice(0, 800) },
         })
-        .catch(() => {});
+        .catch((err) => console.error("[jobs] status-update failed:", err));
     }
     return NextResponse.json(
       { error: `${friendlyError(raw)} — (${raw.slice(0, 160)})` },

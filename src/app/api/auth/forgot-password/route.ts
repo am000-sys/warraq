@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
-import { sendEmail, passwordResetEmail } from "@/lib/email";
+import { sendEmail, passwordResetEmail, APP_URL } from "@/lib/email";
 
 const schema = z.object({ email: z.string().email() });
 
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
       data: { email, token, expires },
     });
 
-    const url = `${process.env.NEXT_PUBLIC_APP_URL}/reset-password?token=${token}`;
+    const url = `${APP_URL}/reset-password?token=${token}`;
     await sendEmail({
       to: email,
       ...passwordResetEmail(user.name ?? "مستخدم", url),

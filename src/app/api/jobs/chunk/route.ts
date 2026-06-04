@@ -115,7 +115,7 @@ export async function POST(req: NextRequest) {
       sendEmail({
         to: user.email,
         ...jobCompletedEmail(user.name ?? user.email, fileName, processedNow, jobId!),
-      }).catch(() => {});
+      }).catch((err) => console.error("[email] job-completed:", err));
     }
     return NextResponse.json({
       jobId,
@@ -129,7 +129,7 @@ export async function POST(req: NextRequest) {
     if (jobId) {
       await db.job
         .update({ where: { id: jobId }, data: { status: "FAILED", errorMessage: raw.slice(0, 800) } })
-        .catch(() => {});
+        .catch((err) => console.error("[jobs] status-update failed:", err));
     }
     return NextResponse.json({ error: `تعذّرت المعالجة — (${raw.slice(0, 160)})` }, { status: 500 });
   }
