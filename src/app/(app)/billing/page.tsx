@@ -11,7 +11,6 @@ export default function BillingPage() {
       <TopUpClient
         packages={TOPUP_PACKAGES}
         bank={{
-          holder: BANK.holder,
           bankName: BANK.bankName,
           iban: formatIban(BANK.iban),
         }}

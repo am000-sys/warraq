@@ -12,7 +12,7 @@ import {
 } from "@/lib/packages";
 import { ar } from "@/lib/utils";
 
-type Bank = { holder: string; bankName: string; iban: string };
+type Bank = { bankName: string; iban: string };
 type Req = {
   id: string;
   packageId: string;
@@ -318,7 +318,6 @@ export function TopUpClient({ packages, bank }: { packages: TopUpPackage[]; bank
               marginBottom: 20,
             }}
           >
-            <BankRow label="اسم صاحب الحساب" value={bank.holder} />
             <BankRow label="البنك" value={bank.bankName} />
             <div className="flex items-center justify-between" style={{ padding: "8px 0" }}>
               <span style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>
