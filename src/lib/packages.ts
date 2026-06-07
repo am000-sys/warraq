@@ -11,23 +11,23 @@ export type TopUpPackage = {
 };
 
 export const TOPUP_PACKAGES: TopUpPackage[] = [
-  { id: "small", nameAr: "باقة صغيرة", pages: 100, amountSar: 5, perPage: 0.05 },
+  { id: "small", nameAr: "باقة صغيرة", pages: 100, amountSar: 6, perPage: 0.06 },
   {
     id: "medium",
     nameAr: "باقة متوسطة",
     pages: 500,
-    amountSar: 18.75,
-    perPage: 0.0375,
-    savePct: 25,
+    amountSar: 23,
+    perPage: 0.046,
+    savePct: 23,
     featured: true,
   },
   {
     id: "large",
     nameAr: "باقة كبيرة",
     pages: 2500,
-    amountSar: 75,
-    perPage: 0.03,
-    savePct: 40,
+    amountSar: 94,
+    perPage: 0.0376,
+    savePct: 37,
   },
 ];
 
@@ -39,7 +39,7 @@ export function getPackage(id: string): TopUpPackage | undefined {
 export const FLEX_STEP = 50; // الوحدة
 export const FLEX_MIN = 50; // الحدّ الأدنى
 export const FLEX_MAX = 10000; // الحدّ الأقصى
-export const FLEX_PER_PAGE = 0.05; // ريال/صفحة
+export const FLEX_PER_PAGE = 0.06; // ريال/صفحة
 
 // يبني باقة مرنة من عدد الصفحات (دون تحقّق — للعرض في الواجهة)
 export function buildFlexiblePackage(pages: number): TopUpPackage {

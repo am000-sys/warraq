@@ -11,5 +11,5 @@ export const stripe = isStripeConfigured
   ? new Stripe(secretKey!, { apiVersion: "2025-02-24.acacia" })
   : null;
 
-// سعر الصفحة في الدفع لمرّة واحدة (هللات) — افتراضي ٢٥ هللة
-export const PAYG_PRICE_HALALA = Number(process.env.PAYG_PRICE_HALALA ?? 25);
+// سعر الصفحة في الدفع لمرّة واحدة (هللات) — افتراضي ٣١ هللة
+export const PAYG_PRICE_HALALA = Number(process.env.PAYG_PRICE_HALALA ?? 31);

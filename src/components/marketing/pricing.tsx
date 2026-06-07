@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-// التسعير الحاليّ = ربع التسعيرة السابقة (سعر الصفحة ~٠٫٠٥ ريال)
+// التسعير بعد رفع ٢٥٪ (سعر الصفحة ~٠٫٠٦ ريال)
 const plans = [
   {
     tier: "مجاني",
@@ -14,7 +14,7 @@ const plans = [
   },
   {
     tier: "احترافي",
-    price: { monthly: 24.75, yearly: 19.75 },
+    price: { monthly: 31, yearly: 25 },
     badge: "الأكثر شيوعاً",
     feats: [
       "٥٠٠ صفحة / شهر",
@@ -28,7 +28,7 @@ const plans = [
   },
   {
     tier: "مؤسسي",
-    price: { monthly: 112.25, yearly: 89.75 },
+    price: { monthly: 140, yearly: 112 },
     feats: [
       "٢٥٠٠ صفحة / شهر",
       "جميع النماذج (فائق)",
