@@ -44,7 +44,7 @@ async function main() {
       slug: "researcher",
       nameAr: "احترافي",
       nameEn: "Pro",
-      monthlyPriceSar: 2475,
+      monthlyPriceSar: 3100,
       pagesPerMonth: 500,
       maxFileSizeMb: 100,
       maxBatchSize: 5,
@@ -56,7 +56,7 @@ async function main() {
       slug: "verifier",
       nameAr: "مؤسسي",
       nameEn: "Enterprise",
-      monthlyPriceSar: 11225,
+      monthlyPriceSar: 14000,
       pagesPerMonth: 2500,
       maxFileSizeMb: 200,
       maxBatchSize: 10,
@@ -125,7 +125,7 @@ async function main() {
   console.log("\n⚙️  إعدادات النظام...");
 
   const settings = [
-    { key: "payg_price_per_page_halala", value: 6, description: "سعر الصفحة في PAYG (هللات)" },
+    { key: "payg_price_per_page_halala", value: 8, description: "سعر الصفحة في PAYG (هللات)" },
     { key: "max_file_size_mb", value: 100, description: "الحدّ الأقصى لحجم الملف" },
     { key: "results_retention_days", value: 30, description: "مدّة حفظ النتائج" },
     { key: "free_signup_pages", value: 50, description: "صفحات مجانية عند التسجيل" },
