@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { reconcilePendingTransaction } from "@/lib/payments";
 import { ar } from "@/lib/utils";
 import { CheckCircle, XCircle, Clock } from "lucide-react";
 
@@ -30,7 +31,7 @@ export default async function BillingReturnPage({
     );
   }
 
-  const transaction = await db.transaction.findUnique({
+  let transaction = await db.transaction.findUnique({
     where: { id: txId },
   });
 
@@ -40,6 +41,14 @@ export default async function BillingReturnPage({
         <p style={{ fontFamily: "Tajawal, sans-serif" }}>المعاملة غير موجودة</p>
       </div>
     );
+  }
+
+  // تسوية احتياطيّة: تحقّق من الدفع مباشرةً من البوّابة إن كانت المعاملة معلّقة،
+  // فلا يعتمد إضافة الرصيد على وصول الـ webhook وحده (يحمي من تأخّره أو نسيان إعداده).
+  if (transaction.status === "PENDING") {
+    await reconcilePendingTransaction(txId);
+    transaction =
+      (await db.transaction.findUnique({ where: { id: txId } })) ?? transaction;
   }
 
   const isPending = transaction.status === "PENDING";

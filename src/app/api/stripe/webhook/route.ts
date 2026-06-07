@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe, isStripeConfigured } from "@/lib/stripe";
 import { db } from "@/lib/db";
+import { creditTransaction } from "@/lib/payments";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -26,42 +27,24 @@ export async function POST(req: NextRequest) {
       id: string;
       amount_total: number | null;
       metadata: Record<string, string> | null;
-      payment_intent?: string;
     };
     const meta = s.metadata ?? {};
-    const userId = meta.userId;
-    if (userId) {
-      if (meta.type === "payg") {
-        const pages = parseInt(meta.pages ?? "0");
-        await db.$transaction([
-          db.user.update({
-            where: { id: userId },
-            data: { pagesBalance: { increment: pages } },
-          }),
-          db.transaction.create({
-            data: {
-              userId,
-              amountSar: s.amount_total ?? 0,
-              pagesGranted: pages,
-              type: "ONE_TIME",
-              status: "SUCCEEDED",
-              gateway: "STRIPE",
-              externalId: s.id,
-            },
-          }),
-        ]);
-      } else if (meta.type === "subscription") {
-        await db.transaction.create({
-          data: {
-            userId,
-            amountSar: s.amount_total ?? 0,
-            type: "SUBSCRIPTION",
-            status: "SUCCEEDED",
-            gateway: "STRIPE",
-            externalId: s.id,
-          },
-        });
-      }
+
+    if (meta.txId) {
+      // شحن رصيد بباقة — تحديث المعاملة وإضافة الصفحات (آمن ضدّ التكرار)
+      await creditTransaction(meta.txId);
+    } else if (meta.userId && meta.type === "subscription") {
+      // اشتراك خطّة
+      await db.transaction.create({
+        data: {
+          userId: meta.userId,
+          amountSar: s.amount_total ?? 0,
+          type: "SUBSCRIPTION",
+          status: "SUCCEEDED",
+          gateway: "STRIPE",
+          externalId: s.id,
+        },
+      });
     }
   }
 

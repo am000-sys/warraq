@@ -1,13 +1,16 @@
-// src/app/api/stripe/checkout/route.ts — إنشاء جلسة دفع Stripe
+// src/app/api/stripe/checkout/route.ts — إنشاء جلسة دفع Stripe (بطاقات + Apple/Google Pay)
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { stripe, isStripeConfigured, PAYG_PRICE_HALALA } from "@/lib/stripe";
+import { stripe, isStripeConfigured } from "@/lib/stripe";
+import { getPackage, getFlexiblePackage } from "@/lib/packages";
 
 const schema = z.object({
-  type: z.enum(["payg", "subscription"]),
-  pages: z.number().int().positive().optional(),
+  type: z.enum(["package", "subscription"]).default("package"),
+  // باقة شحن الرصيد (بنفس أسعار التحويل البنكيّ)
+  packageId: z.enum(["small", "medium", "large", "flex"]).optional(),
+  pages: z.number().int().positive().optional(), // للباقة المرنة فقط
   planSlug: z.string().optional(),
 });
 
@@ -34,9 +37,38 @@ export async function POST(req: NextRequest) {
     const user = await db.user.findUnique({ where: { id: session.user.id } });
     if (!user) return NextResponse.json({ error: "مستخدم غير موجود" }, { status: 404 });
 
-    if (data.type === "payg") {
-      const pages = data.pages ?? 100;
-      const amount = pages * PAYG_PRICE_HALALA; // بالهللات
+    // ── شحن الرصيد بباقة (تظهر Apple Pay / مدى / البطاقات تلقائيّاً في Checkout) ──
+    if (data.type === "package") {
+      const pkg =
+        data.packageId === "flex"
+          ? getFlexiblePackage(data.pages ?? 0)
+          : data.packageId
+            ? getPackage(data.packageId)
+            : undefined;
+      if (!pkg) {
+        return NextResponse.json(
+          {
+            error:
+              data.packageId === "flex"
+                ? "عدد صفحات غير صالح — استخدم مضاعفات ٥٠"
+                : "باقة غير صالحة",
+          },
+          { status: 400 },
+        );
+      }
+
+      // معاملة معلّقة تُحدَّث من الـ webhook عند نجاح الدفع
+      const tx = await db.transaction.create({
+        data: {
+          userId: user.id,
+          amountSar: Math.round(pkg.amountSar * 100),
+          pagesGranted: pkg.pages,
+          type: "ONE_TIME",
+          status: "PENDING",
+          gateway: "STRIPE",
+        },
+      });
+
       const checkout = await stripe.checkout.sessions.create({
         mode: "payment",
         customer_email: user.email,
@@ -44,20 +76,27 @@ export async function POST(req: NextRequest) {
           {
             price_data: {
               currency: "sar",
-              product_data: { name: `وَرَّاق — ${pages} صفحة` },
-              unit_amount: amount,
+              product_data: { name: `وَرَّاق — ${pkg.nameAr} (${pkg.pages} صفحة)` },
+              unit_amount: Math.round(pkg.amountSar * 100),
             },
             quantity: 1,
           },
         ],
-        metadata: { userId: user.id, type: "payg", pages: String(pages) },
-        success_url: `${origin}/billing/return?session_id={CHECKOUT_SESSION_ID}`,
+        // لا نحدّد payment_method_types كي تظهر محافظ Apple/Google Pay تلقائيّاً حسب إعداد اللوحة
+        metadata: { userId: user.id, txId: tx.id, pages: String(pkg.pages) },
+        success_url: `${origin}/billing/return?tx=${tx.id}`,
         cancel_url: `${origin}/billing`,
       });
+
+      await db.transaction.update({
+        where: { id: tx.id },
+        data: { externalId: checkout.id },
+      });
+
       return NextResponse.json({ url: checkout.url });
     }
 
-    // اشتراك
+    // ── اشتراك خطّة ──
     const plan = await db.plan.findUnique({ where: { slug: data.planSlug ?? "" } });
     if (!plan?.stripePriceMonthlyId) {
       return NextResponse.json(

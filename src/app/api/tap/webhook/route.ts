@@ -1,7 +1,7 @@
 // src/app/api/tap/webhook/route.ts — استقبال أحداث Tap
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
 import { retrieveTapCharge, isTapConfigured } from "@/lib/tap";
+import { creditTransaction, markTransactionFailed } from "@/lib/payments";
 
 export async function POST(req: NextRequest) {
   if (!isTapConfigured) {
@@ -17,34 +17,12 @@ export async function POST(req: NextRequest) {
     const charge = await retrieveTapCharge(chargeId);
     const status = charge?.status;
     const txId = charge?.metadata?.txId;
-
     if (!txId) return NextResponse.json({ received: true });
 
-    const tx = await db.transaction.findUnique({ where: { id: txId } });
-    if (!tx || tx.status === "SUCCEEDED") {
-      return NextResponse.json({ received: true });
-    }
-
     if (status === "CAPTURED") {
-      await db.$transaction([
-        db.transaction.update({
-          where: { id: txId },
-          data: { status: "SUCCEEDED" },
-        }),
-        ...(tx.pagesGranted > 0 && tx.userId
-          ? [
-              db.user.update({
-                where: { id: tx.userId },
-                data: { pagesBalance: { increment: tx.pagesGranted } },
-              }),
-            ]
-          : []),
-      ]);
+      await creditTransaction(txId);
     } else if (status === "FAILED" || status === "DECLINED") {
-      await db.transaction.update({
-        where: { id: txId },
-        data: { status: "FAILED" },
-      });
+      await markTransactionFailed(txId);
     }
 
     return NextResponse.json({ received: true });

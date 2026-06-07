@@ -34,6 +34,7 @@ export function TopUpClient({ packages, bank }: { packages: TopUpPackage[]; bank
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState<Req[]>([]);
   const [flexPages, setFlexPages] = useState(FLEX_MIN);
+  const [paying, setPaying] = useState<"tap" | "stripe" | null>(null);
 
   const flexActive = selected?.id === "flex";
 
@@ -75,6 +76,34 @@ export function TopUpClient({ packages, bank }: { packages: TopUpPackage[]; bank
     navigator.clipboard.writeText(bank.iban.replace(/\s/g, ""));
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  // الدفع الفوريّ بالبطاقة/المحفظة عبر بوّابة (Tap أو Stripe) ثمّ التحويل لصفحة الدفع
+  async function payWithCard(gateway: "tap" | "stripe") {
+    if (!selected || paying) return;
+    setPaying(gateway);
+    setError("");
+    try {
+      const res = await fetch(`/api/${gateway}/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "package",
+          packageId: selected.id,
+          pages: selected.id === "flex" ? selected.pages : undefined,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data?.url) {
+        setError(data?.error ?? "تعذّر بدء الدفع الإلكترونيّ");
+        setPaying(null);
+        return;
+      }
+      window.location.href = data.url; // إلى صفحة الدفع المستضافة
+    } catch {
+      setError("تعذّر الاتّصال ببوّابة الدفع");
+      setPaying(null);
+    }
   }
 
   async function submit() {
@@ -306,8 +335,66 @@ export function TopUpClient({ packages, bank }: { packages: TopUpPackage[]; bank
               marginBottom: 16,
             }}
           >
-            حوّل {ar(selected.amountSar)} ريال إلى الحساب التالي
+            اشحن رصيدك — {ar(selected.amountSar)} ريال
           </h3>
+
+          {error && (
+            <div
+              className="mb-4"
+              style={{
+                background: "rgba(201,123,132,0.10)",
+                border: "1px solid rgba(201,123,132,0.20)",
+                color: "var(--rose)",
+                borderRadius: 10,
+                padding: 10,
+                fontSize: 13,
+                fontFamily: "Tajawal, sans-serif",
+              }}
+            >
+              {error}
+            </div>
+          )}
+
+          {/* الدفع الفوريّ بالبطاقة / Apple Pay */}
+          <div className="flex flex-wrap" style={{ gap: 12 }}>
+            <button
+              type="button"
+              onClick={() => payWithCard("tap")}
+              disabled={paying !== null}
+              className="btn-primary justify-center"
+              style={{ flex: "1 1 200px", fontSize: 14, padding: 13, opacity: paying !== null ? 0.6 : 1 }}
+            >
+              {paying === "tap" ? "جارٍ التحويل…" : "Apple Pay · مدى · بطاقة"}
+            </button>
+            <button
+              type="button"
+              onClick={() => payWithCard("stripe")}
+              disabled={paying !== null}
+              className="btn-ghost justify-center"
+              style={{ flex: "1 1 200px", fontSize: 14, padding: 13, opacity: paying !== null ? 0.6 : 1 }}
+            >
+              {paying === "stripe" ? "جارٍ التحويل…" : "بطاقة دوليّة · Apple/Google Pay"}
+            </button>
+          </div>
+          <p
+            style={{
+              fontSize: 11,
+              color: "var(--pebble)",
+              fontFamily: "Tajawal, sans-serif",
+              marginTop: 8,
+            }}
+          >
+            دفع فوريّ وآمن — يُضاف الرصيد تلقائيّاً بعد إتمام الدفع.
+          </p>
+
+          {/* فاصل */}
+          <div className="flex items-center" style={{ gap: 12, margin: "18px 0" }}>
+            <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+            <span style={{ fontSize: 12, color: "var(--pebble)", fontFamily: "Tajawal, sans-serif" }}>
+              أو حوّل بنكيّاً
+            </span>
+            <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
+          </div>
 
           {/* بيانات البنك */}
           <div
@@ -350,24 +437,7 @@ export function TopUpClient({ packages, bank }: { packages: TopUpPackage[]; bank
             </div>
           </div>
 
-          {/* نموذج الإثبات */}
-          {error && (
-            <div
-              className="mb-3"
-              style={{
-                background: "rgba(201,123,132,0.10)",
-                border: "1px solid rgba(201,123,132,0.20)",
-                color: "var(--rose)",
-                borderRadius: 10,
-                padding: 10,
-                fontSize: 13,
-                fontFamily: "Tajawal, sans-serif",
-              }}
-            >
-              {error}
-            </div>
-          )}
-
+          {/* نموذج إثبات الحوالة البنكيّة */}
           <label className="label">اسم المُحوِّل (كما في الحوالة)</label>
           <input
             type="text"
