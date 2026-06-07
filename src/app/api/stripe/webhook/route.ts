@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { stripe, isStripeConfigured } from "@/lib/stripe";
 import { db } from "@/lib/db";
+import { creditTransaction } from "@/lib/payments";
 
 const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
@@ -29,27 +30,11 @@ export async function POST(req: NextRequest) {
     };
     const meta = s.metadata ?? {};
 
-    // ── شحن رصيد بباقة: حدِّث المعاملة المعلّقة وأضِف الصفحات (idempotent) ──
     if (meta.txId) {
-      const tx = await db.transaction.findUnique({ where: { id: meta.txId } });
-      if (tx && tx.status !== "SUCCEEDED") {
-        await db.$transaction([
-          db.transaction.update({
-            where: { id: tx.id },
-            data: { status: "SUCCEEDED", externalId: s.id },
-          }),
-          ...(tx.pagesGranted > 0 && tx.userId
-            ? [
-                db.user.update({
-                  where: { id: tx.userId },
-                  data: { pagesBalance: { increment: tx.pagesGranted } },
-                }),
-              ]
-            : []),
-        ]);
-      }
+      // شحن رصيد بباقة — تحديث المعاملة وإضافة الصفحات (آمن ضدّ التكرار)
+      await creditTransaction(meta.txId);
     } else if (meta.userId && meta.type === "subscription") {
-      // ── اشتراك خطّة ──
+      // اشتراك خطّة
       await db.transaction.create({
         data: {
           userId: meta.userId,
