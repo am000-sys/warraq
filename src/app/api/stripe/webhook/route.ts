@@ -26,42 +26,40 @@ export async function POST(req: NextRequest) {
       id: string;
       amount_total: number | null;
       metadata: Record<string, string> | null;
-      payment_intent?: string;
     };
     const meta = s.metadata ?? {};
-    const userId = meta.userId;
-    if (userId) {
-      if (meta.type === "payg") {
-        const pages = parseInt(meta.pages ?? "0");
+
+    // ── شحن رصيد بباقة: حدِّث المعاملة المعلّقة وأضِف الصفحات (idempotent) ──
+    if (meta.txId) {
+      const tx = await db.transaction.findUnique({ where: { id: meta.txId } });
+      if (tx && tx.status !== "SUCCEEDED") {
         await db.$transaction([
-          db.user.update({
-            where: { id: userId },
-            data: { pagesBalance: { increment: pages } },
+          db.transaction.update({
+            where: { id: tx.id },
+            data: { status: "SUCCEEDED", externalId: s.id },
           }),
-          db.transaction.create({
-            data: {
-              userId,
-              amountSar: s.amount_total ?? 0,
-              pagesGranted: pages,
-              type: "ONE_TIME",
-              status: "SUCCEEDED",
-              gateway: "STRIPE",
-              externalId: s.id,
-            },
-          }),
+          ...(tx.pagesGranted > 0 && tx.userId
+            ? [
+                db.user.update({
+                  where: { id: tx.userId },
+                  data: { pagesBalance: { increment: tx.pagesGranted } },
+                }),
+              ]
+            : []),
         ]);
-      } else if (meta.type === "subscription") {
-        await db.transaction.create({
-          data: {
-            userId,
-            amountSar: s.amount_total ?? 0,
-            type: "SUBSCRIPTION",
-            status: "SUCCEEDED",
-            gateway: "STRIPE",
-            externalId: s.id,
-          },
-        });
       }
+    } else if (meta.userId && meta.type === "subscription") {
+      // ── اشتراك خطّة ──
+      await db.transaction.create({
+        data: {
+          userId: meta.userId,
+          amountSar: s.amount_total ?? 0,
+          type: "SUBSCRIPTION",
+          status: "SUCCEEDED",
+          gateway: "STRIPE",
+          externalId: s.id,
+        },
+      });
     }
   }
 

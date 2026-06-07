@@ -1,14 +1,16 @@
-// src/app/api/tap/checkout/route.ts — إنشاء عمليّة دفع Tap
+// src/app/api/tap/checkout/route.ts — إنشاء عمليّة دفع Tap (مدى + Apple Pay سعودي + STC Pay)
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { createTapCharge, isTapConfigured } from "@/lib/tap";
-import { PAYG_PRICE_HALALA } from "@/lib/stripe";
+import { getPackage, getFlexiblePackage } from "@/lib/packages";
 
 const schema = z.object({
-  type: z.enum(["payg", "subscription"]),
-  pages: z.number().int().positive().optional(),
+  type: z.enum(["package", "subscription"]).default("package"),
+  // باقة شحن الرصيد (بنفس أسعار التحويل البنكيّ)
+  packageId: z.enum(["small", "medium", "large", "flex"]).optional(),
+  pages: z.number().int().positive().optional(), // للباقة المرنة فقط
   planSlug: z.string().optional(),
 });
 
@@ -38,11 +40,27 @@ export async function POST(req: NextRequest) {
     let description: string;
     let pagesGranted = 0;
 
-    if (data.type === "payg") {
-      const pages = data.pages ?? 100;
-      pagesGranted = pages;
-      amountSar = (pages * PAYG_PRICE_HALALA) / 100; // تحويل هللات لريال
-      description = `وَرَّاق — ${pages} صفحة`;
+    if (data.type === "package") {
+      const pkg =
+        data.packageId === "flex"
+          ? getFlexiblePackage(data.pages ?? 0)
+          : data.packageId
+            ? getPackage(data.packageId)
+            : undefined;
+      if (!pkg) {
+        return NextResponse.json(
+          {
+            error:
+              data.packageId === "flex"
+                ? "عدد صفحات غير صالح — استخدم مضاعفات ٥٠"
+                : "باقة غير صالحة",
+          },
+          { status: 400 },
+        );
+      }
+      pagesGranted = pkg.pages;
+      amountSar = pkg.amountSar;
+      description = `وَرَّاق — ${pkg.nameAr} (${pkg.pages} صفحة)`;
     } else {
       const plan = await db.plan.findUnique({ where: { slug: data.planSlug ?? "" } });
       if (!plan) return NextResponse.json({ error: "خطّة غير موجودة" }, { status: 400 });
@@ -50,13 +68,13 @@ export async function POST(req: NextRequest) {
       description = `وَرَّاق — اشتراك ${plan.nameAr}`;
     }
 
-    // سجلّ معاملة معلّقة
+    // سجلّ معاملة معلّقة (تُحدَّث من الـ webhook عند CAPTURED)
     const tx = await db.transaction.create({
       data: {
         userId: user.id,
         amountSar: Math.round(amountSar * 100),
         pagesGranted,
-        type: data.type === "payg" ? "ONE_TIME" : "SUBSCRIPTION",
+        type: data.type === "package" ? "ONE_TIME" : "SUBSCRIPTION",
         status: "PENDING",
         gateway: "TAP",
       },
