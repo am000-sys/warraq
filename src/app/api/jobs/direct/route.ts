@@ -5,6 +5,9 @@
 //   (بدءاً من processedPages المحفوظة) ويعيد done=false حتى تكتمل كلّ الصفحات.
 //   يقود المتصفّحُ السلسلة بإعادة الاستدعاء مع jobId حتى done=true.
 // التفريغ عبر طبقة OCR الموحّدة (Mistral أساسي / Claude بديل).
+//
+// ضمانات الرصيد: فحص مسبق يغطّي المستند كاملاً قبل أيّ تفريغ (لا اقتطاع صامتاً)،
+// وخصم ذرّي مشروط محسوب من الصفحات المحفوظة فعلاً (لا رصيد سالباً ولا خصماً مكرّراً).
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -12,6 +15,13 @@ import { isOcrConfigured, isMistralConfigured, ocrImage, ocrPdfPage, ocrFullDocu
 import { queueEmail, jobCompletedEmail } from "@/lib/email";
 import { isImageFile, isPdfFile, imageBufferToPage } from "@/lib/pdf";
 import { modelCredits } from "@/lib/models";
+import {
+  InsufficientBalanceError,
+  chargeBalance,
+  currentBalance,
+  insufficientUpfrontMessage,
+  balanceExhaustedMessage,
+} from "@/lib/billing";
 import type { ClaudeModel } from "@prisma/client";
 
 export const maxDuration = 300;
@@ -64,7 +74,11 @@ export async function POST(req: NextRequest) {
     if (isImg) {
       if (user.pagesBalance < credits) {
         return NextResponse.json(
-          { error: "رصيد غير كافٍ", available: user.pagesBalance },
+          {
+            error: insufficientUpfrontMessage(credits, user.pagesBalance),
+            required: credits,
+            available: user.pagesBalance,
+          },
           { status: 402 },
         );
       }
@@ -84,35 +98,33 @@ export async function POST(req: NextRequest) {
       jobId = job.id;
       const page = imageBufferToPage(buffer, file.name);
       const r = await ocrImage(page.base64, page.mediaType, model);
-      await db.jobPage.create({
-        data: {
-          jobId: job.id,
-          sequentialNumber: 1,
-          printedNumber: r.printedNumber,
-          status: "COMPLETED",
-          textContent: r.text,
-          inputTokens: r.inputTokens,
-          outputTokens: r.outputTokens,
-          processedAt: new Date(),
-        },
-      });
-      await db.$transaction([
-        db.user.update({
-          where: { id: user.id },
-          data: { pagesBalance: { decrement: credits } },
-        }),
-        db.job.update({
+      await db.$transaction(async (tx) => {
+        const created = await tx.jobPage.createMany({
+          data: [{
+            jobId: job.id,
+            sequentialNumber: 1,
+            printedNumber: r.printedNumber,
+            status: "COMPLETED" as const,
+            textContent: r.text,
+            inputTokens: r.inputTokens,
+            outputTokens: r.outputTokens,
+            processedAt: new Date(),
+          }],
+          skipDuplicates: true,
+        });
+        await chargeBalance(tx, user.id, created.count * credits);
+        await tx.job.update({
           where: { id: job.id },
           data: {
             status: "COMPLETED",
             processedPages: 1,
-            pagesCharged: credits,
+            pagesCharged: created.count * credits,
             inputTokens: r.inputTokens,
             outputTokens: r.outputTokens,
             completedAt: new Date(),
           },
-        }),
-      ]);
+        });
+      });
       if (user.email) {
         queueEmail({
           to: user.email,
@@ -122,26 +134,30 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ jobId: job.id, processed: 1, total: 1, done: true });
     }
 
+    // عدد صفحات المستند الحقيقي — أساس الفحص المسبق للرصيد في المسارين
+    const { PDFDocument } = await import("pdf-lib");
+    const src = await PDFDocument.load(buffer, { ignoreEncryption: true });
+    const pdfTotal = src.getPageCount();
+    if (pdfTotal === 0) throw new Error("ملفّ PDF فارغ أو تالف");
+
     // ===== PDF عبر Mistral: المستند كاملاً في نداء واحد (الأسرع والأضمن) =====
     if (isMistralConfigured) {
-      if (user.pagesBalance < credits) {
+      // فحص مسبق: الرصيد يغطّي كلّ الصفحات قبل أيّ كلفة تفريغ — لا اقتطاع صامتاً
+      const required = pdfTotal * credits;
+      if (user.pagesBalance < required) {
         return NextResponse.json(
-          { error: "رصيد غير كافٍ", available: user.pagesBalance },
+          {
+            error: insufficientUpfrontMessage(required, user.pagesBalance),
+            required,
+            available: user.pagesBalance,
+            totalPages: pdfTotal,
+          },
           { status: 402 },
         );
       }
       const dataUri = `data:application/pdf;base64,${buffer.toString("base64")}`;
       const results = await ocrFullDocument({ dataUri, isImage: false });
       if (results.length === 0) throw new Error("لم يُستخرَج نصّ من المستند");
-
-      const affordable = Math.floor(user.pagesBalance / credits);
-      const toSave = results.slice(0, Math.max(0, affordable));
-      if (toSave.length < 1) {
-        return NextResponse.json(
-          { error: "رصيد غير كافٍ", available: user.pagesBalance },
-          { status: 402 },
-        );
-      }
 
       const job = await db.job.create({
         data: {
@@ -150,7 +166,7 @@ export async function POST(req: NextRequest) {
           fileSize: buffer.length,
           fileChecksum: "direct",
           storageKey: "direct",
-          totalPages: toSave.length,
+          totalPages: results.length,
           processedPages: 0,
           model,
           status: "PROCESSING",
@@ -158,61 +174,76 @@ export async function POST(req: NextRequest) {
         },
       });
       jobId = job.id;
-      await db.jobPage.createMany({
-        data: toSave.map((r, i) => ({
-          jobId: job.id,
-          sequentialNumber: i + 1,
-          printedNumber: r.printedNumber,
-          status: "COMPLETED" as const,
-          textContent: r.text,
-          inputTokens: 0,
-          outputTokens: 0,
-          processedAt: new Date(),
-        })),
-      });
-      const charged = toSave.length * credits;
-      await db.$transaction([
-        db.user.update({
-          where: { id: user.id },
-          data: { pagesBalance: { decrement: charged } },
-        }),
-        db.job.update({
-          where: { id: job.id },
-          data: {
-            status: "COMPLETED",
-            processedPages: toSave.length,
-            pagesCharged: charged,
-            completedAt: new Date(),
-          },
-        }),
-      ]);
+      try {
+        await db.$transaction(async (tx) => {
+          const created = await tx.jobPage.createMany({
+            data: results.map((r, i) => ({
+              jobId: job.id,
+              sequentialNumber: i + 1,
+              printedNumber: r.printedNumber,
+              status: "COMPLETED" as const,
+              textContent: r.text,
+              inputTokens: 0,
+              outputTokens: 0,
+              processedAt: new Date(),
+            })),
+            skipDuplicates: true,
+          });
+          const charged = created.count * credits;
+          await chargeBalance(tx, user.id, charged);
+          await tx.job.update({
+            where: { id: job.id },
+            data: {
+              status: "COMPLETED",
+              processedPages: results.length,
+              pagesCharged: charged,
+              completedAt: new Date(),
+            },
+          });
+        });
+      } catch (err) {
+        if (err instanceof InsufficientBalanceError) {
+          // سباق نادر (إنفاق متزامن بعد الفحص المسبق): لا خصم ولا حفظ جزئيّاً
+          const available = await currentBalance(user.id);
+          const msg = insufficientUpfrontMessage(results.length * credits, available);
+          await db.job.update({
+            where: { id: job.id },
+            data: { status: "FAILED", errorMessage: msg },
+          }).catch((e) => console.error("[jobs.direct] status-update failed:", e));
+          return NextResponse.json(
+            { error: msg, available, jobId: job.id },
+            { status: 402 },
+          );
+        }
+        throw err;
+      }
       if (user.email) {
         queueEmail({
           to: user.email,
-          ...jobCompletedEmail(user.name ?? user.email, file.name, toSave.length, job.id),
+          ...jobCompletedEmail(user.name ?? user.email, file.name, results.length, job.id),
         }, "job-completed");
       }
       return NextResponse.json({
         jobId: job.id,
-        processed: toSave.length,
-        total: toSave.length,
+        processed: results.length,
+        total: results.length,
         done: true,
       });
     }
 
     // ===== PDF عبر Claude (بديل): إنشاء/استئناف ثمّ معالجة دفعة ضمن ميزانيّة الوقت =====
-    const { PDFDocument } = await import("pdf-lib");
-    const src = await PDFDocument.load(buffer, { ignoreEncryption: true });
-    const pdfTotal = src.getPageCount();
-    if (pdfTotal === 0) throw new Error("ملفّ PDF فارغ أو تالف");
-
     let job;
     if (!resumeJobId) {
-      const affordablePages = Math.floor(user.pagesBalance / credits);
-      const totalPages = Math.min(pdfTotal, affordablePages);
-      if (totalPages < 1) {
+      // فحص مسبق: الرصيد يغطّي المستند كاملاً (لا نبدأ معالجة لن تكتمل)
+      const required = pdfTotal * credits;
+      if (user.pagesBalance < required) {
         return NextResponse.json(
-          { error: "رصيد غير كافٍ", available: user.pagesBalance },
+          {
+            error: insufficientUpfrontMessage(required, user.pagesBalance),
+            required,
+            available: user.pagesBalance,
+            totalPages: pdfTotal,
+          },
           { status: 402 },
         );
       }
@@ -223,7 +254,7 @@ export async function POST(req: NextRequest) {
           fileSize: buffer.length,
           fileChecksum: "direct",
           storageKey: "direct",
-          totalPages,
+          totalPages: pdfTotal,
           processedPages: 0,
           model,
           status: "PROCESSING",
@@ -249,59 +280,76 @@ export async function POST(req: NextRequest) {
     const total = job.totalPages;
     let offset = job.processedPages; // الخادم هو المرجع — لا نثق بإزاحة العميل
     const start = Date.now();
-    let processedThisCall = 0;
     let inTok = 0;
     let outTok = 0;
 
-    while (offset < total && Date.now() - start < TIME_BUDGET_MS) {
-      const doc = await PDFDocument.create();
-      const [copied] = await doc.copyPages(src, [offset]);
-      doc.addPage(copied);
-      const pageB64 = Buffer.from(await doc.save()).toString("base64");
+    try {
+      while (offset < total && Date.now() - start < TIME_BUDGET_MS) {
+        const doc = await PDFDocument.create();
+        const [copied] = await doc.copyPages(src, [offset]);
+        doc.addPage(copied);
+        const pageB64 = Buffer.from(await doc.save()).toString("base64");
 
-      const r = await ocrPdfPage(pageB64, model);
-      inTok += r.inputTokens;
-      outTok += r.outputTokens;
+        const r = await ocrPdfPage(pageB64, model);
+        inTok += r.inputTokens;
+        outTok += r.outputTokens;
 
-      await db.jobPage.create({
-        data: {
-          jobId: job.id,
-          sequentialNumber: offset + 1,
-          printedNumber: r.printedNumber,
-          status: "COMPLETED",
-          textContent: r.text,
-          inputTokens: r.inputTokens,
-          outputTokens: r.outputTokens,
-          processedAt: new Date(),
-        },
-      });
-
-      offset++;
-      processedThisCall++;
-      await db.job.update({
-        where: { id: job.id },
-        data: { processedPages: offset },
-      });
+        // حفظ الصفحة + الخصم في معاملة واحدة (الخصم للصفحات الجديدة فقط)
+        await db.$transaction(async (tx) => {
+          const created = await tx.jobPage.createMany({
+            data: [{
+              jobId: job.id,
+              sequentialNumber: offset + 1,
+              printedNumber: r.printedNumber,
+              status: "COMPLETED" as const,
+              textContent: r.text,
+              inputTokens: r.inputTokens,
+              outputTokens: r.outputTokens,
+              processedAt: new Date(),
+            }],
+            skipDuplicates: true,
+          });
+          const charged = created.count * credits;
+          await chargeBalance(tx, user.id, charged);
+          await tx.job.update({
+            where: { id: job.id },
+            data: { processedPages: offset + 1, pagesCharged: { increment: charged } },
+          });
+        });
+        offset++;
+      }
+    } catch (err) {
+      if (err instanceof InsufficientBalanceError) {
+        // نفد الرصيد أثناء المعالجة: ما اكتمل محفوظ ومخصوم، والوظيفة تنتظر شحناً
+        const available = await currentBalance(user.id);
+        const msg = balanceExhaustedMessage(offset, total);
+        await db.job.update({
+          where: { id: job.id },
+          data: {
+            status: "FAILED",
+            errorMessage: msg,
+            inputTokens: { increment: inTok },
+            outputTokens: { increment: outTok },
+          },
+        }).catch((e) => console.error("[jobs.direct] status-update failed:", e));
+        return NextResponse.json(
+          { error: msg, available, jobId: job.id, processed: offset },
+          { status: 402 },
+        );
+      }
+      throw err;
     }
 
-    const charged = processedThisCall * credits;
     const done = offset >= total;
-    await db.$transaction([
-      db.user.update({
-        where: { id: user.id },
-        data: { pagesBalance: { decrement: charged } },
-      }),
-      db.job.update({
-        where: { id: job.id },
-        data: {
-          pagesCharged: { increment: charged },
-          inputTokens: { increment: inTok },
-          outputTokens: { increment: outTok },
-          processedPages: offset,
-          ...(done ? { status: "COMPLETED", completedAt: new Date() } : {}),
-        },
-      }),
-    ]);
+    await db.job.update({
+      where: { id: job.id },
+      data: {
+        inputTokens: { increment: inTok },
+        outputTokens: { increment: outTok },
+        processedPages: offset,
+        ...(done ? { status: "COMPLETED", completedAt: new Date() } : {}),
+      },
+    });
 
     if (done && user.email) {
       queueEmail({

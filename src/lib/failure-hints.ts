@@ -15,6 +15,9 @@ export const LARGE_FILE_BYTES = 40 * 1024 * 1024;
 const SIZE_SIGNALS =
   /(too\s*large|payload|413|content[\s-]?length|body\s*size|request entity|size\s*limit|exceed|413|timeout|timed?\s*out|504|408|abort|deadline|memory|heap|مهلة|كبير|الحجم)/i;
 
+// إشارات تدلّ على أنّ الفشل سببه نفاد رصيد الصفحات (وليس عطلاً تقنيّاً)
+const BALANCE_SIGNALS = /(رصيد|نفد|insufficient|402)/i;
+
 const COMPRESS_TIP =
   "اضغط الملفّ (قلّل حجمه أو دقّة المسح) ثمّ أعِد رفعه — هذا يحلّ أغلب حالات الفشل.";
 const SPLIT_TIP = "إن كان كتاباً كبيراً، قسّمه إلى أجزاء أصغر وارفع كلّ جزء على حدة.";
@@ -25,6 +28,16 @@ const RETRY_TIP = "قد يكون ازدحاماً مؤقّتاً في الخدم
 // نُقدّم نصيحة الضغط أوّلاً دائماً لأنّها السبب الأكثر شيوعاً في تجربتنا.
 export function failureHint(errorMessage?: string | null): FailureHint {
   const msg = errorMessage ?? "";
+  if (BALANCE_SIGNALS.test(msg)) {
+    return {
+      title: "توقّفت المعالجة لنفاد رصيد الصفحات",
+      tips: [
+        "اشحن رصيدك من صفحة «الفوترة» ثمّ أعد المحاولة.",
+        "الصفحات التي اكتملت محفوظة في حسابك ويمكنك تصفّحها وتصديرها الآن.",
+        "لن تُخصم الصفحات المكتملة مرّتين عند إعادة المحاولة.",
+      ],
+    };
+  }
   if (SIZE_SIGNALS.test(msg)) {
     return {
       title: "يبدو أنّ حجم الملفّ كبير على المعالجة",

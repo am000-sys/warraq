@@ -140,7 +140,8 @@ export default async function JobDetailPage({
             style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}
           >
             {ar(job.totalPages)} صفحة · {modelName(job.model)} · {statusLabel(job.status)}
-            {job.status === "PROCESSING" && ` · ${ar(job.processedPages)}/${ar(job.totalPages)}`}
+            {(job.status === "PROCESSING" || (job.status === "FAILED" && job.processedPages > 0)) &&
+              ` · اكتمل ${ar(job.processedPages)}/${ar(job.totalPages)}`}
           </p>
         </div>
 
@@ -212,7 +213,11 @@ export default async function JobDetailPage({
           </p>
           {/* تلميح عمليّ — كثير من حالات الفشل سببها كِبَر الحجم (يُحلّ بالضغط) */}
           <FailureHintCard errorMessage={job.errorMessage} />
-          {job.storageKey !== "direct" && <JobRetry jobId={job.id} />}
+          {/* إعادة المحاولة من الخادم ممكنة فقط للملفّات المخزّنة (R2/Blob) —
+              لا للمسارات التي لا تحتفظ بالملفّ (رفع مباشر أو أجزاء من المتصفّح) */}
+          {job.storageKey !== "direct" && job.storageKey !== "chunked" && (
+            <JobRetry jobId={job.id} />
+          )}
         </div>
       )}
 
