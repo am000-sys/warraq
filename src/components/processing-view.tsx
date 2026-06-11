@@ -22,7 +22,16 @@ const SAMPLE = [
   "على سيّدنا محمّد وآله...",
 ];
 
-export function ProcessingView({ previewUrl }: { previewUrl: string | null }) {
+export function ProcessingView({
+  previewUrl,
+  realProgress,
+  realLabel,
+}: {
+  previewUrl: string | null;
+  // تقدّم حقيقيّ من الخادم (نسبة ٠-١٠٠) — عند توفّره يَعرِض بدل التقدّم الإيحائي
+  realProgress?: number | null;
+  realLabel?: string;
+}) {
   const [scan, setScan] = useState(0);
   const [progress, setProgress] = useState(0);
   const [stage, setStage] = useState(0);
@@ -136,17 +145,25 @@ export function ProcessingView({ previewUrl }: { previewUrl: string | null }) {
         </div>
       </div>
 
-      {/* شريط التقدّم + المرحلة */}
+      {/* شريط التقدّم + المرحلة — التقدّم الحقيقيّ (إن وُجد) يَغلب الإيحائيّ */}
       <div style={{ padding: "16px 20px", borderTop: "1px solid var(--border-sub)", background: "var(--fog)" }}>
         <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-          <span style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>{STAGES[stage]}</span>
+          <span style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>
+            {realProgress != null && realLabel ? realLabel : STAGES[stage]}
+          </span>
           <span style={{ fontSize: 13, color: "var(--orange)", fontWeight: 500, fontFamily: "Tajawal, sans-serif" }}>
-            {Math.round(progress)}٪
+            {Math.round(realProgress ?? progress)}٪
           </span>
         </div>
         <div style={{ height: 6, background: "var(--border-sub)", borderRadius: 3, overflow: "hidden" }}>
           <div
-            style={{ height: "100%", width: `${progress}%`, background: "var(--orange)", borderRadius: 3, transition: "width 0.2s" }}
+            style={{
+              height: "100%",
+              width: `${realProgress ?? progress}%`,
+              background: "var(--orange)",
+              borderRadius: 3,
+              transition: "width 0.2s",
+            }}
           />
         </div>
       </div>

@@ -91,6 +91,7 @@ export async function GET(req: NextRequest) {
       processedPages: true,
       status: true,
       model: true,
+      storageKey: true,
       createdAt: true,
     },
   });
