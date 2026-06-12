@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Upload,
   ListChecks,
+  BookOpenCheck,
   Wallet,
   Settings,
   ShieldCheck,
@@ -22,6 +23,7 @@ const items = [
   { k: "/dashboard", l: "لوحة التحكم", icon: LayoutDashboard },
   { k: "/upload", l: "رفع ملف", icon: Upload },
   { k: "/jobs", l: "الوظائف", icon: ListChecks },
+  { k: "/study", l: "الملخّص الدراسي", icon: BookOpenCheck },
   { k: "/billing", l: "شحن الرصيد", icon: Wallet },
   { k: "/settings", l: "الإعدادات", icon: Settings },
 ];
