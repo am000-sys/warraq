@@ -119,6 +119,7 @@ model User {
   apiKeys       ApiKey[]
   transactions  Transaction[]
   invitations   Invitation[]  @relation("InvitedBy")
+  studySummaries StudySummary[]
 
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -486,6 +487,42 @@ model TopUpRequest {
 
   @@index([status])
   @@index([userId])
+}
+
+// ─── الملخّص الدراسي (ميزة مستقلّة عن التفريغ) ────────
+// ملخّص أكاديمي للمذاكرة يولَّد بـ Claude من مستند مفرّغ أو نصّ مستقلّ.
+// التسعير بحجم المصدر (صفحات رصيد)، والخصم ذرّي مع إمكان الاسترداد عند الفشل.
+model StudySummary {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  title        String
+  // المصدر: وظيفة تفريغ مكتملة (sourceJobId) أو نصّ مستقلّ (sourceText)
+  sourceJobId  String?
+  sourceText   String?   @db.Text
+  sourcePages  Int       @default(0)        // حجم المدخل بالصفحات (أساس التسعير)
+
+  focus        String[]                     // محاور التركيز المختارة
+  depth        String    @default("balanced") // concise | balanced | deep
+  model        String                       // معرّف نموذج Claude المستخدم
+
+  status       JobStatus @default(PENDING)
+  markdown     String?   @db.Text           // الملخّص الناتج (Markdown)
+  verification Json?                        // نتيجة فحص النقول الحرفيّة «...»
+
+  pagesCharged Int       @default(0)        // ما خُصم فعلاً من الرصيد
+  inputTokens  Int       @default(0)
+  outputTokens Int       @default(0)
+  errorMessage String?
+
+  startedAt    DateTime?
+  completedAt  DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([status])
 }
 
 // تتبّع التجربة المجانيّة عبر IP (دون تسجيل)
