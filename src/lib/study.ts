@@ -34,6 +34,7 @@ export type StudyConfig = {
   model: string; // معرّف نموذج الدقّة العالية
   modelPremium: string; // معرّف نموذج الدقّة القصوى
   maxChars: number; // أقصى حجم للمدخل (حروف) — لا اقتطاع صامتاً أبداً
+  stepSeconds: number; // ميزانيّة الخطوة الواحدة (ثوانٍ) — دون حدّ serverless
 };
 
 const DEFAULTS: StudyConfig = {
@@ -45,6 +46,7 @@ const DEFAULTS: StudyConfig = {
   model: "claude-opus-4-8",
   modelPremium: "claude-fable-5",
   maxChars: 800_000,
+  stepSeconds: 45,
 };
 
 const KEYS = {
@@ -56,6 +58,7 @@ const KEYS = {
   model: "study_model",
   modelPremium: "study_model_premium",
   maxChars: "study_max_chars",
+  stepSeconds: "study_step_seconds",
 } as const;
 
 export async function getStudyConfig(): Promise<StudyConfig> {
@@ -80,6 +83,8 @@ export async function getStudyConfig(): Promise<StudyConfig> {
     const mp = map.get(KEYS.modelPremium);
     if (typeof mp === "string" && mp.startsWith("claude-")) cfg.modelPremium = mp;
     cfg.maxChars = num(KEYS.maxChars, 10_000) ?? cfg.maxChars;
+    const step = num(KEYS.stepSeconds, 20);
+    if (step !== undefined) cfg.stepSeconds = Math.min(280, step);
 
     return cfg;
   } catch {
@@ -166,6 +171,7 @@ ${DEPTH_INSTRUCTIONS[depth]}
 - صناديق التحليل اقتباسات Markdown (>) تُعنون بـ **خلاصة** أو **مربط الفهم**.
 - جداول المقارنة بصيغة جداول Markdown بأعمدة: الوجه / الموقف الأوّل / الموقف الثاني.
 - نثر متدفّق في الشرح، وقوائم في التعداد فقط.
+- عند إتمام الملخّص كاملاً (آخر محاور المادّة) اختمه بسطر أخير منفرد نصّه: [انتهى الملخّص]
 </formatting_spec>
 
 <constraints>
@@ -194,7 +200,21 @@ export function maxTokensFor(depth: StudyDepth, premium: boolean): number {
   return premium ? base * 2 : base;
 }
 
-// ─── استدعاء Claude (بثّ) ──────────────────────────────────
+// ─── استدعاء Claude (بثّ، على خطوات قابلة للاستئناف) ───────
+// التوليد الكامل قد يتجاوز حدّ الدالّة على serverless، فيجري على «خطوات»:
+// كلّ خطوة تبثّ ما أمكن ضمن مهلتها ثمّ تتوقّف بأمان، والخطوة التالية تتابع
+// من نقطة التوقّف عبر تمرير المنجَز كدور assistant سابق (وليس prefill —
+// آخر دور يبقى user، وهو المسموح على النماذج الحديثة). المادّة الكبيرة
+// تُعلَّم بـ cache_control كي تُقرأ من خبيئة الموجِّه في الخطوات التالية
+// بعُشر السعر تقريباً.
+
+// علامة إتمام يضعها النموذج في آخر الملخّص — بها نفرّق التوقّف المبكّر عن الاكتمال
+export const STUDY_END_MARK = "[انتهى الملخّص]";
+
+const CONTINUE_INSTRUCTION =
+  "تابِع الملخّص من النقطة التي توقّف عندها نصّك السابق تماماً — أكمل حتى من منتصف الجملة أو الجدول إن كان مقطوعاً — دون أيّ تكرار لما سبق ولا مقدّمات ولا تعليق. " +
+  `التزم التعليمات والبنية نفسها، وعند إتمام الملخّص كاملاً اختمه بسطر أخير منفرد: ${STUDY_END_MARK}`;
+
 // يُرمى عندما يرفض النموذج المعالجة (stop_reason: refusal) — يلتقطه المسار
 // ليجرّب نموذج الدقّة العالية بدلاً من القصوى.
 export class StudyModelRefusal extends Error {
@@ -204,9 +224,10 @@ export class StudyModelRefusal extends Error {
   }
 }
 
-export type StudyRunResult = {
-  markdown: string;
-  inputTokens: number;
+export type StudyStepResult = {
+  text: string; // نصّ هذه الخطوة فقط (يُلحق بما قبله)
+  paused: boolean; // لم يكتمل بعد — يلزم خطوة متابعة
+  inputTokens: number; // صفر عند الإيقاف على المهلة (لا تصلنا الإحصاءات حينها)
   outputTokens: number;
 };
 
@@ -214,43 +235,76 @@ export async function runStudySummary(opts: {
   model: string;
   system: string;
   context: string;
+  checkpoint?: string; // المنجَز سابقاً — للمتابعة من نقطة التوقّف
   maxTokens: number;
+  deadline?: number; // epoch ms — يُجهض البثّ عنده ويعيد المنجَز كخطوة متوقّفة
   onDelta?: (text: string) => void;
-}): Promise<StudyRunResult> {
+}): Promise<StudyStepResult> {
   if (!client) throw new Error("ANTHROPIC_NOT_CONFIGURED");
+
+  type Msg = Parameters<typeof client.messages.create>[0]["messages"][number];
+  const messages: Msg[] = [
+    {
+      role: "user",
+      content: [
+        {
+          type: "text",
+          text: `=== المادّة العلميّة ===\n\n${opts.context}\n\n=== نهاية المادّة ===\n\nلخّص المادّة أعلاه وفق تعليماتك.`,
+          // خبيئة الموجِّه: تغطّي النظام + المادّة، فخطوات المتابعة لا تدفع
+          // سعر قراءة المستند كاملاً من جديد
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+    },
+  ];
+  if (opts.checkpoint && opts.checkpoint.trim()) {
+    messages.push({ role: "assistant", content: opts.checkpoint });
+    messages.push({ role: "user", content: CONTINUE_INSTRUCTION });
+  }
 
   const stream = client.messages.stream({
     // معرّفات النماذج تأتي من SystemSetting وقد تسبق أنواع SDK — نمرّرها كما هي
     model: opts.model as Parameters<typeof client.messages.create>[0]["model"],
     max_tokens: opts.maxTokens,
     system: opts.system,
-    messages: [
-      {
-        role: "user",
-        content: `=== المادّة العلميّة ===\n\n${opts.context}\n\n=== نهاية المادّة ===\n\nلخّص المادّة أعلاه وفق تعليماتك.`,
-      },
-    ],
+    messages,
   });
 
-  if (opts.onDelta) stream.on("text", opts.onDelta);
+  let acc = "";
+  stream.on("text", (t) => {
+    acc += t;
+    opts.onDelta?.(t);
+  });
 
-  const final = await stream.finalMessage();
+  // مهلة الخطوة: نجهض البثّ قبل أن يقتل serverless الدالّة، ونحفظ المنجَز
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  if (opts.deadline) {
+    const ms = opts.deadline - Date.now();
+    if (ms <= 1000) return { text: "", paused: true, inputTokens: 0, outputTokens: 0 };
+    timer = setTimeout(() => stream.abort(), ms);
+  }
 
-  // نماذج الفئة الأعلى قد ترفض عبر stop_reason (وليس خطأ HTTP)
-  if ((final.stop_reason as string) === "refusal") throw new StudyModelRefusal();
-
-  const markdown = final.content
-    .filter((b): b is Extract<typeof b, { type: "text" }> => b.type === "text")
-    .map((b) => b.text)
-    .join("")
-    .trim();
-  if (!markdown) throw new Error("أعاد النموذج ردّاً فارغاً");
-
-  return {
-    markdown,
-    inputTokens: final.usage.input_tokens,
-    outputTokens: final.usage.output_tokens,
-  };
+  try {
+    const final = await stream.finalMessage();
+    // نماذج الفئة الأعلى قد ترفض عبر stop_reason (وليس خطأ HTTP)
+    if ((final.stop_reason as string) === "refusal") throw new StudyModelRefusal();
+    if (!acc.trim() && !opts.checkpoint) throw new Error("أعاد النموذج ردّاً فارغاً");
+    return {
+      text: acc,
+      // بلوغ سقف توكنات الخطوة = توقّف في المنتصف، تُكمله الخطوة التالية
+      paused: final.stop_reason === "max_tokens",
+      inputTokens: final.usage.input_tokens,
+      outputTokens: final.usage.output_tokens,
+    };
+  } catch (err) {
+    if (err instanceof Anthropic.APIUserAbortError) {
+      // أجهضناه نحن على المهلة — المنجَز محفوظ والخطوة التالية تتابع
+      return { text: acc, paused: true, inputTokens: 0, outputTokens: 0 };
+    }
+    throw err;
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
 }
 
 // ─── فحص النقول الحرفيّة (محليّ، بلا تكلفة) ─────────────────

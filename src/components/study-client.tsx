@@ -75,6 +75,7 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
   const [summaries, setSummaries] = useState<SummaryMeta[]>(initialSummaries);
   const [viewer, setViewer] = useState<{ meta: SummaryMeta; markdown: string } | null>(null);
   const [runMeta, setRunMeta] = useState<{ id: string; title: string } | null>(null);
+  const [stepNo, setStepNo] = useState(1);
 
   const bufRef = useRef("");
   const resultRef = useRef<HTMLDivElement>(null);
@@ -112,7 +113,92 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
   const toggleFocus = (id: string) =>
     setFocus((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]));
 
-  // ── التوليد ──
+  // ── التوليد (على خطوات قابلة للاستئناف) ──
+  // الخادم يولّد على خطوات قصيرة تناسب حدود serverless: كلّ خطوة تنتهي إمّا
+  // بـ done (اكتمل) أو paused (نقطة حفظ — نتابع فوراً بنداء جديد)، وإن انقطع
+  // البثّ نطالع حالة السجلّ ونقرّر. المنجَز محفوظ في الخادم ولا يضيع.
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  async function streamOnce(id: string): Promise<"done" | "paused" | "disconnected"> {
+    const res = await fetch(`/api/study/${id}/run`, { method: "POST" });
+    if (!res.ok || !res.body) {
+      // 409: قيد المعالجة فعلاً أو اكتمل للتوّ — المطالعة تحسمها
+      if (res.status === 409) return "disconnected";
+      const j = await res.json().catch(() => null);
+      throw new Error(j?.error ?? "تعذّر بدء التوليد");
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let acc = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) return "disconnected"; // انقطع دون حدث نهاية
+      acc += decoder.decode(value, { stream: true });
+      const events = acc.split("\n\n");
+      acc = events.pop() ?? "";
+      for (const ev of events) {
+        const line = ev.split("\n").find((l) => l.startsWith("data: "));
+        if (!line) continue;
+        let payload: Record<string, unknown>;
+        try {
+          payload = JSON.parse(line.slice(6));
+        } catch {
+          continue;
+        }
+        switch (payload.type) {
+          case "seed":
+            // المنجَز من الخطوات السابقة — يُعرض قبل ما سيُبثّ الآن
+            bufRef.current = String(payload.text ?? "");
+            setLive(bufRef.current);
+            break;
+          case "delta":
+            bufRef.current += String(payload.t ?? "");
+            break;
+          case "notice":
+            setNotice(String(payload.message ?? ""));
+            break;
+          case "paused":
+            setLive(bufRef.current);
+            return "paused";
+          case "done": {
+            setLive(bufRef.current);
+            const charged = Number(payload.pagesCharged ?? 0);
+            if (!isAdmin && charged > 0) setBal((b) => Math.max(0, b - charged));
+            return "done";
+          }
+          case "error":
+            throw new Error(String(payload.message ?? "تعذّر التوليد"));
+        }
+      }
+    }
+  }
+
+  // عند انقطاع البثّ: طالع حالة السجلّ (مع عرض المنجَز المحفوظ) وقرّر
+  async function reconcile(
+    id: string,
+  ): Promise<{ status: string; errorMessage?: string | null }> {
+    for (let i = 0; i < 24; i++) {
+      try {
+        const res = await fetch(`/api/study/${id}`);
+        if (res.ok) {
+          const { summary } = await res.json();
+          if (summary?.markdown) {
+            bufRef.current = summary.markdown;
+            setLive(summary.markdown);
+          }
+          if (summary && summary.status !== "PROCESSING") return summary;
+        }
+      } catch {
+        /* أعد المطالعة */
+      }
+      await sleep(5000);
+    }
+    // مضى وقت كافٍ لاعتبار أيّ معالجة منقطعة عالقةً — تابع من نقطة الحفظ
+    return { status: "PENDING" };
+  }
+
   async function runStream(id: string, displayTitle: string) {
     setPhase("running");
     setViewer(null);
@@ -121,62 +207,33 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
     bufRef.current = "";
     setLive("");
     setRunMeta({ id, title: displayTitle });
+    setStepNo(1);
     setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
 
     try {
-      const res = await fetch(`/api/study/${id}/run`, { method: "POST" });
-      if (!res.ok || !res.body) {
-        const j = await res.json().catch(() => null);
-        throw new Error(j?.error ?? "تعذّر بدء التوليد");
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let acc = "";
-      let finished = false;
-
-      while (!finished) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        acc += decoder.decode(value, { stream: true });
-        const events = acc.split("\n\n");
-        acc = events.pop() ?? "";
-        for (const ev of events) {
-          const line = ev.split("\n").find((l) => l.startsWith("data: "));
-          if (!line) continue;
-          let payload: Record<string, unknown>;
-          try {
-            payload = JSON.parse(line.slice(6));
-          } catch {
-            continue;
-          }
-          switch (payload.type) {
-            case "delta":
-              bufRef.current += String(payload.t ?? "");
-              break;
-            case "notice":
-              setNotice(String(payload.message ?? ""));
-              break;
-            case "done": {
-              setLive(bufRef.current);
-              const charged = Number(payload.pagesCharged ?? 0);
-              if (!isAdmin && charged > 0) setBal((b) => Math.max(0, b - charged));
-              setPhase("done");
-              finished = true;
-              await refreshList();
-              break;
-            }
-            case "error":
-              throw new Error(String(payload.message ?? "تعذّر التوليد"));
-          }
+      for (let step = 1; step <= 60; step++) {
+        setStepNo(step);
+        const outcome = await streamOnce(id);
+        if (outcome === "done") {
+          setPhase("done");
+          await refreshList();
+          return;
         }
+        if (outcome === "paused") continue; // متابعة فوريّة من نقطة الحفظ
+
+        // انقطاع: قد يكون الخادم أنهى أو فشل أو ما زال يعمل — طالع وقرّر
+        const rec = await reconcile(id);
+        if (rec.status === "COMPLETED") {
+          await openSummary(id);
+          await refreshList();
+          return;
+        }
+        if (rec.status === "FAILED") {
+          throw new Error(rec.errorMessage ?? "تعذّر توليد الملخّص");
+        }
+        // PENDING: نقطة حفظ جاهزة — الدورة التالية تتابع منها
       }
-      if (!finished) {
-        // انقطع البثّ دون حدث نهاية — السجلّ محفوظ ويمكن استكماله من القائمة
-        setPhase("idle");
-        setNotice("انقطع الاتّصال أثناء التوليد — تجد الملخّص في القائمة أدناه، وأعد المحاولة إن لم يكتمل.");
-        await refreshList();
-      }
+      throw new Error("طالت المتابعة أكثر من المتوقّع — اضغط «استكمال» للمواصلة من نقطة التوقّف");
     } catch (err) {
       setPhase("idle");
       setError(err instanceof Error ? err.message : "تعذّر توليد الملخّص");
@@ -568,7 +625,8 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
               </span>
               {phase === "running" && (
                 <span className="flex items-center" style={{ gap: 6, fontSize: 12, color: "var(--stone)", fontFamily: font }}>
-                  <Loader2 size={13} className="animate-spin" /> يُكتب الآن — قد يستغرق دقائق للمقرّرات الكبيرة
+                  <Loader2 size={13} className="animate-spin" />
+                  يُكتب الآن{stepNo > 1 ? ` — الجولة ${ar(stepNo)}` : ""} · يتابع تلقائياً حتى الاكتمال، أبقِ الصفحة مفتوحة
                 </span>
               )}
             </div>
@@ -692,17 +750,22 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
                     </a>
                   </>
                 )}
-                {(s.status === "FAILED" || s.status === "PROCESSING") && phase !== "running" && (
-                  <button
-                    type="button"
-                    className="btn-ghost"
-                    style={{ fontSize: 12, padding: "6px 14px" }}
-                    onClick={() => runStream(s.id, s.title)}
-                    title={s.status === "PROCESSING" ? "استكمال معالجة عالقة" : "إعادة المحاولة (تخصم من جديد)"}
-                  >
-                    <RotateCcw size={12} /> {s.status === "PROCESSING" ? "استكمال" : "إعادة"}
-                  </button>
-                )}
+                {(s.status === "FAILED" || s.status === "PROCESSING" || s.status === "PENDING") &&
+                  phase !== "running" && (
+                    <button
+                      type="button"
+                      className="btn-ghost"
+                      style={{ fontSize: 12, padding: "6px 14px" }}
+                      onClick={() => runStream(s.id, s.title)}
+                      title={
+                        s.status === "FAILED"
+                          ? "إعادة المحاولة (تخصم من جديد وتتابع من المنجَز)"
+                          : "استكمال من نقطة التوقّف — بلا خصم جديد"
+                      }
+                    >
+                      <RotateCcw size={12} /> {s.status === "FAILED" ? "إعادة" : "استكمال"}
+                    </button>
+                  )}
                 <button
                   type="button"
                   onClick={() => remove(s)}
