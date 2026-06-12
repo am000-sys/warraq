@@ -34,7 +34,8 @@ export function InitDbButton() {
         className="font-light"
         style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif", marginBottom: 14, lineHeight: 1.7 }}
       >
-        اضغط مرّة واحدة لإنشاء جداول طلبات الشحن والتجربة المجانيّة (إن لم تكن موجودة).
+        اضغط مرّة واحدة لإنشاء الجداول الإضافيّة إن لم تكن موجودة (طلبات الشحن،
+        التجربة المجانيّة، الملخّص الدراسي).
       </p>
       {state === "done" && (
         <div className="flex items-center gap-2 mb-3" style={{ fontSize: 13, color: "var(--orange)", fontFamily: "Tajawal, sans-serif" }}>
