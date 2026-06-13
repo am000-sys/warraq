@@ -24,6 +24,9 @@ import {
 
 // أقصى عمر لسجلّ PROCESSING بلا معرّف دفعة (انهار الإرسال قبل الحفظ)
 const SUBMIT_STALE_MS = 10 * 60 * 1000;
+// حدود أمان لدفعات المتابعة (عند بلوغ سقف الإخراج) — تمنع انفلات التكلفة
+const MAX_CONTINUATIONS = 3; // أقصى عدد دفعات متابعة (إجماليّاً ٤ مقاطع)
+const HARD_TOTAL_CHARS = 300_000; // سقف نهائيّ لحجم الملخّص المتراكم
 
 type PendingMeta = { batchId?: string } | null;
 
@@ -33,6 +36,14 @@ function batchIdOf(verification: unknown): string | null {
     return typeof v === "string" && v ? v : null;
   }
   return null;
+}
+
+function continuationsOf(verification: unknown): number {
+  if (verification && typeof verification === "object" && "cont" in verification) {
+    const c = (verification as { cont?: unknown }).cont;
+    return typeof c === "number" && c >= 0 ? c : 0;
+  }
+  return 0;
 }
 
 function studyCompletedEmail(name: string, title: string) {
@@ -108,9 +119,49 @@ export async function settleStudyBatches(userId?: string): Promise<SettleResult>
       if (status.state === "processing") continue;
 
       if (status.state === "succeeded") {
-        let markdown = status.markdown;
+        // المنجَز المتراكم = ما حُفظ من مقاطع سابقة + ناتج هذه الدفعة
+        const prior = rec.markdown ?? "";
+        const accumulated = prior + status.markdown;
+        const cont = continuationsOf(rec.verification);
+
+        // بلغ سقف الإخراج ولم يُنهِ → دفعة متابعة تُكمل من المنجَز،
+        // ضمن حدود أمان صارمة (عدد المتابعات + سقف الحجم الكلّي).
+        if (
+          status.truncated &&
+          cont < MAX_CONTINUATIONS &&
+          accumulated.length < HARD_TOTAL_CHARS
+        ) {
+          const context = await buildStudyContext(rec);
+          if (context) {
+            const system = buildStudySystemPrompt(
+              rec.focus as StudyFocus[],
+              rec.depth as StudyDepth,
+            );
+            const newBatchId = await submitStudyBatch({
+              model: rec.model,
+              system,
+              context,
+              maxTokens: maxTokensForBatch(rec.depth as StudyDepth, rec.model === cfg.modelPremium),
+              checkpoint: accumulated,
+            });
+            const claimed = await db.studySummary.updateMany({
+              where: { id: rec.id, status: "PROCESSING" },
+              data: {
+                markdown: accumulated, // نقطة حفظ للمقطع التالي
+                verification: { batchId: newBatchId, cont: cont + 1 },
+                inputTokens: { increment: status.inputTokens },
+                outputTokens: { increment: status.outputTokens },
+              },
+            });
+            if (claimed.count === 0) await cancelStudyBatch(newBatchId);
+            continue; // المتابعة قيد المعالجة الآن
+          }
+        }
+
+        let markdown = accumulated;
         if (status.truncated) {
-          markdown += "\n\n> ⚠ **تنبيه:** بلغ الملخّص سقف الحجم المسموح فاعتُمد عند هذا الحدّ.";
+          markdown +=
+            "\n\n> ⚠ **تنبيه:** بلغ الملخّص الحدّ الأقصى للطول فاعتُمد عند هذا الحدّ. يمكنك تلخيص الجزء المتبقّي من المادّة على حدة.";
         }
         const context = await buildStudyContext(rec);
         const verification = context
