@@ -93,6 +93,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 
+  // بوّابة تحكّم بالتكلفة: المالك يستطيع إيقاف «الدقّة القصوى» بمفتاح إعداد واحد
+  if (body.premium && !cfg.premiumEnabled) {
+    return NextResponse.json({ error: "خيار الدقّة القصوى غير متاح حالياً" }, { status: 403 });
+  }
+
   const userId = session.user.id;
   const isAdmin = session.user.systemRole === "SYSTEM_ADMIN";
 

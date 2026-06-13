@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { InitDbButton } from "@/components/init-db-button";
 import { StudyClient, type SummaryMeta } from "@/components/study-client";
 import { getStudyConfig, isStudyConfigured } from "@/lib/study";
+import { settleStudyBatches } from "@/lib/study-poll";
 
 export const metadata = { title: "الملخّص الدراسي — ورّاق" };
 
@@ -20,6 +21,9 @@ function isMissingTableError(err: unknown): boolean {
 export default async function StudyPage() {
   const user = (await getCurrentUser())!;
   const isAdmin = user.systemRole === "SYSTEM_ADMIN";
+
+  // تسوية انتهازيّة: أقفل أيّ دفعات اكتملت لدى المزوّد قبل عرض القائمة
+  await settleStudyBatches(user.id).catch(() => {});
 
   const [jobs, cfg] = await Promise.all([
     db.job.findMany({
@@ -142,6 +146,7 @@ export default async function StudyPage() {
             ratePremium: cfg.ratePremium,
             minCostPremium: cfg.minCostPremium,
             maxChars: cfg.maxChars,
+            premiumEnabled: cfg.premiumEnabled,
           }}
         />
       )}
@@ -165,6 +170,12 @@ type DbSummary = {
 };
 
 function serializeSummary(s: DbSummary): SummaryMeta {
+  // الحقل يحمل معرّف الدفعة مؤقّتاً أثناء المعالجة — لا يُمرَّر إلا فحص نقول حقيقيّ
+  const v = s.verification as { total?: unknown } | null;
+  const verification =
+    s.status === "COMPLETED" && v && typeof v.total === "number"
+      ? (s.verification as SummaryMeta["verification"])
+      : null;
   return {
     id: s.id,
     title: s.title,
@@ -174,7 +185,7 @@ function serializeSummary(s: DbSummary): SummaryMeta {
     model: s.model,
     status: s.status,
     pagesCharged: s.pagesCharged,
-    verification: (s.verification as SummaryMeta["verification"]) ?? null,
+    verification,
     errorMessage: s.errorMessage,
     createdAt: s.createdAt.toISOString(),
     completedAt: s.completedAt ? s.completedAt.toISOString() : null,

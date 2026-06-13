@@ -1,6 +1,8 @@
 // src/components/study-client.tsx — واجهة الملخّص الدراسي التفاعليّة
-// اختيار المصدر (مستند مفرّغ / نصّ مستقلّ) + محاور التركيز + العمق + مستوى الدقّة،
-// مع عرض حيّ للملخّص أثناء التوليد، وشارة فحص النقول، والتصدير إلى Word.
+// اختيار المصدر (مستند مفرّغ / نصّ مستقلّ) + محاور التركيز + العمق + مستوى الدقّة.
+// التوليد «دفعة واحدة» على خوادم المزوّد: المستخدم يرسل المهمة ويستطيع إغلاق
+// الصفحة — رسالة بريديّة تصله عند الاكتمال، والواجهة تطالع الحالة دوريّاً ما
+// دامت مفتوحة وتعرض الناتج فور جهوزه، مع شارة فحص النقول والتصدير إلى Word.
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -11,6 +13,7 @@ import {
   Download,
   FileText,
   Loader2,
+  MailCheck,
   RotateCcw,
   Sparkles,
   Trash2,
@@ -28,6 +31,9 @@ import {
 } from "@/lib/study-options";
 
 const font = "Tajawal, sans-serif";
+const POLL_MS = 12_000;
+
+type Verification = { total: number; verified: number; missing: string[] };
 
 export type SummaryMeta = {
   id: string;
@@ -38,7 +44,7 @@ export type SummaryMeta = {
   model: string;
   status: string;
   pagesCharged: number;
-  verification: { total: number; verified: number; missing: string[] } | null;
+  verification: Verification | null;
   errorMessage: string | null;
   createdAt: string;
   completedAt: string | null;
@@ -51,10 +57,16 @@ type Props = {
   initialSummaries: SummaryMeta[];
   balance: number;
   isAdmin: boolean;
-  pricing: StudyPricing & { maxChars: number };
+  pricing: StudyPricing & { maxChars: number; premiumEnabled: boolean };
 };
 
-type Phase = "idle" | "running" | "done";
+// شارة فحص النقول تُعرض فقط لنتيجة فحص حقيقيّة (الحقل يحمل معرّف الدفعة مؤقّتاً)
+function asVerification(v: unknown): Verification | null {
+  if (v && typeof v === "object" && typeof (v as Verification).total === "number") {
+    return v as Verification;
+  }
+  return null;
+}
 
 export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing }: Props) {
   // ── المدخلات ──
@@ -67,26 +79,17 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
   const [premium, setPremium] = useState(false);
 
   // ── الحالة ──
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [live, setLive] = useState("");
+  const [queued, setQueued] = useState(false); // مهمّتنا الحاليّة قيد المعالجة
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [bal, setBal] = useState(balance);
   const [summaries, setSummaries] = useState<SummaryMeta[]>(initialSummaries);
   const [viewer, setViewer] = useState<{ meta: SummaryMeta; markdown: string } | null>(null);
-  const [runMeta, setRunMeta] = useState<{ id: string; title: string } | null>(null);
-  const [stepNo, setStepNo] = useState(1);
+  const [runId, setRunId] = useState<string | null>(null);
 
-  const bufRef = useRef("");
   const resultRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  // تفريغ مجمّع للنصّ المبثوث كي لا نعيد الرسم لكلّ توكن
-  useEffect(() => {
-    if (phase !== "running") return;
-    const t = setInterval(() => setLive(bufRef.current), 250);
-    return () => clearInterval(t);
-  }, [phase]);
+  const adjustedRef = useRef<Set<string>>(new Set()); // منع خصم العرض مرّتين
 
   const selectedJob = jobs.find((j) => j.id === jobId);
   const sourcePages =
@@ -95,150 +98,84 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
   const insufficient = !isAdmin && cost > bal;
   const tooLong = source === "text" && text.length > pricing.maxChars;
   const canGenerate =
-    phase !== "running" &&
+    !queued &&
     focus.length > 0 &&
     !insufficient &&
     !tooLong &&
     (source === "doc" ? Boolean(selectedJob) : text.trim().length >= 500);
+
+  const hasPending = queued || summaries.some((s) => s.status === "PROCESSING");
+
+  // ── مطالعة دوريّة ما دامت ثمّة مهمّة قيد المعالجة ──
+  useEffect(() => {
+    if (!hasPending) return;
+    let stop = false;
+
+    const tick = async () => {
+      try {
+        const res = await fetch("/api/study/poll");
+        if (!res.ok || stop) return;
+        const j = (await res.json()) as { summaries: SummaryMeta[] };
+        setSummaries(j.summaries);
+
+        const cur = runId ? j.summaries.find((s) => s.id === runId) : undefined;
+        if (cur?.status === "COMPLETED") {
+          setQueued(false);
+          setNotice(null);
+          if (!isAdmin && cur.pagesCharged > 0 && !adjustedRef.current.has(cur.id)) {
+            adjustedRef.current.add(cur.id);
+            setBal((b) => Math.max(0, b - cur.pagesCharged));
+          }
+          await openSummary(cur.id);
+        } else if (cur?.status === "FAILED") {
+          setQueued(false);
+          setNotice(null);
+          setError(cur.errorMessage ?? "تعذّر توليد الملخّص — أعد المحاولة.");
+        }
+      } catch {
+        /* جولة قادمة */
+      }
+    };
+
+    tick();
+    const t = setInterval(tick, POLL_MS);
+    return () => {
+      stop = true;
+      clearInterval(t);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasPending, runId]);
 
   const refreshList = async () => {
     try {
       const res = await fetch("/api/study");
       if (res.ok) setSummaries((await res.json()).summaries);
     } catch {
-      /* تجاهل — القائمة ستتحدّث لاحقاً */
+      /* تجاهل */
     }
   };
 
   const toggleFocus = (id: string) =>
     setFocus((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]));
 
-  // ── التوليد (على خطوات قابلة للاستئناف) ──
-  // الخادم يولّد على خطوات قصيرة تناسب حدود serverless: كلّ خطوة تنتهي إمّا
-  // بـ done (اكتمل) أو paused (نقطة حفظ — نتابع فوراً بنداء جديد)، وإن انقطع
-  // البثّ نطالع حالة السجلّ ونقرّر. المنجَز محفوظ في الخادم ولا يضيع.
-  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-  async function streamOnce(id: string): Promise<"done" | "paused" | "disconnected"> {
+  // ── إرسال المهمة (دفعة واحدة) ──
+  async function submitRun(id: string) {
     const res = await fetch(`/api/study/${id}/run`, { method: "POST" });
-    if (!res.ok || !res.body) {
-      // 409: قيد المعالجة فعلاً أو اكتمل للتوّ — المطالعة تحسمها
-      if (res.status === 409) return "disconnected";
-      const j = await res.json().catch(() => null);
-      throw new Error(j?.error ?? "تعذّر بدء التوليد");
-    }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let acc = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) return "disconnected"; // انقطع دون حدث نهاية
-      acc += decoder.decode(value, { stream: true });
-      const events = acc.split("\n\n");
-      acc = events.pop() ?? "";
-      for (const ev of events) {
-        const line = ev.split("\n").find((l) => l.startsWith("data: "));
-        if (!line) continue;
-        let payload: Record<string, unknown>;
-        try {
-          payload = JSON.parse(line.slice(6));
-        } catch {
-          continue;
-        }
-        switch (payload.type) {
-          case "seed":
-            // المنجَز من الخطوات السابقة — يُعرض قبل ما سيُبثّ الآن
-            bufRef.current = String(payload.text ?? "");
-            setLive(bufRef.current);
-            break;
-          case "delta":
-            bufRef.current += String(payload.t ?? "");
-            break;
-          case "notice":
-            setNotice(String(payload.message ?? ""));
-            break;
-          case "paused":
-            setLive(bufRef.current);
-            return "paused";
-          case "done": {
-            setLive(bufRef.current);
-            const charged = Number(payload.pagesCharged ?? 0);
-            if (!isAdmin && charged > 0) setBal((b) => Math.max(0, b - charged));
-            return "done";
-          }
-          case "error":
-            throw new Error(String(payload.message ?? "تعذّر التوليد"));
-        }
-      }
-    }
-  }
-
-  // عند انقطاع البثّ: طالع حالة السجلّ (مع عرض المنجَز المحفوظ) وقرّر
-  async function reconcile(
-    id: string,
-  ): Promise<{ status: string; errorMessage?: string | null }> {
-    for (let i = 0; i < 24; i++) {
-      try {
-        const res = await fetch(`/api/study/${id}`);
-        if (res.ok) {
-          const { summary } = await res.json();
-          if (summary?.markdown) {
-            bufRef.current = summary.markdown;
-            setLive(summary.markdown);
-          }
-          if (summary && summary.status !== "PROCESSING") return summary;
-        }
-      } catch {
-        /* أعد المطالعة */
-      }
-      await sleep(5000);
-    }
-    // مضى وقت كافٍ لاعتبار أيّ معالجة منقطعة عالقةً — تابع من نقطة الحفظ
-    return { status: "PENDING" };
-  }
-
-  async function runStream(id: string, displayTitle: string) {
-    setPhase("running");
-    setViewer(null);
-    setError(null);
-    setNotice(null);
-    bufRef.current = "";
-    setLive("");
-    setRunMeta({ id, title: displayTitle });
-    setStepNo(1);
-    setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
-
-    try {
-      for (let step = 1; step <= 60; step++) {
-        setStepNo(step);
-        const outcome = await streamOnce(id);
-        if (outcome === "done") {
-          setPhase("done");
-          await refreshList();
-          return;
-        }
-        if (outcome === "paused") continue; // متابعة فوريّة من نقطة الحفظ
-
-        // انقطاع: قد يكون الخادم أنهى أو فشل أو ما زال يعمل — طالع وقرّر
-        const rec = await reconcile(id);
-        if (rec.status === "COMPLETED") {
-          await openSummary(id);
-          await refreshList();
-          return;
-        }
-        if (rec.status === "FAILED") {
-          throw new Error(rec.errorMessage ?? "تعذّر توليد الملخّص");
-        }
-        // PENDING: نقطة حفظ جاهزة — الدورة التالية تتابع منها
-      }
-      throw new Error("طالت المتابعة أكثر من المتوقّع — اضغط «استكمال» للمواصلة من نقطة التوقّف");
-    } catch (err) {
-      setPhase("idle");
-      setError(err instanceof Error ? err.message : "تعذّر توليد الملخّص");
+    const j = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(j?.error ?? "تعذّر إرسال المهمة");
+    if (j?.completed) {
+      await openSummary(id);
       await refreshList();
+      return;
     }
+    setRunId(id);
+    setQueued(true);
+    setViewer(null);
+    setNotice(
+      "أُرسلت المهمة وتُعالَج كاملةً على الخادم — تكتمل عادةً خلال دقائق. يمكنك إغلاق الصفحة بأمان: ستصلك رسالة بريديّة عند الاكتمال، وسيظهر الملخّص هنا تلقائياً.",
+    );
+    await refreshList();
+    setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
 
   async function generate() {
@@ -255,12 +192,19 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
       });
       const j = await res.json().catch(() => null);
       if (!res.ok) throw new Error(j?.error ?? "تعذّر إنشاء الطلب");
-      const displayTitle =
-        title.trim() ||
-        (source === "doc" ? selectedJob?.fileName.replace(/\.[^.]+$/, "") ?? "" : "ملخّص دراسي");
-      await runStream(j.id, displayTitle);
+      await submitRun(j.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "تعذّر إنشاء الطلب");
+      setError(err instanceof Error ? err.message : "تعذّر إرسال المهمة");
+    }
+  }
+
+  async function resume(s: SummaryMeta) {
+    setError(null);
+    try {
+      await submitRun(s.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "تعذّر إرسال المهمة");
+      await refreshList();
     }
   }
 
@@ -270,8 +214,10 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
       if (!res.ok) return;
       const { summary } = await res.json();
       if (summary?.markdown) {
-        setPhase("idle");
-        setViewer({ meta: summary, markdown: summary.markdown });
+        setViewer({
+          meta: { ...summary, verification: asVerification(summary.verification) },
+          markdown: summary.markdown,
+        });
         setTimeout(
           () => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
           80,
@@ -283,20 +229,24 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
   }
 
   async function remove(s: SummaryMeta) {
-    if (!confirm(`حذف «${s.title}»؟${s.status !== "COMPLETED" && s.pagesCharged > 0 ? " سيُردّ المخصوم إلى رصيدك." : ""}`)) return;
+    if (
+      !confirm(
+        `حذف «${s.title}»؟${s.status !== "COMPLETED" && s.pagesCharged > 0 ? " سيُردّ المخصوم إلى رصيدك." : ""}`,
+      )
+    )
+      return;
     const res = await fetch(`/api/study/${s.id}`, { method: "DELETE" });
     if (res.ok) {
       const j = await res.json().catch(() => null);
       if (j?.refunded > 0 && !isAdmin) setBal((b) => b + j.refunded);
       if (viewer?.meta.id === s.id) setViewer(null);
+      if (runId === s.id) {
+        setQueued(false);
+        setNotice(null);
+      }
       await refreshList();
     }
   }
-
-  // ── العرض ──
-  const showResult = phase !== "idle" || viewer !== null;
-  const doneVerification =
-    viewer?.meta.verification ?? summaries.find((s) => s.id === runMeta?.id)?.verification ?? null;
 
   return (
     <div className="flex flex-col" style={{ gap: 20 }}>
@@ -389,7 +339,14 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
               placeholder="الصق هنا نصّ المقرّر أو الفصل المراد تلخيصه…"
               style={{ fontFamily: font, lineHeight: 1.9, resize: "vertical" }}
             />
-            <div style={{ fontSize: 11.5, color: tooLong ? "#c97b84" : "var(--pebble)", fontFamily: font, marginTop: 4 }}>
+            <div
+              style={{
+                fontSize: 11.5,
+                color: tooLong ? "#c97b84" : "var(--pebble)",
+                fontFamily: font,
+                marginTop: 4,
+              }}
+            >
               {ar(text.trim().length)} حرف ≈ {ar(sourcePages)} صفحة
               {tooLong &&
                 ` — تجاوز الحدّ (${ar(Math.round(pricing.maxChars / 1000))} ألف حرف): قسّم المادّة ولخّص كلّ جزء على حدة`}
@@ -404,7 +361,11 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
             className="field"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder={source === "doc" ? selectedJob?.fileName.replace(/\.[^.]+$/, "") ?? "" : "مثل: مقرّر الفرق — الفصل الأوّل"}
+            placeholder={
+              source === "doc"
+                ? selectedJob?.fileName.replace(/\.[^.]+$/, "") ?? ""
+                : "مثل: مقرّر الفرق — الفصل الأوّل"
+            }
             style={{ fontFamily: font }}
           />
         </div>
@@ -483,60 +444,62 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
             </div>
           </div>
 
-          <div style={{ flex: 1, minWidth: 260 }}>
-            <label className="label">مستوى الدقّة</label>
-            <button
-              type="button"
-              onClick={() => setPremium((p) => !p)}
-              className="flex items-center justify-between w-full"
-              style={{
-                cursor: "pointer",
-                padding: "10px 14px",
-                borderRadius: 12,
-                border: premium ? "1.5px solid var(--midnight)" : "1px solid var(--border)",
-                background: premium ? "rgba(24,24,37,0.04)" : "var(--snow)",
-                fontFamily: font,
-              }}
-            >
-              <span style={{ fontSize: 13, color: "var(--carbon)" }}>
-                <span style={{ fontWeight: 500 }}>
-                  {premium ? "الدقّة القصوى" : "الدقّة العالية (الموصى بها)"}
-                </span>
-                <span style={{ color: "var(--stone)", fontSize: 12 }}>
-                  {premium
-                    ? " — النموذج الأعلى من Claude، ثلاثة أضعاف التكلفة"
-                    : " — اضغط للترقية إلى النموذج الأعلى"}
-                </span>
-              </span>
-              <span
+          {pricing.premiumEnabled && (
+            <div style={{ flex: 1, minWidth: 260 }}>
+              <label className="label">مستوى الدقّة</label>
+              <button
+                type="button"
+                onClick={() => setPremium((p) => !p)}
+                className="flex items-center justify-between w-full"
                 style={{
-                  width: 34,
-                  height: 20,
-                  borderRadius: 100,
-                  background: premium ? "var(--midnight)" : "var(--border)",
-                  position: "relative",
-                  flexShrink: 0,
-                  transition: "background .15s",
+                  cursor: "pointer",
+                  padding: "10px 14px",
+                  borderRadius: 12,
+                  border: premium ? "1.5px solid var(--midnight)" : "1px solid var(--border)",
+                  background: premium ? "rgba(24,24,37,0.04)" : "var(--snow)",
+                  fontFamily: font,
                 }}
               >
+                <span style={{ fontSize: 13, color: "var(--carbon)" }}>
+                  <span style={{ fontWeight: 500 }}>
+                    {premium ? "الدقّة القصوى" : "الدقّة العالية (الموصى بها)"}
+                  </span>
+                  <span style={{ color: "var(--stone)", fontSize: 12 }}>
+                    {premium
+                      ? " — النموذج الأعلى من Claude، ثلاثة أضعاف التكلفة"
+                      : " — اضغط للترقية إلى النموذج الأعلى"}
+                  </span>
+                </span>
                 <span
                   style={{
-                    position: "absolute",
-                    top: 2,
-                    insetInlineStart: premium ? 16 : 2,
-                    width: 16,
-                    height: 16,
-                    borderRadius: "50%",
-                    background: "#fff",
-                    transition: "inset-inline-start .15s",
+                    width: 34,
+                    height: 20,
+                    borderRadius: 100,
+                    background: premium ? "var(--midnight)" : "var(--border)",
+                    position: "relative",
+                    flexShrink: 0,
+                    transition: "background .15s",
                   }}
-                />
-              </span>
-            </button>
-          </div>
+                >
+                  <span
+                    style={{
+                      position: "absolute",
+                      top: 2,
+                      insetInlineStart: premium ? 16 : 2,
+                      width: 16,
+                      height: 16,
+                      borderRadius: "50%",
+                      background: "#fff",
+                      transition: "inset-inline-start .15s",
+                    }}
+                  />
+                </span>
+              </button>
+            </div>
+          )}
         </div>
 
-        {/* التكلفة + التوليد */}
+        {/* التكلفة + الإرسال */}
         <div
           className="flex flex-wrap items-center justify-between"
           style={{
@@ -570,7 +533,7 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
                 )}
                 <span style={{ color: "var(--pebble)", fontSize: 12 }}>
                   {" "}
-                  · لا يُخصم شيء إلا مع بدء التوليد، والفشل يُردّ كاملاً
+                  · لا يُخصم إلا مع الإرسال، والفشل يُردّ كاملاً
                 </span>
               </>
             ) : (
@@ -584,9 +547,9 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
             onClick={generate}
             style={{ opacity: canGenerate ? 1 : 0.5, cursor: canGenerate ? "pointer" : "default" }}
           >
-            {phase === "running" ? (
+            {queued ? (
               <>
-                <Loader2 size={15} className="animate-spin" /> يجري التوليد…
+                <Loader2 size={15} className="animate-spin" /> قيد المعالجة…
               </>
             ) : (
               <>
@@ -614,72 +577,73 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
         )}
       </div>
 
-      {/* ٣. العرض الحيّ / النتيجة */}
-      {showResult && (
+      {/* ٣. بطاقة المعالجة الجارية / النتيجة */}
+      {(queued || viewer) && (
         <div ref={resultRef} className="card" style={{ borderRadius: 16 }}>
-          <div className="flex items-center justify-between flex-wrap" style={{ gap: 10, marginBottom: 14 }}>
-            <div className="flex items-center" style={{ gap: 10 }}>
-              <FileText size={16} color="var(--orange)" />
-              <span style={{ fontSize: 15, fontWeight: 500, color: "var(--carbon)", fontFamily: font }}>
-                {viewer ? viewer.meta.title : runMeta?.title ?? "الملخّص"}
+          {queued && !viewer && (
+            <div className="flex items-start" style={{ gap: 12 }}>
+              <span
+                className="flex items-center justify-center flex-shrink-0"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  background: "var(--orange-soft)",
+                  color: "var(--orange)",
+                }}
+              >
+                <MailCheck size={18} />
               </span>
-              {phase === "running" && (
-                <span className="flex items-center" style={{ gap: 6, fontSize: 12, color: "var(--stone)", fontFamily: font }}>
-                  <Loader2 size={13} className="animate-spin" />
-                  يُكتب الآن{stepNo > 1 ? ` — الجولة ${ar(stepNo)}` : ""} · يتابع تلقائياً حتى الاكتمال، أبقِ الصفحة مفتوحة
-                </span>
-              )}
-            </div>
-            {(phase === "done" || viewer) && (
-              <div className="flex items-center" style={{ gap: 8 }}>
-                <a
-                  className="btn-primary no-underline"
-                  style={{ fontSize: 12, padding: "8px 16px" }}
-                  href={`/api/study/${viewer?.meta.id ?? runMeta?.id}/export?format=docx`}
+              <div style={{ fontFamily: font }}>
+                <div
+                  className="flex items-center"
+                  style={{ gap: 8, fontSize: 14, fontWeight: 500, color: "var(--carbon)", marginBottom: 4 }}
                 >
-                  <Download size={13} /> Word
-                </a>
-                <a
-                  className="btn-ghost no-underline"
-                  style={{ fontSize: 12, padding: "8px 16px" }}
-                  href={`/api/study/${viewer?.meta.id ?? runMeta?.id}/export?format=md`}
-                >
-                  <Download size={13} /> Markdown
-                </a>
+                  <Loader2 size={14} className="animate-spin" /> المهمة قيد المعالجة كاملةً على الخادم
+                </div>
+                <div style={{ fontSize: 13, color: "var(--stone)", lineHeight: 1.9 }}>
+                  {notice ??
+                    "تكتمل عادةً خلال دقائق. يمكنك إغلاق الصفحة بأمان — ستصلك رسالة بريديّة عند الاكتمال وسيظهر الملخّص هنا تلقائياً."}
+                </div>
               </div>
-            )}
-          </div>
-
-          {notice && (
-            <div
-              style={{
-                marginBottom: 12,
-                padding: "9px 13px",
-                borderRadius: 10,
-                background: "var(--orange-soft)",
-                border: "1px solid rgba(246,146,81,0.25)",
-                color: "var(--graphite)",
-                fontSize: 12.5,
-                fontFamily: font,
-              }}
-            >
-              {notice}
             </div>
           )}
 
-          {(phase === "done" || viewer) && (
-            <VerificationBadge v={viewer ? viewer.meta.verification : doneVerification} />
+          {viewer && (
+            <>
+              <div
+                className="flex items-center justify-between flex-wrap"
+                style={{ gap: 10, marginBottom: 14 }}
+              >
+                <div className="flex items-center" style={{ gap: 10 }}>
+                  <FileText size={16} color="var(--orange)" />
+                  <span style={{ fontSize: 15, fontWeight: 500, color: "var(--carbon)", fontFamily: font }}>
+                    {viewer.meta.title}
+                  </span>
+                </div>
+                <div className="flex items-center" style={{ gap: 8 }}>
+                  <a
+                    className="btn-primary no-underline"
+                    style={{ fontSize: 12, padding: "8px 16px" }}
+                    href={`/api/study/${viewer.meta.id}/export?format=docx`}
+                  >
+                    <Download size={13} /> Word
+                  </a>
+                  <a
+                    className="btn-ghost no-underline"
+                    style={{ fontSize: 12, padding: "8px 16px" }}
+                    href={`/api/study/${viewer.meta.id}/export?format=md`}
+                  >
+                    <Download size={13} /> Markdown
+                  </a>
+                </div>
+              </div>
+              <VerificationBadge v={viewer.meta.verification} />
+              <div style={{ padding: "4px 2px" }}>
+                <MarkdownView content={viewer.markdown} />
+              </div>
+            </>
           )}
-
-          <div
-            style={{
-              maxHeight: phase === "running" ? 420 : undefined,
-              overflowY: phase === "running" ? "auto" : undefined,
-              padding: "4px 2px",
-            }}
-          >
-            <MarkdownView content={viewer ? viewer.markdown : live || "​"} />
-          </div>
         </div>
       )}
 
@@ -694,95 +658,98 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
             لا ملخّصات بعد — ولّد أوّل ملخّص من الأعلى.
           </div>
         ) : (
-          summaries.map((s, i) => (
-            <div
-              key={s.id}
-              className="flex items-center flex-wrap"
-              style={{
-                gap: 12,
-                padding: "12px 8px",
-                borderBottom: i < summaries.length - 1 ? "1px solid var(--border-sub)" : "none",
-              }}
-            >
-              <div className="flex-1 min-w-0" style={{ minWidth: 220 }}>
-                <div className="flex items-center" style={{ gap: 8, marginBottom: 3 }}>
-                  <span
-                    className="truncate"
-                    style={{ fontSize: 13.5, fontWeight: 500, color: "var(--carbon)", fontFamily: font }}
-                  >
-                    {s.title}
-                  </span>
-                  <SummaryStatusPill status={s.status} />
-                </div>
-                <div style={{ fontSize: 11.5, color: "var(--pebble)", fontFamily: font }}>
-                  {ar(s.sourcePages)} صفحة مصدر · {s.pagesCharged > 0 ? `${ar(s.pagesCharged)} صفحة رصيد` : "بلا خصم"} ·{" "}
-                  {modelLabel(s.model)} · {new Date(s.createdAt).toLocaleDateString("ar-SA")}
-                  {s.status === "COMPLETED" && s.verification && s.verification.total > 0 && (
-                    <span style={{ color: s.verification.verified === s.verification.total ? "#3d8a5f" : "#b8860b" }}>
-                      {" "}
-                      · النقول {ar(s.verification.verified)}/{ar(s.verification.total)}
+          summaries.map((s, i) => {
+            const v = asVerification(s.verification);
+            return (
+              <div
+                key={s.id}
+                className="flex items-center flex-wrap"
+                style={{
+                  gap: 12,
+                  padding: "12px 8px",
+                  borderBottom: i < summaries.length - 1 ? "1px solid var(--border-sub)" : "none",
+                }}
+              >
+                <div className="flex-1 min-w-0" style={{ minWidth: 220 }}>
+                  <div className="flex items-center" style={{ gap: 8, marginBottom: 3 }}>
+                    <span
+                      className="truncate"
+                      style={{ fontSize: 13.5, fontWeight: 500, color: "var(--carbon)", fontFamily: font }}
+                    >
+                      {s.title}
                     </span>
+                    <SummaryStatusPill status={s.status} />
+                  </div>
+                  <div style={{ fontSize: 11.5, color: "var(--pebble)", fontFamily: font }}>
+                    {ar(s.sourcePages)} صفحة مصدر ·{" "}
+                    {s.pagesCharged > 0 ? `${ar(s.pagesCharged)} صفحة رصيد` : "بلا خصم"} ·{" "}
+                    {modelLabel(s.model)} · {new Date(s.createdAt).toLocaleDateString("ar-SA")}
+                    {s.status === "COMPLETED" && v && v.total > 0 && (
+                      <span style={{ color: v.verified === v.total ? "#3d8a5f" : "#b8860b" }}>
+                        {" "}
+                        · النقول {ar(v.verified)}/{ar(v.total)}
+                      </span>
+                    )}
+                  </div>
+                  {s.status === "FAILED" && s.errorMessage && (
+                    <div style={{ fontSize: 11.5, color: "#c97b84", fontFamily: font, marginTop: 2 }}>
+                      {s.errorMessage}
+                    </div>
                   )}
                 </div>
-                {s.status === "FAILED" && s.errorMessage && (
-                  <div style={{ fontSize: 11.5, color: "#c97b84", fontFamily: font, marginTop: 2 }}>
-                    {s.errorMessage}
-                  </div>
-                )}
-              </div>
-              <div className="flex items-center" style={{ gap: 6 }}>
-                {s.status === "COMPLETED" && (
-                  <>
+                <div className="flex items-center" style={{ gap: 6 }}>
+                  {s.status === "COMPLETED" && (
+                    <>
+                      <button
+                        type="button"
+                        className="btn-ghost"
+                        style={{ fontSize: 12, padding: "6px 14px" }}
+                        onClick={() => openSummary(s.id)}
+                      >
+                        عرض
+                      </button>
+                      <a
+                        className="btn-ghost no-underline"
+                        style={{ fontSize: 12, padding: "6px 14px" }}
+                        href={`/api/study/${s.id}/export?format=docx`}
+                      >
+                        <Download size={12} /> Word
+                      </a>
+                    </>
+                  )}
+                  {(s.status === "FAILED" || s.status === "PENDING") && (
                     <button
                       type="button"
                       className="btn-ghost"
                       style={{ fontSize: 12, padding: "6px 14px" }}
-                      onClick={() => openSummary(s.id)}
-                    >
-                      عرض
-                    </button>
-                    <a
-                      className="btn-ghost no-underline"
-                      style={{ fontSize: 12, padding: "6px 14px" }}
-                      href={`/api/study/${s.id}/export?format=docx`}
-                    >
-                      <Download size={12} /> Word
-                    </a>
-                  </>
-                )}
-                {(s.status === "FAILED" || s.status === "PROCESSING" || s.status === "PENDING") &&
-                  phase !== "running" && (
-                    <button
-                      type="button"
-                      className="btn-ghost"
-                      style={{ fontSize: 12, padding: "6px 14px" }}
-                      onClick={() => runStream(s.id, s.title)}
+                      onClick={() => resume(s)}
                       title={
                         s.status === "FAILED"
-                          ? "إعادة المحاولة (تخصم من جديد وتتابع من المنجَز)"
-                          : "استكمال من نقطة التوقّف — بلا خصم جديد"
+                          ? "إعادة المحاولة — يُخصم من جديد ويُردّ عند الفشل"
+                          : "إرسال المهمة"
                       }
                     >
-                      <RotateCcw size={12} /> {s.status === "FAILED" ? "إعادة" : "استكمال"}
+                      <RotateCcw size={12} /> {s.status === "FAILED" ? "إعادة" : "إرسال"}
                     </button>
                   )}
-                <button
-                  type="button"
-                  onClick={() => remove(s)}
-                  title="حذف"
-                  style={{
-                    background: "none",
-                    border: "none",
-                    cursor: "pointer",
-                    color: "var(--pebble)",
-                    padding: 6,
-                  }}
-                >
-                  <Trash2 size={14} />
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => remove(s)}
+                    title="حذف"
+                    style={{
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "var(--pebble)",
+                      padding: 6,
+                    }}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>
@@ -835,14 +802,9 @@ function TabButton({
   );
 }
 
-function VerificationBadge({
-  v,
-}: {
-  v: { total: number; verified: number; missing: string[] } | null | undefined;
-}) {
+function VerificationBadge({ v }: { v: Verification | null | undefined }) {
   const [open, setOpen] = useState(false);
-  if (!v) return null;
-  if (v.total === 0) return null;
+  if (!v || typeof v.total !== "number" || v.total === 0) return null;
   const ok = v.verified === v.total;
   return (
     <div
@@ -864,9 +826,18 @@ function VerificationBadge({
           <button
             type="button"
             onClick={() => setOpen((o) => !o)}
-            style={{ background: "none", border: "none", cursor: "pointer", color: "inherit", fontFamily: font, fontSize: 12.5, padding: 0 }}
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              color: "inherit",
+              fontFamily: font,
+              fontSize: 12.5,
+              padding: 0,
+            }}
           >
-            ⚠ تحقّق {ar(v.verified)} من {ar(v.total)} من النقول الحرفيّة — {ar(v.missing.length)} تحتاج مراجعتك ({open ? "إخفاء" : "عرض"})
+            ⚠ تحقّق {ar(v.verified)} من {ar(v.total)} من النقول الحرفيّة — {ar(v.missing.length)} تحتاج
+            مراجعتك ({open ? "إخفاء" : "عرض"})
           </button>
           {open && (
             <ul style={{ margin: "8px 0 0", paddingInlineStart: 18 }}>
@@ -886,9 +857,9 @@ function VerificationBadge({
 function SummaryStatusPill({ status }: { status: string }) {
   const map: Record<string, { l: string; v: "success" | "processing" | "danger" | "neutral" }> = {
     COMPLETED: { l: "مكتمل", v: "success" },
-    PROCESSING: { l: "قيد التوليد", v: "processing" },
+    PROCESSING: { l: "قيد المعالجة", v: "processing" },
     FAILED: { l: "فشل", v: "danger" },
-    PENDING: { l: "بانتظار", v: "neutral" },
+    PENDING: { l: "بانتظار الإرسال", v: "neutral" },
   };
   const e = map[status] ?? { l: status, v: "neutral" as const };
   return <StatusPill status={e.l} variant={e.v} />;
