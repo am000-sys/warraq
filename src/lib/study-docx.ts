@@ -5,9 +5,12 @@ import {
   AlignmentType,
   BorderStyle,
   Document,
+  Footer,
+  Header,
   HeadingLevel,
   LevelFormat,
   Packer,
+  PageNumber,
   Paragraph,
   ShadingType,
   Table,
@@ -24,10 +27,15 @@ const BODY_SIZE = 28; // 14pt بأنصاف النقاط
 const NOTE_SIZE = 22; // 11pt
 const LINE_SPACING = 360; // تباعد ١٫٥
 const ORANGE = "F69251";
+const MIDNIGHT = "181825"; // عناوين رئيسيّة داكنة (مطابق للنظام التصميمي)
+const STONE = "636363"; // نصّ ثانويّ
+const PEBBLE = "949494"; // نصّ خافت (الترويسة/التذييل)
 const BOX_FILL = "FDF1E7"; // خلفيّة صناديق الخلاصة (برتقالي فاتح)
+const ZEBRA_FILL = "F7F7F7"; // تظليل الصفوف المتناوبة في الجداول
+const TABLE_BORDER = "E8E8E8"; // حدود الجداول الرفيعة
 const OL_REF = "study-ol";
 
-type RunStyle = { bold?: boolean; italics?: boolean; size?: number };
+type RunStyle = { bold?: boolean; italics?: boolean; size?: number; color?: string };
 
 // يحوّل توكنات marked السطريّة (نصّ/غامق/مائل/كود) إلى TextRuns مع وراثة النمط
 function inlineRuns(tokens: Token[] | undefined, style: RunStyle = {}): TextRun[] {
@@ -41,6 +49,7 @@ function inlineRuns(tokens: Token[] | undefined, style: RunStyle = {}): TextRun[
       size: s.size ?? BODY_SIZE,
       bold: s.bold,
       italics: s.italics,
+      color: s.color,
     });
 
   for (const t of tokens) {
@@ -93,11 +102,21 @@ type Ctx = { olInstance: number };
 
 function headingParagraph(token: Tokens.Heading): Paragraph {
   const depth = Math.min(Math.max(token.depth, 1), 4);
+  // المحاور الكبرى (##) باللون البرتقاليّ المميّز، والباقي داكن — تدرّج بصريّ واضح
+  const color = depth === 2 ? ORANGE : MIDNIGHT;
+  const size = depth === 1 ? 34 : depth === 2 ? 28 : depth === 3 ? 26 : 24;
   return new Paragraph({
     bidirectional: true,
     heading: HEADINGS[depth - 1],
-    spacing: { before: depth === 1 ? 240 : 180, after: 120 },
-    children: inlineRuns(token.tokens, { bold: true }),
+    spacing: { before: depth === 1 ? 300 : 220, after: 120 },
+    // فاصل برتقاليّ تحت عنوان الملخّص، وخطّ رفيع تحت المحاور الكبرى
+    border:
+      depth === 1
+        ? { bottom: { style: BorderStyle.SINGLE, size: 12, color: ORANGE, space: 6 } }
+        : depth === 2
+          ? { bottom: { style: BorderStyle.SINGLE, size: 4, color: TABLE_BORDER, space: 4 } }
+          : undefined,
+    children: inlineRuns(token.tokens, { bold: true, size, color }),
   });
 }
 
@@ -157,14 +176,22 @@ function blockquoteParagraphs(token: Tokens.Blockquote, ctx: Ctx): Paragraph[] {
 }
 
 function tableBlock(token: Tokens.Table): Table {
-  const cell = (tokens: Token[] | undefined, header: boolean) =>
+  // ترويسة برتقاليّة بنصّ أبيض، وصفوف متناوبة التظليل، وحدود رفيعة — جدول احترافيّ
+  const cell = (tokens: Token[] | undefined, opts: { header?: boolean; fill?: string }) =>
     new TableCell({
-      shading: header ? { type: ShadingType.CLEAR, fill: "F2F2F2" } : undefined,
-      margins: { top: 80, bottom: 80, left: 120, right: 120 },
+      shading: opts.header
+        ? { type: ShadingType.CLEAR, fill: ORANGE }
+        : opts.fill
+          ? { type: ShadingType.CLEAR, fill: opts.fill }
+          : undefined,
+      margins: { top: 90, bottom: 90, left: 140, right: 140 },
       children: [
         new Paragraph({
           bidirectional: true,
-          children: inlineRuns(tokens, { bold: header }),
+          children: inlineRuns(tokens, {
+            bold: opts.header,
+            color: opts.header ? "FFFFFF" : undefined,
+          }),
         }),
       ],
     });
@@ -172,16 +199,28 @@ function tableBlock(token: Tokens.Table): Table {
   const rows: TableRow[] = [
     new TableRow({
       tableHeader: true,
-      children: token.header.map((h) => cell(h.tokens, true)),
+      children: token.header.map((h) => cell(h.tokens, { header: true })),
     }),
     ...token.rows.map(
-      (r) => new TableRow({ children: r.map((c) => cell(c.tokens, false)) }),
+      (r, i) =>
+        new TableRow({
+          children: r.map((c) => cell(c.tokens, { fill: i % 2 === 1 ? ZEBRA_FILL : undefined })),
+        }),
     ),
   ];
 
+  const edge = { style: BorderStyle.SINGLE, size: 2, color: TABLE_BORDER };
   return new Table({
     visuallyRightToLeft: true,
     width: { size: 100, type: WidthType.PERCENTAGE },
+    borders: {
+      top: edge,
+      bottom: edge,
+      left: edge,
+      right: edge,
+      insideHorizontal: edge,
+      insideVertical: edge,
+    },
     rows,
   });
 }
@@ -253,9 +292,11 @@ export async function buildStudyDocx(
     new Paragraph({
       bidirectional: true,
       alignment: AlignmentType.CENTER,
-      spacing: { after: 240 },
+      spacing: { after: 300 },
+      // فاصل برتقاليّ أنيق يفصل العنوان والبيانات عن المتن
+      border: { bottom: { style: BorderStyle.SINGLE, size: 8, color: ORANGE, space: 8 } },
       children: [
-        new TextRun({ text: metaLine, rightToLeft: true, font: ARABIC_FONT, size: NOTE_SIZE, color: "636363" }),
+        new TextRun({ text: metaLine, rightToLeft: true, font: ARABIC_FONT, size: NOTE_SIZE, color: STONE }),
       ],
     }),
   ];
@@ -289,7 +330,49 @@ export async function buildStudyDocx(
         },
       ],
     },
-    sections: [{ children: blocks }],
+    sections: [
+      {
+        // ترويسة جارية باسم المستند + تذييل بترقيم الصفحات وعزو المنصّة
+        headers: {
+          default: new Header({
+            children: [
+              new Paragraph({
+                bidirectional: true,
+                alignment: AlignmentType.CENTER,
+                spacing: { after: 60 },
+                border: { bottom: { style: BorderStyle.SINGLE, size: 2, color: TABLE_BORDER, space: 4 } },
+                children: [
+                  new TextRun({ text: title, rightToLeft: true, font: ARABIC_FONT, size: 18, color: PEBBLE }),
+                ],
+              }),
+            ],
+          }),
+        },
+        footers: {
+          default: new Footer({
+            children: [
+              new Paragraph({
+                bidirectional: true,
+                alignment: AlignmentType.CENTER,
+                spacing: { before: 60 },
+                border: { top: { style: BorderStyle.SINGLE, size: 2, color: TABLE_BORDER, space: 4 } },
+                children: [
+                  new TextRun({
+                    text: "أُعدّ عبر منصّة ورّاق  ·  صفحة ",
+                    rightToLeft: true,
+                    font: ARABIC_FONT,
+                    size: 18,
+                    color: PEBBLE,
+                  }),
+                  new TextRun({ children: [PageNumber.CURRENT], font: ARABIC_FONT, size: 18, color: PEBBLE }),
+                ],
+              }),
+            ],
+          }),
+        },
+        children: blocks,
+      },
+    ],
   });
 
   return Packer.toBuffer(doc);

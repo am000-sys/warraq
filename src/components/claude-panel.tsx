@@ -5,7 +5,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, Lock, FileText, MessageSquare, Loader2, Wand2 } from "lucide-react";
+import { Sparkles, Lock, FileText, MessageSquare, Loader2, Wand2, Copy, Check } from "lucide-react";
+import { MarkdownView } from "@/components/markdown-view";
 
 export type ClaudeAccessClient = {
   enabled: boolean;
@@ -227,24 +228,7 @@ function ClaudeActive({ jobId, access }: { jobId: string; access: ClaudeAccessCl
           {busy === "ask" ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
           اسأل
         </button>
-        {answer && (
-          <pre
-            dir="rtl"
-            style={{
-              whiteSpace: "pre-wrap",
-              fontSize: 14,
-              lineHeight: 2,
-              fontFamily: "Tajawal, sans-serif",
-              color: "var(--midnight)",
-              background: "var(--fog)",
-              borderRadius: 12,
-              padding: 16,
-              marginTop: 12,
-            }}
-          >
-            {answer}
-          </pre>
-        )}
+        {answer && <ResultCard content={answer} />}
       </div>
 
       {/* Reports */}
@@ -269,24 +253,7 @@ function ClaudeActive({ jobId, access }: { jobId: string; access: ClaudeAccessCl
             </button>
           ))}
         </div>
-        {report && (
-          <pre
-            dir="rtl"
-            style={{
-              whiteSpace: "pre-wrap",
-              fontSize: 14,
-              lineHeight: 2,
-              fontFamily: "Tajawal, sans-serif",
-              color: "var(--midnight)",
-              background: "var(--fog)",
-              borderRadius: 12,
-              padding: 16,
-              marginTop: 12,
-            }}
-          >
-            {report}
-          </pre>
-        )}
+        {report && <ResultCard content={report} />}
       </div>
 
       {error && (
@@ -294,6 +261,43 @@ function ClaudeActive({ jobId, access }: { jobId: string; access: ClaudeAccessCl
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+// بطاقة نتيجة (إجابة/تقرير): عرض Markdown منسّق بدل نصّ خام + زرّ نسخ
+function ResultCard({ content }: { content: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(content);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* المتصفّح منع الحافظة — تجاهل بصمت */
+    }
+  }
+  return (
+    <div
+      style={{
+        marginTop: 12,
+        background: "var(--snow)",
+        border: "1px solid var(--border-sub)",
+        borderRadius: 14,
+        padding: "16px 18px",
+      }}
+    >
+      <div className="flex justify-end" style={{ marginBottom: 4 }}>
+        <button
+          type="button"
+          onClick={copy}
+          className="btn-ghost"
+          style={{ fontSize: 11.5, padding: "5px 12px" }}
+        >
+          {copied ? <Check size={12} /> : <Copy size={12} />} {copied ? "نُسخ" : "نسخ"}
+        </button>
+      </div>
+      <MarkdownView content={content} variant="study" />
     </div>
   );
 }
