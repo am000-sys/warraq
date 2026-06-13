@@ -201,27 +201,42 @@ ${DEPTH_INSTRUCTIONS[depth]}
 }
 
 // ─── حدود الإخراج حسب العمق (للدفعة الكاملة) ────────────────
-// نماذج الدقّة القصوى تفكّر دوماً وتوكنات تفكيرها تُحسب من max_tokens،
-// فنمنحها هامشاً إضافياً كي لا يُقتطع الملخّص. السقف هنا هو أيضاً سقف
-// كلفة الإخراج للطلب الواحد — حماية مدمجة للفاتورة.
+// السقف سخيّ عمداً: المحاسبة على ما يُكتب فعلاً لا على السقف، وملخّص وافٍ
+// لمقرّر كبير قد يطول. نماذج الدقّة القصوى تفكّر دوماً وتوكنات تفكيرها
+// تُحسب من max_tokens فتأخذ هامشاً إضافياً (سقف النموذج ١٢٨ ألفاً).
+// وإن بُلغ السقف رغم ذلك، تُرسل دفعة متابعة تُكمل من نقطة التوقّف.
 export function maxTokensForBatch(depth: StudyDepth, premium: boolean): number {
-  const base = depth === "concise" ? 16384 : depth === "deep" ? 49152 : 32768;
-  return premium ? Math.min(98304, Math.round(base * 1.5)) : base;
+  const base = depth === "concise" ? 32768 : depth === "deep" ? 98304 : 65536;
+  return premium ? Math.min(131072, Math.round(base * 1.5)) : base;
 }
+
+// توجيه دفعات المتابعة (عند بلوغ سقف الإخراج): يتسلّم المنجَز ويُكمل منه
+const CONTINUE_INSTRUCTION =
+  "تابِع الملخّص من النقطة التي توقّف عندها نصّك السابق تماماً — أكمل حتى من منتصف الجملة أو الجدول إن كان مقطوعاً — دون أيّ تكرار لما سبق ولا مقدّمات ولا تعليق. " +
+  `التزم التعليمات والبنية نفسها، وعند إتمام الملخّص كاملاً اختمه بسطر أخير منفرد: ${STUDY_END_MARK}`;
 
 // ─── واجهة الدفعات (Batches API — بنصف السعر) ──────────────
 function buildUserContent(context: string): string {
   return `=== المادّة العلميّة ===\n\n${context}\n\n=== نهاية المادّة ===\n\nلخّص المادّة أعلاه وفق تعليماتك.`;
 }
 
-// يسلّم المهمة كاملة دفعةً واحدة ويعيد معرّف الدفعة للمتابعة
+// يسلّم المهمة كاملة دفعةً واحدة ويعيد معرّف الدفعة للمتابعة.
+// مع checkpoint: دفعة «متابعة» — المنجَز يُمرَّر دورَ assistant سابقاً
+// (آخر دور يبقى user، فلا يُعدّ prefill المحظور على النماذج الحديثة).
 export async function submitStudyBatch(opts: {
   model: string;
   system: string;
   context: string;
   maxTokens: number;
+  checkpoint?: string;
 }): Promise<string> {
   if (!client) throw new Error("ANTHROPIC_NOT_CONFIGURED");
+  type Msg = { role: "user" | "assistant"; content: string };
+  const messages: Msg[] = [{ role: "user", content: buildUserContent(opts.context) }];
+  if (opts.checkpoint && opts.checkpoint.trim()) {
+    messages.push({ role: "assistant", content: opts.checkpoint });
+    messages.push({ role: "user", content: CONTINUE_INSTRUCTION });
+  }
   const batch = await client.messages.batches.create({
     requests: [
       {
@@ -231,7 +246,7 @@ export async function submitStudyBatch(opts: {
           model: opts.model as Parameters<typeof client.messages.create>[0]["model"],
           max_tokens: opts.maxTokens,
           system: opts.system,
-          messages: [{ role: "user", content: buildUserContent(opts.context) }],
+          messages,
         },
       },
     ],
