@@ -639,8 +639,8 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
                 </div>
               </div>
               <VerificationBadge v={viewer.meta.verification} />
-              <div style={{ padding: "4px 2px" }}>
-                <MarkdownView content={viewer.markdown} />
+              <div className="wq-md-sheet" style={{ padding: "4px 2px" }}>
+                <MarkdownView content={viewer.markdown} variant="study" />
               </div>
             </>
           )}
