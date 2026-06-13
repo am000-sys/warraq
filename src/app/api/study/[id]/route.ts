@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { cancelStudyBatch } from "@/lib/study";
 
 export const runtime = "nodejs";
 
@@ -43,6 +44,14 @@ export async function DELETE(
   const rec = await ownedSummary(id, session.user.id, session.user.systemRole === "SYSTEM_ADMIN");
   if (!rec) return NextResponse.json({ error: "غير موجود" }, { status: 404 });
   if (rec === "forbidden") return NextResponse.json({ error: "ممنوع" }, { status: 403 });
+
+  // إن كانت دفعة قيد المعالجة لدى المزوّد، ألغِها (إيقاف أيّ كلفة متبقّية)
+  if (rec.status === "PROCESSING") {
+    const v = rec.verification;
+    const batchId =
+      v && typeof v === "object" && "batchId" in v ? String((v as { batchId?: unknown }).batchId ?? "") : "";
+    if (batchId) await cancelStudyBatch(batchId);
+  }
 
   // استرداد ما خُصم إن لم يُسلَّم الملخّص (فشل أو عالق) — داخل معاملة واحدة
   const refund = rec.status !== "COMPLETED" ? rec.pagesCharged : 0;
