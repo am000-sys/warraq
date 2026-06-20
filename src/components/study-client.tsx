@@ -23,6 +23,14 @@ import { MarkdownView } from "@/components/markdown-view";
 import { StatusPill } from "@/components/page-header";
 import { ar } from "@/lib/utils";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import {
   FOCUS_OPTIONS,
   DEPTH_OPTIONS,
@@ -290,18 +298,25 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
           ) : (
             <div>
               <label className="label">المستند</label>
-              <select
-                className="field"
-                value={jobId}
-                onChange={(e) => setJobId(e.target.value)}
-                style={{ fontFamily: font }}
-              >
-                {jobs.map((j) => (
-                  <option key={j.id} value={j.id}>
-                    {j.fileName} — {ar(j.totalPages)} صفحة
-                  </option>
-                ))}
-              </select>
+              <Select value={jobId} onValueChange={(v) => setJobId(v as string)}>
+                <SelectTrigger aria-label="المستند" style={{ fontFamily: font }}>
+                  <SelectValue>
+                    {(v) => {
+                      const j = jobs.find((x) => x.id === v);
+                      return j
+                        ? `${j.fileName} — ${ar(j.totalPages)} صفحة`
+                        : "اختر مستنداً";
+                    }}
+                  </SelectValue>
+                </SelectTrigger>
+                <SelectContent>
+                  {jobs.map((j) => (
+                    <SelectItem key={j.id} value={j.id}>
+                      {j.fileName} — {ar(j.totalPages)} صفحة
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )
         ) : (
@@ -356,9 +371,9 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
         )}
 
         <div style={{ marginTop: 14 }}>
-          <label className="label">عنوان الملخّص (اختياري)</label>
-          <input
-            className="field"
+          <label htmlFor="study-title" className="label">عنوان الملخّص (اختياري)</label>
+          <Input
+            id="study-title"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder={
