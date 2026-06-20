@@ -11,6 +11,7 @@ import {
   FLEX_MAX,
 } from "@/lib/packages";
 import { ar } from "@/lib/utils";
+import { Field, FieldLabel, FieldControl } from "@/components/ui/field";
 
 type Bank = { bankName: string; iban: string };
 type Req = {
@@ -438,15 +439,15 @@ export function TopUpClient({ packages, bank }: { packages: TopUpPackage[]; bank
           </div>
 
           {/* نموذج إثبات الحوالة البنكيّة */}
-          <label className="label">اسم المُحوِّل (كما في الحوالة)</label>
-          <input
-            type="text"
-            value={senderName}
-            onChange={(e) => setSenderName(e.target.value)}
-            placeholder="الاسم في إيصال الحوالة"
-            className="field"
-            style={{ marginBottom: 16 }}
-          />
+          <Field className="mb-4">
+            <FieldLabel>اسم المُحوِّل (كما في الحوالة)</FieldLabel>
+            <FieldControl
+              type="text"
+              value={senderName}
+              onChange={(e) => setSenderName(e.target.value)}
+              placeholder="الاسم في إيصال الحوالة"
+            />
+          </Field>
 
           <label className="label">صورة إيصال الحوالة</label>
           <div

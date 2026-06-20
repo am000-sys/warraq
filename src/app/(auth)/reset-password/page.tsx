@@ -5,6 +5,7 @@ import { useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
+import { Field, FieldLabel, FieldControl } from "@/components/ui/field";
 
 function ResetPasswordForm() {
   const searchParams = useSearchParams();
@@ -94,30 +95,32 @@ function ResetPasswordForm() {
       </p>
 
       <form onSubmit={handleSubmit} className="flex flex-col" style={{ gap: 16 }}>
-        <div>
-          <label className="label">كلمة المرور الجديدة</label>
-          <input
+        <Field>
+          <FieldLabel>كلمة المرور الجديدة</FieldLabel>
+          <FieldControl
             type="password"
             required
             minLength={8}
             placeholder="••••••••"
-            className="field field-ltr"
+            dir="ltr"
+            className="text-right"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
-        </div>
-        <div>
-          <label className="label">تأكيد كلمة المرور</label>
-          <input
+        </Field>
+        <Field>
+          <FieldLabel>تأكيد كلمة المرور</FieldLabel>
+          <FieldControl
             type="password"
             required
             minLength={8}
             placeholder="••••••••"
-            className="field field-ltr"
+            dir="ltr"
+            className="text-right"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
           />
-        </div>
+        </Field>
 
         {error && (
           <p style={{ fontSize: 13, color: "var(--rose)", fontFamily: "Tajawal, sans-serif" }}>

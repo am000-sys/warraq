@@ -4,6 +4,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
+import { Field, FieldLabel, FieldControl } from "@/components/ui/field";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -102,17 +103,18 @@ export default function ForgotPasswordPage() {
               أدخل بريدك وسنرسل لك رابط إعادة تعيين كلمة المرور.
             </p>
             <form onSubmit={handleSubmit} className="flex flex-col" style={{ gap: 16 }}>
-              <div>
-                <label className="label">البريد الإلكتروني</label>
-                <input
+              <Field>
+                <FieldLabel>البريد الإلكتروني</FieldLabel>
+                <FieldControl
                   type="email"
                   required
                   placeholder="ahmed@example.com"
-                  className="field field-ltr"
+                  dir="ltr"
+                  className="text-right"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
-              </div>
+              </Field>
               <button
                 type="submit"
                 disabled={loading}

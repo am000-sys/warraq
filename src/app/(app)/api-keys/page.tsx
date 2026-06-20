@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { Copy, Trash2, Key, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { Input } from "@/components/ui/input";
 
 interface ApiKey {
   id: string;
@@ -210,19 +211,22 @@ export default function ApiKeysPage() {
             </div>
           )}
           <div className="flex flex-col sm:flex-row gap-2.5">
-            <input
+            <Input
               type="email"
+              aria-label="بريد المستخدم"
               placeholder="بريد المستخدم"
               value={userEmail}
               onChange={(e) => setUserEmail(e.target.value)}
-              className="field field-ltr flex-1"
+              dir="ltr"
+              className="flex-1 text-right"
             />
-            <input
+            <Input
               type="text"
+              aria-label="اسم المفتاح"
               placeholder="اسم المفتاح"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="field flex-1"
+              className="flex-1"
             />
             <button
               onClick={handleCreate}

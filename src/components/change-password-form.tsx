@@ -3,6 +3,7 @@
 
 import { useState } from "react";
 import { Lock, Check } from "lucide-react";
+import { Field, FieldLabel, FieldControl } from "@/components/ui/field";
 
 export function ChangePasswordForm() {
   const [current, setCurrent] = useState("");
@@ -114,41 +115,38 @@ export function ChangePasswordForm() {
       )}
 
       <form onSubmit={handleSubmit} className="flex flex-col" style={{ gap: 14 }}>
-        <div>
-          <label className="label">كلمة المرور الحاليّة</label>
-          <input
+        <Field>
+          <FieldLabel>كلمة المرور الحاليّة</FieldLabel>
+          <FieldControl
             type="password"
             required
+            dir="ltr"
             value={current}
             onChange={(e) => setCurrent(e.target.value)}
-            className="field"
-            style={{ direction: "ltr" }}
           />
-        </div>
-        <div>
-          <label className="label">كلمة المرور الجديدة</label>
-          <input
+        </Field>
+        <Field>
+          <FieldLabel>كلمة المرور الجديدة</FieldLabel>
+          <FieldControl
             type="password"
             required
             minLength={8}
+            dir="ltr"
             value={newPwd}
             onChange={(e) => setNewPwd(e.target.value)}
-            className="field"
-            style={{ direction: "ltr" }}
           />
-        </div>
-        <div>
-          <label className="label">تأكيد كلمة المرور الجديدة</label>
-          <input
+        </Field>
+        <Field>
+          <FieldLabel>تأكيد كلمة المرور الجديدة</FieldLabel>
+          <FieldControl
             type="password"
             required
             minLength={8}
+            dir="ltr"
             value={confirm}
             onChange={(e) => setConfirm(e.target.value)}
-            className="field"
-            style={{ direction: "ltr" }}
           />
-        </div>
+        </Field>
         <button
           type="submit"
           disabled={loading || !current || !newPwd || !confirm}

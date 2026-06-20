@@ -5,6 +5,12 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import {
+  Field,
+  FieldLabel,
+  FieldControl,
+  FieldDescription,
+} from "@/components/ui/field";
 
 export default function NewOrgPage() {
   const router = useRouter();
@@ -99,21 +105,20 @@ export default function NewOrgPage() {
       )}
 
       <form onSubmit={handleSubmit} className="card flex flex-col" style={{ gap: 16 }}>
-        <div>
-          <label className="label">اسم المؤسسة</label>
-          <input
+        <Field>
+          <FieldLabel>اسم المؤسسة</FieldLabel>
+          <FieldControl
             type="text"
             required
             minLength={2}
             value={name}
             onChange={(e) => handleNameChange(e.target.value)}
             placeholder="مثل: مركز التحقيق العلمي"
-            className="field"
           />
-        </div>
+        </Field>
 
-        <div>
-          <label className="label">المعرّف (يظهر في الرابط)</label>
+        <Field>
+          <FieldLabel>المعرّف (يظهر في الرابط)</FieldLabel>
           <div
             className="flex items-stretch overflow-hidden"
             style={{
@@ -135,38 +140,21 @@ export default function NewOrgPage() {
             >
               warraq.app/
             </span>
-            <input
+            <FieldControl
               type="text"
               required
               minLength={3}
               pattern="[a-z0-9\-]+"
               value={slug}
               onChange={(e) => setSlug(e.target.value)}
-              className="flex-1"
-              style={{
-                background: "transparent",
-                border: "none",
-                outline: "none",
-                padding: 12,
-                direction: "ltr",
-                textAlign: "left",
-                fontSize: 14,
-                fontFamily: "Inter, sans-serif",
-              }}
+              dir="ltr"
+              className="flex-1 rounded-none border-0 bg-transparent p-3 text-left text-[14px] font-latin"
             />
           </div>
-          <p
-            className="font-light"
-            style={{
-              fontSize: 12,
-              color: "var(--pebble)",
-              fontFamily: "Tajawal, sans-serif",
-              marginTop: 6,
-            }}
-          >
+          <FieldDescription>
             أحرف لاتينية صغيرة وأرقام وشرطات فقط
-          </p>
-        </div>
+          </FieldDescription>
+        </Field>
 
         <button
           type="submit"

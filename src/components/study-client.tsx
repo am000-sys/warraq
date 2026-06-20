@@ -22,6 +22,7 @@ import {
 import { MarkdownView } from "@/components/markdown-view";
 import { StatusPill } from "@/components/page-header";
 import { ar } from "@/lib/utils";
+import { Textarea } from "@/components/ui/textarea";
 import {
   FOCUS_OPTIONS,
   DEPTH_OPTIONS,
@@ -331,13 +332,12 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
                 }}
               />
             </div>
-            <textarea
-              className="field"
+            <Textarea
               rows={9}
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="الصق هنا نصّ المقرّر أو الفصل المراد تلخيصه…"
-              style={{ fontFamily: font, lineHeight: 1.9, resize: "vertical" }}
+              style={{ fontFamily: font, lineHeight: 1.9 }}
             />
             <div
               style={{
