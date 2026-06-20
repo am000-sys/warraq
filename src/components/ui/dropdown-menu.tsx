@@ -31,16 +31,19 @@ function DropdownMenuContent({
   className,
   sideOffset = 6,
   align = "start",
+  side,
   ...props
 }: React.ComponentProps<typeof MenuPrimitive.Popup> & {
   sideOffset?: number;
   align?: "start" | "center" | "end";
+  side?: "top" | "right" | "bottom" | "left" | "inline-start" | "inline-end";
 }) {
   return (
     <MenuPrimitive.Portal>
       <MenuPrimitive.Positioner
         sideOffset={sideOffset}
         align={align}
+        side={side}
         className="z-50 outline-none"
       >
         <MenuPrimitive.Popup

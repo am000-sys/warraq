@@ -16,8 +16,16 @@ import {
   Menu,
   X,
   LogOut,
+  ChevronsUpDown,
 } from "lucide-react";
 import { signOut } from "next-auth/react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 const items = [
   { k: "/dashboard", l: "لوحة التحكم", icon: LayoutDashboard },
@@ -50,6 +58,16 @@ export function AppSidebar({ user }: Props) {
     setOpen(false);
   }, [pathname]);
 
+  // إغلاق درج الجوال بمفتاح Escape (وصوليّة)
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
   return (
     <>
       {/* شريط علوي للجوال */}
@@ -75,6 +93,8 @@ export function AppSidebar({ user }: Props) {
         <button
           onClick={() => setOpen((o) => !o)}
           aria-label="القائمة"
+          aria-expanded={open}
+          aria-controls="app-sidebar"
           style={{ background: "none", border: "none", cursor: "pointer", color: "var(--carbon)", padding: 8 }}
         >
           {open ? <X size={22} /> : <Menu size={22} />}
@@ -85,6 +105,7 @@ export function AppSidebar({ user }: Props) {
       {open && (
         <div
           onClick={() => setOpen(false)}
+          aria-hidden="true"
           style={{
             position: "fixed",
             inset: 0,
@@ -95,6 +116,7 @@ export function AppSidebar({ user }: Props) {
       )}
 
       <div
+        id="app-sidebar"
         className={`fixed top-0 right-0 bottom-0 z-20 flex flex-col wq-sidebar${open ? " wq-sidebar-open" : ""}`}
         style={{
           width: 228,
@@ -192,55 +214,53 @@ export function AppSidebar({ user }: Props) {
           </Link>
         </div>
 
-        <div style={{ padding: "14px 20px", borderTop: "1px solid var(--border-sub)" }}>
-          <div className="flex items-center gap-2.5">
-            <div
-              className="flex items-center justify-center flex-shrink-0"
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: "50%",
-                background: "var(--orange-soft)",
-                border: "1px solid rgba(246,146,81,0.25)",
-                fontSize: 13,
-                color: "var(--orange)",
-                fontFamily: "Tajawal, sans-serif",
-              }}
-            >
-              {initial}
-            </div>
-            <div className="min-w-0 flex-1">
+        <div style={{ padding: "14px 16px", borderTop: "1px solid var(--border-sub)" }}>
+          {/* قائمة الحساب — Base UI DropdownMenu (تنقّل لوحة مفاتيح + إغلاق بـ Esc) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger className="flex w-full items-center gap-2.5 rounded-[10px] p-1.5 text-start outline-none transition-colors hover:bg-fog focus-visible:ring-2 focus-visible:ring-ring data-[popup-open]:bg-fog">
               <div
-                className="truncate"
-                style={{ fontSize: 13, fontWeight: 500, color: "var(--carbon)", fontFamily: "Tajawal, sans-serif" }}
+                className="flex flex-shrink-0 items-center justify-center"
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  background: "var(--orange-soft)",
+                  border: "1px solid rgba(246,146,81,0.25)",
+                  fontSize: 13,
+                  color: "var(--orange)",
+                  fontFamily: "Tajawal, sans-serif",
+                }}
               >
-                {user.name || user.email.split("@")[0]}
+                {initial}
               </div>
-              <div style={{ fontSize: 11, color: "var(--pebble)", fontFamily: "Tajawal, sans-serif" }}>
-                {user.plan}
+              <div className="min-w-0 flex-1">
+                <div
+                  className="truncate"
+                  style={{ fontSize: 13, fontWeight: 500, color: "var(--carbon)", fontFamily: "Tajawal, sans-serif" }}
+                >
+                  {user.name || user.email.split("@")[0]}
+                </div>
+                <div style={{ fontSize: 11, color: "var(--pebble)", fontFamily: "Tajawal, sans-serif" }}>
+                  {user.plan}
+                </div>
               </div>
-            </div>
-            <button
-              onClick={() => signOut({ callbackUrl: "/" })}
-              title="تسجيل الخروج"
-              style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "var(--pebble)",
-                padding: 6,
-                borderRadius: 8,
-                display: "flex",
-                alignItems: "center",
-                transition: "color 0.15s",
-                flexShrink: 0,
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--carbon)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--pebble)")}
-            >
-              <LogOut size={15} strokeWidth={1.8} />
-            </button>
-          </div>
+              <ChevronsUpDown size={14} className="flex-shrink-0 text-pebble" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="end" className="min-w-[196px]">
+              <DropdownMenuItem render={<Link href="/settings" />}>
+                <Settings size={16} strokeWidth={1.7} />
+                الإعدادات
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => signOut({ callbackUrl: "/" })}
+                className="text-rose [&_svg]:text-rose"
+              >
+                <LogOut size={16} strokeWidth={1.7} />
+                تسجيل الخروج
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </>
