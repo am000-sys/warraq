@@ -7,6 +7,7 @@ import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
+import { Field, FieldLabel, FieldControl } from "@/components/ui/field";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -124,28 +125,21 @@ export default function LoginPage() {
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col" style={{ gap: 16 }}>
-          <div>
-            <label className="label">البريد الإلكتروني</label>
-            <input
+          <Field>
+            <FieldLabel>البريد الإلكتروني</FieldLabel>
+            <FieldControl
               type="email"
               required
               placeholder="ahmed@example.com"
-              className="field field-ltr"
+              dir="ltr"
+              className="text-right"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-          </div>
-          <div>
+          </Field>
+          <Field>
             <div className="flex justify-between" style={{ marginBottom: 6 }}>
-              <label
-                style={{
-                  fontSize: 13,
-                  color: "var(--stone)",
-                  fontFamily: "Tajawal, sans-serif",
-                }}
-              >
-                كلمة المرور
-              </label>
+              <FieldLabel className="mb-0">كلمة المرور</FieldLabel>
               <Link
                 href="/forgot-password"
                 className="no-underline"
@@ -158,16 +152,15 @@ export default function LoginPage() {
                 نسيت كلمة المرور؟
               </Link>
             </div>
-            <input
+            <FieldControl
               type="password"
               required
               placeholder="••••••••"
-              className="field"
-              style={{ direction: "ltr" }}
+              dir="ltr"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-          </div>
+          </Field>
 
           <button
             type="submit"

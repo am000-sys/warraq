@@ -1,6 +1,6 @@
 module.exports = {
   plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
+    // Tailwind v4 — المعالج الجديد يتضمّن autoprefixer داخليّاً
+    "@tailwindcss/postcss": {},
   },
 };

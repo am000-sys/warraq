@@ -7,6 +7,12 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
+import {
+  Field,
+  FieldLabel,
+  FieldControl,
+  FieldDescription,
+} from "@/components/ui/field";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -120,52 +126,41 @@ export default function SignupPage() {
         )}
 
         <form onSubmit={handleSubmit} className="flex flex-col" style={{ gap: 16 }}>
-          <div>
-            <label className="label">الاسم الكامل</label>
-            <input
+          <Field>
+            <FieldLabel>الاسم الكامل</FieldLabel>
+            <FieldControl
               type="text"
               required
               placeholder="أحمد محمد"
-              className="field"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
-          </div>
-          <div>
-            <label className="label">البريد الإلكتروني</label>
-            <input
+          </Field>
+          <Field>
+            <FieldLabel>البريد الإلكتروني</FieldLabel>
+            <FieldControl
               type="email"
               required
               placeholder="ahmed@example.com"
-              className="field field-ltr"
+              dir="ltr"
+              className="text-right"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
-          </div>
-          <div>
-            <label className="label">كلمة المرور</label>
-            <input
+          </Field>
+          <Field>
+            <FieldLabel>كلمة المرور</FieldLabel>
+            <FieldControl
               type="password"
               required
               minLength={8}
               placeholder="••••••••"
-              className="field"
-              style={{ direction: "ltr" }}
+              dir="ltr"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
-            <p
-              className="font-light"
-              style={{
-                fontSize: 12,
-                color: "var(--pebble)",
-                fontFamily: "Tajawal, sans-serif",
-                marginTop: 6,
-              }}
-            >
-              ٨ أحرف على الأقل
-            </p>
-          </div>
+            <FieldDescription>٨ أحرف على الأقل</FieldDescription>
+          </Field>
 
           <button
             type="submit"

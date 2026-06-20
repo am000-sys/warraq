@@ -6,8 +6,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Logo } from "@/components/logo";
-import { Activity, Users, Briefcase, DollarSign, Server, Menu, X, Wallet, LayoutDashboard, Crown, LogOut } from "lucide-react";
+import { Activity, Users, Briefcase, DollarSign, Server, Menu, X, Wallet, LayoutDashboard, Crown, LogOut, ChevronsUpDown } from "lucide-react";
 import { signOut } from "next-auth/react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
 const items = [
   { k: "/admin", l: "النظرة العامة", icon: Activity },
@@ -25,6 +32,16 @@ export function AdminSidebar({ name }: { name: string }) {
   useEffect(() => {
     setOpen(false);
   }, [pathname]);
+
+  // إغلاق درج الجوال بمفتاح Escape (وصوليّة)
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
 
   return (
     <>
@@ -51,6 +68,8 @@ export function AdminSidebar({ name }: { name: string }) {
         <button
           onClick={() => setOpen((o) => !o)}
           aria-label="القائمة"
+          aria-expanded={open}
+          aria-controls="admin-sidebar"
           style={{ background: "none", border: "none", cursor: "pointer", color: "#fff", padding: 8 }}
         >
           {open ? <X size={22} /> : <Menu size={22} />}
@@ -60,11 +79,13 @@ export function AdminSidebar({ name }: { name: string }) {
       {open && (
         <div
           onClick={() => setOpen(false)}
+          aria-hidden="true"
           style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 19 }}
         />
       )}
 
       <div
+        id="admin-sidebar"
         className={`fixed top-0 right-0 bottom-0 z-20 flex flex-col wq-sidebar${open ? " wq-sidebar-open" : ""}`}
         style={{
           width: 228,
@@ -125,85 +146,83 @@ export function AdminSidebar({ name }: { name: string }) {
         </nav>
 
         <div style={{ padding: "14px 16px", borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <div
-            className="flex items-center gap-2.5"
-            style={{
-              background: "linear-gradient(135deg, rgba(246,146,81,0.12) 0%, rgba(246,146,81,0.04) 100%)",
-              border: "1px solid rgba(246,146,81,0.22)",
-              borderRadius: 14,
-              padding: "10px 12px",
-            }}
-          >
-            <div className="flex-shrink-0" style={{ position: "relative" }}>
-              <div
-                className="flex items-center justify-center"
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: "50%",
-                  background: "linear-gradient(135deg, var(--orange) 0%, #e07b3a 100%)",
-                  fontSize: 15,
-                  fontWeight: 600,
-                  color: "#fff",
-                  fontFamily: "Tajawal, sans-serif",
-                  boxShadow: "0 4px 14px rgba(246,146,81,0.5)",
-                }}
-              >
-                {name[0]?.toUpperCase()}
-              </div>
-              {/* تاج صغير على الزاوية */}
-              <div
-                className="flex items-center justify-center"
-                style={{
-                  position: "absolute",
-                  top: -7,
-                  insetInlineEnd: -5,
-                  width: 18,
-                  height: 18,
-                  borderRadius: "50%",
-                  background: "var(--midnight)",
-                  border: "1px solid rgba(246,146,81,0.5)",
-                }}
-              >
-                <Crown size={10} color="var(--orange)" strokeWidth={2.2} />
-              </div>
-            </div>
-            <div className="min-w-0 flex-1">
-              <div
-                className="truncate"
-                style={{ fontSize: 13, fontWeight: 600, color: "#fff", fontFamily: "Tajawal, sans-serif" }}
-              >
-                {name}
-              </div>
-              <div
-                className="flex items-center gap-1"
-                style={{ fontSize: 11, color: "var(--orange)", fontFamily: "Tajawal, sans-serif", fontWeight: 500 }}
-              >
-                <Crown size={10} strokeWidth={2.2} />
-                صاحب المنصّة
-              </div>
-            </div>
-            <button
-              onClick={() => signOut({ callbackUrl: "/" })}
-              title="تسجيل الخروج"
+          {/* قائمة الحساب — Base UI DropdownMenu (تنقّل لوحة مفاتيح + إغلاق بـ Esc) */}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="flex w-full items-center gap-2.5 text-start outline-none transition-[filter] hover:brightness-110 focus-visible:ring-2 focus-visible:ring-ring"
               style={{
-                background: "none",
-                border: "none",
-                cursor: "pointer",
-                color: "rgba(255,255,255,0.4)",
-                padding: 6,
-                borderRadius: 8,
-                display: "flex",
-                alignItems: "center",
-                transition: "color 0.15s",
-                flexShrink: 0,
+                background: "linear-gradient(135deg, rgba(246,146,81,0.12) 0%, rgba(246,146,81,0.04) 100%)",
+                border: "1px solid rgba(246,146,81,0.22)",
+                borderRadius: 14,
+                padding: "10px 12px",
               }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.8)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "rgba(255,255,255,0.4)")}
             >
-              <LogOut size={15} strokeWidth={1.8} />
-            </button>
-          </div>
+              <div className="flex-shrink-0" style={{ position: "relative" }}>
+                <div
+                  className="flex items-center justify-center"
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: "50%",
+                    background: "linear-gradient(135deg, var(--orange) 0%, #e07b3a 100%)",
+                    fontSize: 15,
+                    fontWeight: 600,
+                    color: "#fff",
+                    fontFamily: "Tajawal, sans-serif",
+                    boxShadow: "0 4px 14px rgba(246,146,81,0.5)",
+                  }}
+                >
+                  {name[0]?.toUpperCase()}
+                </div>
+                {/* تاج صغير على الزاوية */}
+                <div
+                  className="flex items-center justify-center"
+                  style={{
+                    position: "absolute",
+                    top: -7,
+                    insetInlineEnd: -5,
+                    width: 18,
+                    height: 18,
+                    borderRadius: "50%",
+                    background: "var(--midnight)",
+                    border: "1px solid rgba(246,146,81,0.5)",
+                  }}
+                >
+                  <Crown size={10} color="var(--orange)" strokeWidth={2.2} />
+                </div>
+              </div>
+              <div className="min-w-0 flex-1">
+                <div
+                  className="truncate"
+                  style={{ fontSize: 13, fontWeight: 600, color: "#fff", fontFamily: "Tajawal, sans-serif" }}
+                >
+                  {name}
+                </div>
+                <div
+                  className="flex items-center gap-1"
+                  style={{ fontSize: 11, color: "var(--orange)", fontFamily: "Tajawal, sans-serif", fontWeight: 500 }}
+                >
+                  <Crown size={10} strokeWidth={2.2} />
+                  صاحب المنصّة
+                </div>
+              </div>
+              <ChevronsUpDown size={14} className="flex-shrink-0" style={{ color: "rgba(255,255,255,0.45)" }} />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="end" className="min-w-[200px]">
+              <DropdownMenuItem render={<Link href="/dashboard" />}>
+                <LayoutDashboard size={16} strokeWidth={1.7} />
+                لوحة المستخدم
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => signOut({ callbackUrl: "/" })}
+                className="text-rose [&_svg]:text-rose"
+              >
+                <LogOut size={16} strokeWidth={1.7} />
+                تسجيل الخروج
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </>

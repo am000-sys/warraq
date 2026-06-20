@@ -5,6 +5,14 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Mail, Trash2, UserPlus } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 
 interface Member {
   id: string;
@@ -79,22 +87,27 @@ export default function MembersPage() {
           دعوة عضو
         </h2>
         <div className="flex gap-2.5">
-          <input
+          <Input
             type="email"
+            aria-label="البريد الإلكتروني"
             placeholder="البريد الإلكتروني"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="field field-ltr flex-1"
+            dir="ltr"
+            className="flex-1 text-right"
           />
-          <select
+          <Select
             value={role}
-            onChange={(e) => setRole(e.target.value as "ADMIN" | "MEMBER")}
-            className="field"
-            style={{ width: 120, paddingLeft: 30 }}
+            onValueChange={(v) => setRole(v as "ADMIN" | "MEMBER")}
           >
-            <option value="MEMBER">عضو</option>
-            <option value="ADMIN">مدير</option>
-          </select>
+            <SelectTrigger aria-label="الدور" className="w-[120px]">
+              <SelectValue>{(v) => (v === "ADMIN" ? "مدير" : "عضو")}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="MEMBER">عضو</SelectItem>
+              <SelectItem value="ADMIN">مدير</SelectItem>
+            </SelectContent>
+          </Select>
           <button
             onClick={handleInvite}
             disabled={!email || loading}

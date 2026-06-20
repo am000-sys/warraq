@@ -1,6 +1,7 @@
 // src/app/layout.tsx — Root layout for وَرَّاق
 import type { Metadata } from "next";
 import { Tajawal, Inter } from "next/font/google";
+import { DirectionProvider } from "@base-ui-components/react/direction-provider";
 import "./globals.css";
 
 // خطوط مُحسَّنة (self-hosted) — أسرع من تحميل Google Fonts الخارجي
@@ -43,7 +44,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ar" dir="rtl" className={`${tajawal.variable} ${inter.variable}`}>
-      <body>{children}</body>
+      {/* DirectionProvider يُعلِم مكوّنات Base UI بالاتّجاه RTL (مواضع القوائم/الحوارات) */}
+      <body>
+        <DirectionProvider direction="rtl">{children}</DirectionProvider>
+      </body>
     </html>
   );
 }

@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Sparkles, Lock, FileText, MessageSquare, Loader2, Wand2, Copy, Check } from "lucide-react";
 import { MarkdownView } from "@/components/markdown-view";
+import { Textarea } from "@/components/ui/textarea";
 
 export type ClaudeAccessClient = {
   enabled: boolean;
@@ -206,18 +207,18 @@ function ClaudeActive({ jobId, access }: { jobId: string; access: ClaudeAccessCl
       {/* Ask */}
       <div style={{ marginTop: 8 }}>
         <label
+          htmlFor="claude-ask"
           className="flex items-center gap-1.5"
           style={{ fontSize: 13, color: "var(--stone)", fontFamily: "Tajawal, sans-serif", marginBottom: 6 }}
         >
           <MessageSquare size={13} /> اسأل عن المستند
         </label>
-        <textarea
+        <Textarea
+          id="claude-ask"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
           placeholder="مثال: ما أبرز موضوعات هذا المستند؟"
           rows={2}
-          className="field"
-          style={{ fontFamily: "Tajawal, sans-serif", resize: "vertical" }}
         />
         <button
           onClick={ask}

@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/page-header";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { DeleteAccountButton } from "@/components/delete-account-button";
 import { ar } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 
 export default async function SettingsPage() {
   const user = (await getCurrentUser())!;
@@ -164,8 +165,8 @@ function PrefRow({
   defaultChecked: boolean;
 }) {
   return (
-    <label
-      className="flex justify-between items-center cursor-pointer"
+    <div
+      className="flex justify-between items-center"
       style={{ padding: "8px 0" }}
     >
       <div>
@@ -191,11 +192,7 @@ function PrefRow({
           {description}
         </div>
       </div>
-      <input
-        type="checkbox"
-        defaultChecked={defaultChecked}
-        style={{ accentColor: "var(--orange)", width: 18, height: 18 }}
-      />
-    </label>
+      <Switch defaultChecked={defaultChecked} aria-label={label} />
+    </div>
   );
 }

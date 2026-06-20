@@ -1,12 +1,14 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 /* ══════════════════════════════════
-   وَرَّاق — Design System
+   وَرَّاق — Design System (Tailwind v4 + shadcn / Base UI)
    Reference: design-reference/warraq-v3.html
+   النظام التصميمي صار عبر @theme (بدل tailwind.config.js)، مع توكنات
+   shadcn الدلاليّة (background/primary/...) مربوطة بلوحة وَرَّاق نفسها
+   — فلا تغيير في الهويّة البصريّة.
 ══════════════════════════════════ */
 
+/* ── متغيّرات وَرَّاق الخام (تُستعمل في style={{}} المضمّنة) ── */
 :root {
   --fog: #f7f7f7;
   --snow: #ffffff;
@@ -34,6 +36,142 @@
   --shadow-card: rgba(24, 24, 37, 0.1) 0px 2px 8px -2px;
   --shadow-btn: rgba(0, 0, 0, 0.06) 0px 2px 8px, rgba(0, 0, 0, 0.04) 0px 1px 2px;
   --shadow-nav: rgba(24, 24, 37, 0.08) 0px 4px 20px -4px;
+
+  /* ── توكنات shadcn الدلاليّة (مربوطة بلوحة وَرَّاق) ── */
+  --background: #f7f7f7; /* fog */
+  --foreground: #000000; /* carbon */
+  --card: #ffffff; /* snow */
+  --card-foreground: #000000;
+  --popover: #ffffff;
+  --popover-foreground: #000000;
+  --primary: #f69251; /* orange */
+  --primary-foreground: #000000;
+  --secondary: #ffffff;
+  --secondary-foreground: #000000;
+  --muted: #f7f7f7;
+  --muted-foreground: #636363; /* stone */
+  --accent: rgba(246, 146, 81, 0.1); /* orange-soft */
+  --accent-foreground: #000000;
+  --destructive: #c97b84; /* rose */
+  --destructive-foreground: #ffffff;
+  --input: #e8e8e8;
+  --ring: #f69251;
+  --radius: 0.75rem; /* 12px — نصف قطر داخليّ */
+}
+
+/* ── خريطة التوكنات → أدوات Tailwind v4 ── */
+@theme inline {
+  /* لوحة وَرَّاق */
+  --color-fog: #f7f7f7;
+  --color-snow: #ffffff;
+  --color-carbon: #000000;
+  --color-midnight: #181825;
+  --color-slate: #242433;
+  --color-graphite: #484758;
+  --color-stone: #636363;
+  --color-pebble: #949494;
+  --color-ash: #8b8b8b;
+  --color-orange: #f69251;
+  --color-orange-soft: rgba(246, 146, 81, 0.1);
+  --color-orange-mid: rgba(246, 146, 81, 0.18);
+  --color-rose: #c97b84;
+  --color-border: #e8e8e8;
+  --color-border-sub: #f0f0f0;
+  --color-success: #6dbd7a;
+
+  /* توكنات shadcn الدلاليّة */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* الخطوط */
+  --font-sans: "Tajawal", ui-sans-serif, system-ui, sans-serif;
+  --font-latin: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* أنصاف الأقطار */
+  --radius-btn: 28px;
+  --radius-card: 24px;
+  --radius-badge: 100px;
+  --radius-nav: 32px;
+  --radius-inner: 12px;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  /* الظلال */
+  --shadow-card: rgba(24, 24, 37, 0.1) 0px 2px 8px -2px;
+  --shadow-btn: rgba(0, 0, 0, 0.06) 0px 2px 8px, rgba(0, 0, 0, 0.04) 0px 1px 2px;
+  --shadow-nav: rgba(24, 24, 37, 0.08) 0px 4px 20px -4px;
+  --shadow-nav-light: rgba(24, 24, 37, 0.06) 0px 1px 4px;
+  --shadow-btn-orange: rgba(246, 146, 81, 0.3) 0px 6px 20px;
+  --shadow-card-hover: 0 8px 28px rgba(246, 146, 81, 0.1);
+
+  /* الحاوية */
+  --container-warraq: 1160px;
+
+  /* الحركات */
+  --animate-fade-in: fade-in 0.6s ease-out both;
+  --animate-pulse-dot: pulse-dot 1.6s ease-in-out infinite;
+  --animate-scan-line: scan-line 3s linear infinite;
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+    50% {
+      opacity: 0.5;
+      transform: scale(0.8);
+    }
+  }
+  @keyframes scan-line {
+    0% {
+      top: 12px;
+    }
+    85% {
+      top: calc(100% - 12px);
+    }
+    100% {
+      top: 12px;
+    }
+  }
+}
+
+/* ── توافق Tailwind v4: استعادة لون الحدّ الافتراضيّ (كان gray-200 في v3) ── */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop {
+    border-color: var(--color-border, currentColor);
+  }
 }
 
 * {

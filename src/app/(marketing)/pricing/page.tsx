@@ -1,11 +1,14 @@
 // src/app/(marketing)/pricing/page.tsx
 // مرجع: design-reference/warraq-v3.html (function PricingPage)
-"use client";
-
-import { useState } from "react";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Pricing } from "@/components/marketing/pricing";
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionPanel,
+} from "@/components/ui/accordion";
 
 const faqs = [
   {
@@ -51,61 +54,18 @@ export default function PricingPage() {
           >
             أسئلة شائعة
           </h2>
-          {faqs.map((faq, i) => (
-            <FAQItem key={i} {...faq} />
-          ))}
+          {/* أكورديون وصول (Base UI) — يسمح بفتح أكثر من سؤال، مع تنقّل لوحة مفاتيح */}
+          <Accordion>
+            {faqs.map((faq, i) => (
+              <AccordionItem key={i} value={i}>
+                <AccordionTrigger>{faq.q}</AccordionTrigger>
+                <AccordionPanel>{faq.a}</AccordionPanel>
+              </AccordionItem>
+            ))}
+          </Accordion>
         </div>
       </div>
       <Footer />
-    </div>
-  );
-}
-
-function FAQItem({ q, a }: { q: string; a: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={{ borderBottom: "1px solid var(--border-sub)", padding: "18px 0" }}>
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex justify-between items-center cursor-pointer text-right"
-        style={{ background: "none", border: "none" }}
-      >
-        <span
-          style={{
-            fontSize: 15,
-            fontWeight: 500,
-            color: "var(--carbon)",
-            fontFamily: "Tajawal, sans-serif",
-          }}
-        >
-          {q}
-        </span>
-        <span
-          className="flex-shrink-0 transition-transform"
-          style={{
-            color: "var(--orange)",
-            fontSize: 20,
-            transform: open ? "rotate(45deg)" : "none",
-            marginRight: 16,
-          }}
-        >
-          +
-        </span>
-      </button>
-      {open && (
-        <p
-          className="font-light"
-          style={{
-            marginTop: 10,
-            fontSize: 14,
-            color: "var(--stone)",
-            lineHeight: 1.65,
-            fontFamily: "Tajawal, sans-serif",
-          }}
-        >
-          {a}
-        </p>
-      )}
     </div>
   );
 }
