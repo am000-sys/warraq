@@ -395,6 +395,32 @@ npm run dev
 
 ---
 
+## ١٠.٨ مزوّد الملخّص الدراسي (Claude / Qwen) + تصدير Excel
+
+### مزوّد الملخّص الدراسي — قابل للتبديل
+ميزة «الملخّص الدراسي» (`src/lib/study.ts`) تدعم مزوّدَين، والتوجيه يتمّ **آليّاً حسب
+بادئة معرّف النموذج** في `study_model`/`study_model_premium`:
+- **`claude-*`** ⇒ Anthropic Batches API (الافتراضي — بلا أيّ تغيير).
+- **`qwen-*`** ⇒ مزوّد Qwen (`src/lib/qwen.ts`) عبر **Batch API المتوافق مع OpenAI**
+  (`https://dashscope-intl.aliyuncs.com/compatible-mode/v1`): رفع JSONL → إنشاء دفعة
+  → استطلاع → تنزيل الناتج. يحتاج `QWEN_API_KEY` (أو `DASHSCOPE_API_KEY`).
+- **القاعدة:** المزوّد الوحيد الذي يستعمل Claude مباشرةً هو هذه الميزة. التفريغ (OCR)
+  وAsk/Report تستعمل Mistral ولا تتأثّر بهذا التبديل إطلاقاً.
+- **ضمانات الرصيد محفوظة:** `study-poll.ts` محايد تجاه المزوّد ويبقى **بلا تعديل** —
+  معرّف دفعة Qwen يُخزَّن مبدوءاً بـ `"qwen:"`، والمعرّف غير المبدوء = Claude (توافق
+  رجعيّ للسجلّات الجارية). منطق المتابعة عند بلوغ سقف الإخراج يعمل للمزوّدَين (سقف
+  Qwen أقصر فيُكمَّل تلقائيّاً عبر `QWEN_MAX_OUTPUT`).
+- **التحكّم:** كما في بقيّة الإعداد — مفاتيح `study_*` في `SystemSetting`. للتبديل:
+  اضبط `study_model` على `"qwen-plus"` مثلاً (بلا جداول جديدة ولا تغيير كود).
+
+### تصدير Excel (.xlsx)
+`src/app/api/jobs/[id]/export/route.ts` يدعم `format=xlsx`: صفّ لكلّ صفحة بأعمدة
+(تسلسلي/الرقم المطبوع/عدد الكلمات/النصّ). البنية الجدوليّة تيسّر البحث والفلترة وتغذية
+نماذج RAG (صفّ = مقطع) مع **حفظ ربط النصّ برقم صفحته المطبوع**. RTL + ترويسة مجمّدة،
+ويُقصّ النصّ عند حدّ خليّة Excel (٣٢٧٦٧). exceljs يُستورد ديناميكيّاً فلا يُثقل بقيّة الصيَغ.
+
+---
+
 ## ١١. روابط مرجعيّة
 
 - وثائق Anthropic: https://docs.anthropic.com
@@ -403,6 +429,7 @@ npm run dev
 - وثائق Tap Payments: https://developers.tap.company
 - وثائق Stripe: https://stripe.com/docs
 - Lucide React Icons: https://lucide.dev
+- وثائق Qwen (Batch المتوافق مع OpenAI): https://www.alibabacloud.com/help/en/model-studio/batch-interfaces-compatible-with-openai
 
 ---
 

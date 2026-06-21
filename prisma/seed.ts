@@ -137,6 +137,13 @@ async function main() {
     { key: "claude_addon_cost_per_action", value: 5, description: "تكلفة العمليّة الواحدة بالرصيد (وضع usage)" },
     { key: "claude_addon_monthly_limit", value: 0, description: "حدّ شهريّ لعمليّات Claude (0 = بلا حدّ)" },
     { key: "claude_addon_text_model", value: "OPUS", description: "نموذج Claude النصّي لخدمات الفهم" },
+    // ── إعدادات الملخّص الدراسي ──
+    // لتبديل المزوّد إلى Qwen (مجانيّ/أرخص): اضبط study_model على "qwen-plus" مثلاً
+    // (وأضف QWEN_API_KEY في البيئة). أيّ معرّف يبدأ بـ qwen- يُوجَّه لمزوّد Qwen تلقائيّاً.
+    { key: "study_enabled", value: true, description: "تفعيل ميزة الملخّص الدراسي" },
+    { key: "study_model", value: "claude-opus-4-8", description: "نموذج الدقّة العالية (claude-* أو qwen-*)" },
+    { key: "study_model_premium", value: "claude-fable-5", description: "نموذج الدقّة القصوى (claude-* أو qwen-*)" },
+    { key: "study_premium_enabled", value: true, description: "إتاحة «الدقّة القصوى» للمستخدمين" },
   ];
 
   for (const s of settings) {
