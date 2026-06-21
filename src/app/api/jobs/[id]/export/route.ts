@@ -146,6 +146,63 @@ sup{font-size:9pt;vertical-align:super}
     });
   }
 
+  if (format === "xlsx") {
+    // Excel (.xlsx) — صفّ لكلّ صفحة بأعمدة منفصلة (تسلسلي/مطبوع/كلمات/نصّ).
+    // البنية الجدوليّة تيسّر البحث والفلترة، وتُغذّي نماذج RAG بسهولة (صفّ = مقطع)
+    // مع حفظ ربط النصّ برقم صفحته المطبوع — وهو جوهر وَرَّاق.
+    // نستورد exceljs ديناميكيّاً حتى لا يُحمَّل في صيَغ التصدير الأخرى.
+    const ExcelJS = (await import("exceljs")).default;
+    const CELL_LIMIT = 32_000; // حدّ خليّة Excel ٣٢٧٦٧ — نقتطع بأمان دون إفساد الملفّ
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "Warraq";
+    wb.created = new Date();
+    const ws = wb.addWorksheet(baseName.slice(0, 31) || "المستند", {
+      views: [{ rightToLeft: true, state: "frozen", ySplit: 1 }], // RTL + تجميد الترويسة
+    });
+
+    ws.columns = [
+      { header: "تسلسلي", key: "seq", width: 10 },
+      { header: "الرقم المطبوع", key: "printed", width: 14 },
+      { header: "عدد الكلمات", key: "words", width: 12 },
+      { header: "النصّ", key: "text", width: 100 },
+    ];
+
+    // تنسيق الترويسة (داكن مطابق للنظام التصميمي + تجميد)
+    const head = ws.getRow(1);
+    head.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 12 };
+    head.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF181825" } };
+    head.alignment = { horizontal: "right", vertical: "middle" };
+    head.height = 22;
+
+    for (const p of job.pages) {
+      let text = stripFigures(p.textContent ?? "");
+      if (text.length > CELL_LIMIT) {
+        text = text.slice(0, CELL_LIMIT) + "\n… [اقتُطع النصّ — تجاوز حدّ خليّة Excel]";
+      }
+      const words = text.trim() ? text.trim().split(/\s+/).length : 0;
+      const row = ws.addRow({
+        seq: p.sequentialNumber,
+        printed: p.printedNumber ?? "",
+        words,
+        text,
+      });
+      row.getCell("text").alignment = { wrapText: true, vertical: "top", horizontal: "right" };
+      row.getCell("seq").alignment = { vertical: "top", horizontal: "center" };
+      row.getCell("printed").alignment = { vertical: "top", horizontal: "center" };
+      row.getCell("words").alignment = { vertical: "top", horizontal: "center" };
+    }
+
+    const buf = await wb.xlsx.writeBuffer();
+    return new NextResponse(new Uint8Array(buf), {
+      headers: {
+        "Content-Type":
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": `attachment; filename="${encodeURIComponent(baseName)}.xlsx"`,
+      },
+    });
+  }
+
   // الافتراضي: TXT
   const body = job.pages
     .map((p) => `[صفحة ${p.printedNumber ?? p.sequentialNumber}]\n${stripFigures(p.textContent ?? "")}`)
