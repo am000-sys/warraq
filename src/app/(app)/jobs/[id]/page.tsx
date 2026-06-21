@@ -151,6 +151,7 @@ export default async function JobDetailPage({
               { f: "txt", l: "TXT" },
               { f: "md", l: "MD" },
               { f: "docx", l: "Word" },
+              { f: "xlsx", l: "Excel" },
               { f: "json", l: "JSON" },
             ].map((x) => (
               <a

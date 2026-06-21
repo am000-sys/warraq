@@ -11,6 +11,14 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { db } from "@/lib/db";
 import type { StudyDepth, StudyFocus } from "@/lib/study-options";
+import {
+  isQwenConfigured,
+  isQwenModel,
+  submitQwenBatch,
+  checkQwenBatch,
+  cancelQwenBatch,
+  type QwenMessage,
+} from "@/lib/qwen";
 
 // الثوابت المشتركة مع الواجهة (خيارات/تسعير) في ملفّ نقيّ بلا اعتماد على الخادم
 export {
@@ -25,10 +33,12 @@ export {
 export type { StudyFocus, StudyDepth, StudyPricing } from "@/lib/study-options";
 
 const apiKey = process.env.ANTHROPIC_API_KEY;
-export const isStudyConfigured = Boolean(
+const isAnthropicConfigured = Boolean(
   apiKey && apiKey !== "sk-ant-stub-temp" && apiKey.startsWith("sk-ant-"),
 );
-const client = isStudyConfigured ? new Anthropic({ apiKey }) : null;
+// الخدمة مهيّأة إن توفّر أيّ مزوّد: Claude (الافتراضي) أو Qwen (بديل مجانيّ يضبطه المالك).
+export const isStudyConfigured = isAnthropicConfigured || isQwenConfigured;
+const client = isAnthropicConfigured ? new Anthropic({ apiKey }) : null;
 
 // ─── الإعداد (SystemSetting بمفاتيح study_*) ───────────────
 export type StudyConfig = {
@@ -84,10 +94,13 @@ export async function getStudyConfig(): Promise<StudyConfig> {
     cfg.minCost = num(KEYS.minCost) ?? cfg.minCost;
     cfg.ratePremium = num(KEYS.ratePremium, 0.1) ?? cfg.ratePremium;
     cfg.minCostPremium = num(KEYS.minCostPremium) ?? cfg.minCostPremium;
+    // يُقبل معرّف Claude (claude-*) أو Qwen (qwen-*) — التوجيه يتمّ حسب البادئة.
+    const okModel = (v: unknown): v is string =>
+      typeof v === "string" && (v.startsWith("claude-") || v.startsWith("qwen-"));
     const m = map.get(KEYS.model);
-    if (typeof m === "string" && m.startsWith("claude-")) cfg.model = m;
+    if (okModel(m)) cfg.model = m;
     const mp = map.get(KEYS.modelPremium);
-    if (typeof mp === "string" && mp.startsWith("claude-")) cfg.modelPremium = mp;
+    if (okModel(mp)) cfg.modelPremium = mp;
     cfg.maxChars = num(KEYS.maxChars, 10_000) ?? cfg.maxChars;
     if (map.has(KEYS.premiumEnabled)) cfg.premiumEnabled = Boolean(map.get(KEYS.premiumEnabled));
 
@@ -215,14 +228,27 @@ const CONTINUE_INSTRUCTION =
   "تابِع الملخّص من النقطة التي توقّف عندها نصّك السابق تماماً — أكمل حتى من منتصف الجملة أو الجدول إن كان مقطوعاً — دون أيّ تكرار لما سبق ولا مقدّمات ولا تعليق. " +
   `التزم التعليمات والبنية نفسها، وعند إتمام الملخّص كاملاً اختمه بسطر أخير منفرد: ${STUDY_END_MARK}`;
 
-// ─── واجهة الدفعات (Batches API — بنصف السعر) ──────────────
+// ─── واجهة الدفعات (مزوّد قابل للتبديل: Claude افتراضاً، Qwen عند ضبطه) ─────
 function buildUserContent(context: string): string {
   return `=== المادّة العلميّة ===\n\n${context}\n\n=== نهاية المادّة ===\n\nلخّص المادّة أعلاه وفق تعليماتك.`;
 }
 
-// يسلّم المهمة كاملة دفعةً واحدة ويعيد معرّف الدفعة للمتابعة.
+// رسائل الحوار المشتركة بين المزوّدين (بلا رسالة النظام — تُحقن حسب المزوّد).
 // مع checkpoint: دفعة «متابعة» — المنجَز يُمرَّر دورَ assistant سابقاً
 // (آخر دور يبقى user، فلا يُعدّ prefill المحظور على النماذج الحديثة).
+type DialogMsg = { role: "user" | "assistant"; content: string };
+function buildDialogMessages(context: string, checkpoint?: string): DialogMsg[] {
+  const messages: DialogMsg[] = [{ role: "user", content: buildUserContent(context) }];
+  if (checkpoint && checkpoint.trim()) {
+    messages.push({ role: "assistant", content: checkpoint });
+    messages.push({ role: "user", content: CONTINUE_INSTRUCTION });
+  }
+  return messages;
+}
+
+// يسلّم المهمة كاملة دفعةً واحدة ويعيد معرّف الدفعة للمتابعة.
+// التوجيه حسب بادئة معرّف النموذج: qwen-* ⇒ مزوّد Qwen (المعرّف يُبدَأ بـ "qwen:")،
+// وإلّا ⇒ Anthropic Batches (المعرّف يبقى كما هو — توافق رجعيّ للسجلّات الجارية).
 export async function submitStudyBatch(opts: {
   model: string;
   system: string;
@@ -230,13 +256,16 @@ export async function submitStudyBatch(opts: {
   maxTokens: number;
   checkpoint?: string;
 }): Promise<string> {
-  if (!client) throw new Error("ANTHROPIC_NOT_CONFIGURED");
-  type Msg = { role: "user" | "assistant"; content: string };
-  const messages: Msg[] = [{ role: "user", content: buildUserContent(opts.context) }];
-  if (opts.checkpoint && opts.checkpoint.trim()) {
-    messages.push({ role: "assistant", content: opts.checkpoint });
-    messages.push({ role: "user", content: CONTINUE_INSTRUCTION });
+  const dialog = buildDialogMessages(opts.context, opts.checkpoint);
+
+  if (isQwenModel(opts.model)) {
+    // Qwen (متوافق مع OpenAI): رسالة النظام دور مستقلّ ضمن المصفوفة
+    const messages: QwenMessage[] = [{ role: "system", content: opts.system }, ...dialog];
+    const id = await submitQwenBatch({ model: opts.model, messages, maxTokens: opts.maxTokens });
+    return `qwen:${id}`;
   }
+
+  if (!client) throw new Error("ANTHROPIC_NOT_CONFIGURED");
   const batch = await client.messages.batches.create({
     requests: [
       {
@@ -246,7 +275,7 @@ export async function submitStudyBatch(opts: {
           model: opts.model as Parameters<typeof client.messages.create>[0]["model"],
           max_tokens: opts.maxTokens,
           system: opts.system,
-          messages,
+          messages: dialog,
         },
       },
     ],
@@ -268,6 +297,8 @@ export type StudyBatchStatus =
 
 // يفحص حالة الدفعة، ويستخرج الناتج عند الاكتمال
 export async function checkStudyBatch(batchId: string): Promise<StudyBatchStatus> {
+  // معرّف مبدوء بـ "qwen:" ⇒ مزوّد Qwen؛ غير المبدوء ⇒ Anthropic (توافق رجعيّ)
+  if (batchId.startsWith("qwen:")) return checkQwenBatch(batchId.slice(5), STUDY_END_MARK);
   if (!client) throw new Error("ANTHROPIC_NOT_CONFIGURED");
   const batch = await client.messages.batches.retrieve(batchId);
   if (batch.processing_status !== "ended") return { state: "processing" };
@@ -304,6 +335,7 @@ export async function checkStudyBatch(batchId: string): Promise<StudyBatchStatus
 
 // إلغاء دفعة (عند حذف ملخّص قيد المعالجة) — لإيقاف أيّ كلفة متبقّية
 export async function cancelStudyBatch(batchId: string): Promise<void> {
+  if (batchId.startsWith("qwen:")) return cancelQwenBatch(batchId.slice(5));
   if (!client) return;
   await client.messages.batches.cancel(batchId).catch(() => {});
 }
