@@ -167,14 +167,22 @@ export async function POST(
         ])
         .catch((e) => console.error("[study.refund]", e));
     }
+    // تفصيل سبب المزوّد (مقصوص) لتيسير التشخيص — يظهر للمالك في حالة الفشل.
+    const detail =
+      err instanceof Error && err.message ? ` (${err.message.slice(0, 200)})` : "";
     await db.studySummary
       .update({
         where: { id },
-        data: { status: "FAILED", errorMessage: "تعذّر إرسال المهمة — أعد المحاولة بعد قليل." },
+        data: {
+          status: "FAILED",
+          errorMessage: `تعذّر إرسال المهمة — أعد المحاولة بعد قليل.${detail}`,
+        },
       })
       .catch(() => {});
     return NextResponse.json(
-      { error: "تعذّر إرسال المهمة — أعد المحاولة بعد قليل. لم يُخصم من رصيدك شيء." },
+      {
+        error: `تعذّر إرسال المهمة — أعد المحاولة بعد قليل. لم يُخصم من رصيدك شيء.${detail}`,
+      },
       { status: 500 },
     );
   }
