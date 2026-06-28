@@ -32,7 +32,9 @@ import {
 import { settleStudyBatches } from "@/lib/study-poll";
 
 export const runtime = "nodejs";
-export const maxDuration = 60; // الإرسال نفسه سريع — المعالجة كلّها لدى المزوّد
+// Qwen يولّد بنداء متزامن داخل الطلب؛ نمنح مهلة أوسع (يُقصَّ تلقائيّاً على الخطط
+// المحدودة). مسار Claude يبقى سريعاً (إنشاء دفعة فقط).
+export const maxDuration = 300;
 
 // سجلّ «قيد المعالجة» بلا معرّف دفعة (انهار الإرسال قبل الحفظ) يُسترجع بعدها
 const SUBMIT_STALE_MS = 90 * 1000;
