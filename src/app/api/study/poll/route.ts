@@ -7,7 +7,8 @@ import { db } from "@/lib/db";
 import { settleStudyBatches } from "@/lib/study-poll";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// التسوية قد تولّد دفعات متابعة/بديلة بنداء Qwen متزامن — مهلة أوسع.
+export const maxDuration = 300;
 
 const SUMMARY_LIST_SELECT = {
   id: true,
