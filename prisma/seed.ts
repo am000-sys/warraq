@@ -141,10 +141,10 @@ async function main() {
     // لتبديل المزوّد إلى Qwen (مجانيّ/أرخص): اضبط study_model على "qwen-plus" مثلاً
     // (وأضف QWEN_API_KEY في البيئة). أيّ معرّف يبدأ بـ qwen- يُوجَّه لمزوّد Qwen تلقائيّاً.
     { key: "study_enabled", value: true, description: "تفعيل ميزة الملخّص الدراسي" },
-    // qwen-long يدعم سياقاً طويلاً جدّاً (حتى ١٠ ملايين توكِن) للكتب الطويلة؛
-    // qwen-plus/qwen-max يقتصران على ~٣٠٧٢٠ توكِن مدخلاً فيفشلان مع المستندات الكبيرة.
-    { key: "study_model", value: "qwen-long", description: "نموذج الدقّة العالية (claude-* أو qwen-*)" },
-    { key: "study_model_premium", value: "qwen-long", description: "نموذج الدقّة القصوى (claude-* أو qwen-*)" },
+    // qwen-plus-latest: سياق حديث (~١٢٩ ألف توكِن) متاح على القاعدة الدوليّة؛
+    // الاسم المستعار qwen-plus يشير لِلقطة قديمة بحدّ ٣٠٧٢٠ توكِن، وqwen-long غير متاح دوليّاً.
+    { key: "study_model", value: "qwen-plus-latest", description: "نموذج الدقّة العالية (claude-* أو qwen-*)" },
+    { key: "study_model_premium", value: "qwen-plus-latest", description: "نموذج الدقّة القصوى (claude-* أو qwen-*)" },
     { key: "study_premium_enabled", value: true, description: "إتاحة «الدقّة القصوى» للمستخدمين" },
   ];
 
