@@ -59,8 +59,10 @@ const DEFAULTS: StudyConfig = {
   minCost: 15,
   ratePremium: 4.5,
   minCostPremium: 45,
-  model: "qwen-plus",
-  modelPremium: "qwen-max",
+  // qwen-long: سياق طويل جدّاً (حتى ١٠ ملايين توكِن) — يناسب الكتب الطويلة.
+  // (qwen-plus/qwen-max يقتصران على ~٣٠٧٢٠ توكِن مدخلاً فيفشلان مع المستندات الكبيرة.)
+  model: "qwen-long",
+  modelPremium: "qwen-long",
   maxChars: 800_000,
   premiumEnabled: true,
 };
