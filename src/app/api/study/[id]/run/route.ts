@@ -167,23 +167,17 @@ export async function POST(
         ])
         .catch((e) => console.error("[study.refund]", e));
     }
-    // تفصيل سبب المزوّد (مقصوص) لتيسير التشخيص — يظهر للمالك في حالة الفشل.
-    const detail =
-      err instanceof Error && err.message ? ` (${err.message.slice(0, 200)})` : "";
+    const raw = err instanceof Error && err.message ? err.message : "";
+    // رفض فلتر المحتوى لدى المزوّد (إنذار كاذب شائع على النصوص التراثيّة) —
+    // إعادة المحاولة لا تُجدي، فالرسالة تكون واضحة بلا «أعد المحاولة».
+    const isContentFlag = /inappropriate content|data_inspection/i.test(raw);
+    const detail = raw ? ` (${raw.slice(0, 200)})` : "";
+    const message = isContentFlag
+      ? `رفض مزوّد الذكاء معالجة محتوى هذا المستند بفلتر المحتوى (قد يكون إنذاراً كاذباً لنصّ تراثيّ). لم يُخصم من رصيدك شيء.${detail}`
+      : `تعذّر إرسال المهمة — أعد المحاولة بعد قليل. لم يُخصم من رصيدك شيء.${detail}`;
     await db.studySummary
-      .update({
-        where: { id },
-        data: {
-          status: "FAILED",
-          errorMessage: `تعذّر إرسال المهمة — أعد المحاولة بعد قليل.${detail}`,
-        },
-      })
+      .update({ where: { id }, data: { status: "FAILED", errorMessage: message } })
       .catch(() => {});
-    return NextResponse.json(
-      {
-        error: `تعذّر إرسال المهمة — أعد المحاولة بعد قليل. لم يُخصم من رصيدك شيء.${detail}`,
-      },
-      { status: 500 },
-    );
+    return NextResponse.json({ error: message }, { status: isContentFlag ? 422 : 500 });
   }
 }

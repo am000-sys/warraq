@@ -167,7 +167,12 @@ export async function submitQwenBatch(opts: {
   if (!isQwenConfigured) throw new Error("QWEN_NOT_CONFIGURED");
   const res = await qwenFetch(CHAT_PATH, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      // محاولة تعطيل فحص المحتوى (إنذارات كاذبة على النصوص التراثيّة). تُتجاهل
+      // الترويسة إن لم يدعمها النموذج/الحساب فلا ضرر.
+      "X-DashScope-DataInspection": "disable",
+    },
     body: JSON.stringify({
       model: opts.model,
       messages: opts.messages,
