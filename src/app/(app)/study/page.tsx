@@ -6,7 +6,6 @@ import { PageHeader } from "@/components/page-header";
 import { InitDbButton } from "@/components/init-db-button";
 import { StudyClient, type SummaryMeta } from "@/components/study-client";
 import { getStudyConfig, isStudyConfigured } from "@/lib/study";
-import { settleStudyBatches } from "@/lib/study-poll";
 
 export const metadata = { title: "الملخّص الدراسي — ورّاق" };
 
@@ -22,8 +21,9 @@ export default async function StudyPage() {
   const user = (await getCurrentUser())!;
   const isAdmin = user.systemRole === "SYSTEM_ADMIN";
 
-  // تسوية انتهازيّة: أقفل أيّ دفعات اكتملت لدى المزوّد قبل عرض القائمة
-  await settleStudyBatches(user.id).catch(() => {});
+  // لا نُسوّي الدفعات أثناء عرض الصفحة: مع التوليد المتزامن قد تستدعي التسوية
+  // نداءً جديداً (متابعة/إعادة إرسال) فتتأخّر الصفحة. التسوية تتمّ عبر استطلاع
+  // العميل (/api/study/poll) فور التحميل وما دامت ثمّة مهمّة قيد المعالجة.
 
   const [jobs, cfg] = await Promise.all([
     db.job.findMany({
