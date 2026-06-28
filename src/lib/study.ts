@@ -59,8 +59,8 @@ const DEFAULTS: StudyConfig = {
   minCost: 15,
   ratePremium: 4.5,
   minCostPremium: 45,
-  model: "claude-opus-4-8",
-  modelPremium: "claude-fable-5",
+  model: "qwen-plus",
+  modelPremium: "qwen-max",
   maxChars: 800_000,
   premiumEnabled: true,
 };
