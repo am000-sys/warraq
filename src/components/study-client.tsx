@@ -89,6 +89,7 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
 
   // ── الحالة ──
   const [queued, setQueued] = useState(false); // مهمّتنا الحاليّة قيد المعالجة
+  const [busy, setBusy] = useState(false); // طلب الإرسال جارٍ — يمنع النقر المتكرّر
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [bal, setBal] = useState(balance);
@@ -108,6 +109,7 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
   const tooLong = source === "text" && text.length > pricing.maxChars;
   const canGenerate =
     !queued &&
+    !busy &&
     focus.length > 0 &&
     !insufficient &&
     !tooLong &&
@@ -188,7 +190,9 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
   }
 
   async function generate() {
+    if (busy) return; // حارس ضدّ النقر المتكرّر
     setError(null);
+    setBusy(true);
     try {
       const body =
         source === "doc"
@@ -204,16 +208,22 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
       await submitRun(j.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذّر إرسال المهمة");
+    } finally {
+      setBusy(false);
     }
   }
 
   async function resume(s: SummaryMeta) {
+    if (busy) return;
     setError(null);
+    setBusy(true);
     try {
       await submitRun(s.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "تعذّر إرسال المهمة");
       await refreshList();
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -565,6 +575,10 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
             {queued ? (
               <>
                 <Loader2 size={15} className="animate-spin" /> قيد المعالجة…
+              </>
+            ) : busy ? (
+              <>
+                <Loader2 size={15} className="animate-spin" /> جارٍ الإرسال…
               </>
             ) : (
               <>
