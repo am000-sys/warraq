@@ -481,7 +481,7 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
                   </span>
                   <span style={{ color: "var(--stone)", fontSize: 12 }}>
                     {premium
-                      ? " — النموذج الأعلى من Claude، ثلاثة أضعاف التكلفة"
+                      ? " — النموذج الأعلى، ثلاثة أضعاف التكلفة"
                       : " — اضغط للترقية إلى النموذج الأعلى"}
                   </span>
                 </span>
