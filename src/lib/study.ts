@@ -59,10 +59,11 @@ const DEFAULTS: StudyConfig = {
   minCost: 15,
   ratePremium: 4.5,
   minCostPremium: 45,
-  // qwen-long: سياق طويل جدّاً (حتى ١٠ ملايين توكِن) — يناسب الكتب الطويلة.
-  // (qwen-plus/qwen-max يقتصران على ~٣٠٧٢٠ توكِن مدخلاً فيفشلان مع المستندات الكبيرة.)
-  model: "qwen-long",
-  modelPremium: "qwen-long",
+  // qwen-plus-latest: السياق الحديث (~١٢٩ ألف توكِن) المتاح على القاعدة الدوليّة.
+  // (الاسم المستعار qwen-plus يشير لِلقطة قديمة بحدّ ٣٠٧٢٠ توكِن، و qwen-long غير
+  // متاح على القاعدة الدوليّة.)
+  model: "qwen-plus-latest",
+  modelPremium: "qwen-plus-latest",
   maxChars: 800_000,
   premiumEnabled: true,
 };
