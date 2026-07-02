@@ -252,6 +252,7 @@ function buildDialogMessages(context: string, checkpoint?: string): DialogMsg[] 
 // يسلّم المهمة كاملة دفعةً واحدة ويعيد معرّف الدفعة للمتابعة.
 // التوجيه حسب بادئة معرّف النموذج: qwen-* ⇒ مزوّد Qwen (المعرّف يُبدَأ بـ "qwen:")،
 // وإلّا ⇒ Anthropic Batches (المعرّف يبقى كما هو — توافق رجعيّ للسجلّات الجارية).
+// لا تبديل مزوّد تلقائيّاً: تعذُّر المزوّد المضبوط يُسلَّم كخطأ واضح (استرداد + رسالة).
 export async function submitStudyBatch(opts: {
   model: string;
   system: string;

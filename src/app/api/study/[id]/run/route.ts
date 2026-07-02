@@ -171,13 +171,22 @@ export async function POST(
     // رفض فلتر المحتوى لدى المزوّد (إنذار كاذب شائع على النصوص التراثيّة) —
     // إعادة المحاولة لا تُجدي، فالرسالة تكون واضحة بلا «أعد المحاولة».
     const isContentFlag = /inappropriate content|data_inspection/i.test(raw);
+    // نفاد حصّة/تعثّر فوترة لدى المزوّد (بعد انتهاء الحصّة المجانيّة مثلاً) —
+    // إضافة بطاقة وحدها لا تكفي: يجب تفعيل خدمة Model Studio في حساب علي بابا،
+    // وقد يستغرق سريان التفعيل بعض الوقت.
+    const isQuota = /quota|arrearage|in good standing|throttl|insufficient.*balance/i.test(raw);
     const detail = raw ? ` (${raw.slice(0, 200)})` : "";
     const message = isContentFlag
       ? `رفض مزوّد الذكاء معالجة محتوى هذا المستند بفلتر المحتوى (قد يكون إنذاراً كاذباً لنصّ تراثيّ). لم يُخصم من رصيدك شيء.${detail}`
-      : `تعذّر إرسال المهمة — أعد المحاولة بعد قليل. لم يُخصم من رصيدك شيء.${detail}`;
+      : isQuota
+        ? `نفدت الحصّة المجانيّة لمزوّد الذكاء ولم يسرِ الاشتراك المدفوع بعد — يلزم تفعيل خدمة Model Studio في حساب علي بابا (لا تكفي إضافة البطاقة وحدها)، وقد يستغرق سريان التفعيل بعض الوقت. لم يُخصم من رصيدك شيء.${detail}`
+        : `تعذّر إرسال المهمة — أعد المحاولة بعد قليل. لم يُخصم من رصيدك شيء.${detail}`;
     await db.studySummary
       .update({ where: { id }, data: { status: "FAILED", errorMessage: message } })
       .catch(() => {});
-    return NextResponse.json({ error: message }, { status: isContentFlag ? 422 : 500 });
+    return NextResponse.json(
+      { error: message },
+      { status: isContentFlag ? 422 : isQuota ? 503 : 500 },
+    );
   }
 }

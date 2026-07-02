@@ -94,9 +94,11 @@ export function parseBatchOutput(jsonl: string, endMark: string): StudyBatchStat
 }
 
 // ─── نداءات HTTP (مع إعادة محاولة للأخطاء العابرة ٤٢٩/٥xx) ──────
+// ٤ محاولات بتراجع أسّي (2s/4s/8s): حدود QPM على الحسابات المدفوعة حديثاً
+// منخفضة فتكثر 429 العابرة — المهلة تتّسع لها (maxDuration=300 في المسارات).
 async function qwenFetch(path: string, init: RequestInit): Promise<Response> {
   let last = "";
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     const res = await fetch(`${BASE_URL}${path}`, {
       ...init,
       headers: { Authorization: `Bearer ${apiKey}`, ...(init.headers ?? {}) },
@@ -104,7 +106,7 @@ async function qwenFetch(path: string, init: RequestInit): Promise<Response> {
     if (res.ok) return res;
     last = `Qwen ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`;
     if (res.status !== 429 && res.status < 500) break;
-    await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+    await new Promise((r) => setTimeout(r, 2000 * 2 ** attempt));
   }
   throw new Error(last || "Qwen request failed");
 }
