@@ -241,18 +241,19 @@ export default async function JobDetailPage({
             {pages.map((page) => {
               const quality = scorePageQuality(page.textContent ?? "");
               const { main, footnotes } = extractFootnotes(page.textContent ?? "");
+              // ألوان النظام التصميمي: أخضر = ممتازة، برتقالي = متوسّطة، وردي = تحتاج مراجعة
               const qualityColor =
                 quality.label === "high"
-                  ? "#16a34a"
+                  ? "var(--success)"
                   : quality.label === "medium"
-                  ? "#ca8a04"
-                  : "#dc2626";
+                  ? "var(--orange)"
+                  : "var(--rose)";
               const qualityBg =
                 quality.label === "high"
-                  ? "rgba(22,163,74,0.08)"
+                  ? "rgba(109,189,122,0.12)"
                   : quality.label === "medium"
-                  ? "rgba(202,138,4,0.08)"
-                  : "rgba(220,38,38,0.08)";
+                  ? "var(--orange-soft)"
+                  : "rgba(201,123,132,0.10)";
               const qualityLabel =
                 quality.label === "high"
                   ? "جودة ممتازة"

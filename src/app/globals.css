@@ -172,6 +172,15 @@
   ::backdrop {
     border-color: var(--color-border, currentColor);
   }
+
+  /* حلقة تركيز واضحة للتنقّل بلوحة المفاتيح (وصوليّة) — لا تظهر عند النقر بالفأرة */
+  a:focus-visible,
+  button:focus-visible,
+  summary:focus-visible,
+  [role="button"]:focus-visible {
+    outline: 2px solid var(--orange);
+    outline-offset: 2px;
+  }
 }
 
 * {
@@ -222,6 +231,9 @@ body {
     transform: translateY(-1px);
     box-shadow: rgba(246, 146, 81, 0.3) 0px 6px 20px;
   }
+  .btn-primary:active:not(:disabled) {
+    transform: translateY(0) scale(0.99);
+  }
   .btn-primary:disabled {
     opacity: 0.4;
     cursor: not-allowed;
@@ -246,6 +258,9 @@ body {
   }
   .btn-ghost:hover {
     border-color: var(--orange);
+  }
+  .btn-ghost:active {
+    transform: scale(0.99);
   }
 
   /* ── Badge ── */

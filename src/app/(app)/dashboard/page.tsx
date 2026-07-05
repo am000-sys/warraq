@@ -4,9 +4,22 @@ import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { StatusPill } from "@/components/page-header";
-import { ar } from "@/lib/utils";
+import { EmptyState } from "@/components/empty-state";
+import { ar, arNum } from "@/lib/utils";
 import { modelName } from "@/lib/models";
-import { FileText, Image as ImageIcon, Plus } from "lucide-react";
+import {
+  FileText,
+  Image as ImageIcon,
+  Plus,
+  Upload,
+  FileCheck2,
+  ListChecks,
+  Wallet,
+  Clock3,
+  type LucideIcon,
+} from "lucide-react";
+
+export const metadata = { title: "لوحة التحكم — ورّاق" };
 
 export default async function DashboardPage() {
   const user = (await getCurrentUser())!;
@@ -64,7 +77,7 @@ export default async function DashboardPage() {
         >
           لديك{" "}
           <span style={{ color: "var(--orange)", fontWeight: 500 }}>
-            {ar(user.pagesBalance)}
+            {arNum(user.pagesBalance)}
           </span>{" "}
           صفحة متبقية هذا الشهر
         </p>
@@ -77,23 +90,27 @@ export default async function DashboardPage() {
       >
         <StatCard
           label="صفحات هذا الشهر"
-          value={ar(monthlyPages)}
+          value={arNum(monthlyPages)}
           sub="مكتملة"
+          icon={FileCheck2}
         />
         <StatCard
           label="الوظائف المكتملة"
-          value={ar(totalJobs)}
+          value={arNum(totalJobs)}
           sub="الإجمالي"
+          icon={ListChecks}
         />
         <StatCard
           label="الرصيد المتبقي"
-          value={ar(user.pagesBalance)}
+          value={arNum(user.pagesBalance)}
           sub="صفحة"
+          icon={Wallet}
         />
         <StatCard
           label="قيد المعالجة"
           value={ar(processingJobs)}
           sub="وظيفة الآن"
+          icon={Clock3}
         />
       </div>
 
@@ -120,17 +137,21 @@ export default async function DashboardPage() {
         </div>
 
         {recentJobs.length === 0 ? (
-          <div
-            className="text-center"
-            style={{
-              padding: "48px 20px",
-              color: "var(--pebble)",
-              fontFamily: "Tajawal, sans-serif",
-              fontSize: 14,
-            }}
-          >
-            لا توجد وظائف بعد. ابدأ برفع ملف.
-          </div>
+          <EmptyState
+            icon={Upload}
+            title="لا توجد وظائف بعد"
+            description="ارفع أوّل ملفّ PDF أو صورة، وسيظهر تقدّم المعالجة والنتائج هنا."
+            action={
+              <Link
+                href="/upload"
+                className="btn-primary no-underline"
+                style={{ fontSize: 13, padding: "10px 22px" }}
+              >
+                <Plus size={14} strokeWidth={2} /> رفع أوّل ملف
+              </Link>
+            }
+            compact
+          />
         ) : (
           recentJobs.map((job, i) => (
             <Link
@@ -196,22 +217,36 @@ function StatCard({
   label,
   value,
   sub,
+  icon: Icon,
 }: {
   label: string;
   value: string;
   sub: string;
+  icon: LucideIcon;
 }) {
   return (
     <div className="card" style={{ borderRadius: 16, padding: "20px 22px" }}>
-      <div
-        style={{
-          fontSize: 12,
-          color: "var(--stone)",
-          fontFamily: "Tajawal, sans-serif",
-          marginBottom: 8,
-        }}
-      >
-        {label}
+      <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+        <div
+          style={{
+            fontSize: 12,
+            color: "var(--stone)",
+            fontFamily: "Tajawal, sans-serif",
+          }}
+        >
+          {label}
+        </div>
+        <div
+          className="flex items-center justify-center flex-shrink-0"
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 10,
+            background: "var(--orange-soft)",
+          }}
+        >
+          <Icon size={15} color="var(--orange)" strokeWidth={1.7} />
+        </div>
       </div>
       <div
         style={{

@@ -6,6 +6,8 @@ import { PageHeader } from "@/components/page-header";
 import { ar } from "@/lib/utils";
 import { Plus, Building2, Users } from "lucide-react";
 
+export const metadata = { title: "المؤسسات — ورّاق" };
+
 export default async function OrganizationPage() {
   const user = (await getCurrentUser())!;
 

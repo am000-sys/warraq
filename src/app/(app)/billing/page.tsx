@@ -4,6 +4,8 @@ import { TopUpClient } from "@/components/topup-client";
 import { TOPUP_PACKAGES } from "@/lib/packages";
 import { BANK, formatIban } from "@/lib/bank";
 
+export const metadata = { title: "شحن الرصيد — ورّاق" };
+
 export default function BillingPage() {
   return (
     <div>

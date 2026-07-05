@@ -107,11 +107,11 @@ export function AdminSidebar({ name }: { name: string }) {
               <Link
                 key={item.k}
                 href={item.k}
-                className="flex items-center gap-2.5 transition-all no-underline"
+                className={`flex items-center gap-2.5 transition-all no-underline${active ? "" : " hover:bg-white/5"}`}
                 style={{
                   padding: "10px 12px",
                   borderRadius: 10,
-                  background: active ? "rgba(246,146,81,0.1)" : "transparent",
+                  background: active ? "rgba(246,146,81,0.1)" : undefined,
                   color: active ? "var(--orange)" : "rgba(255,255,255,0.55)",
                   fontWeight: active ? 500 : 400,
                   fontSize: 14,
