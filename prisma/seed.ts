@@ -99,7 +99,7 @@ async function main() {
     process.exit(1);
   }
 
-  const passwordHash = await bcrypt.hash(adminPassword, 12);
+  const passwordHash = await bcrypt.hash(adminPassword, 10);
 
   const admin = await db.user.upsert({
     where: { email: adminEmail },

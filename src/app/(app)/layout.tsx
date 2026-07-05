@@ -2,7 +2,6 @@
 import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { AppSidebar } from "@/components/app-sidebar";
-import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -10,15 +9,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  // الخطّة الحاليّة (إن وُجد اشتراك نشط)
-  const sub = user.subscriptionId
-    ? await db.subscription
-        .findUnique({
-          where: { id: user.subscriptionId },
-          include: { plan: true },
-        })
-        .catch(() => null)
-    : null;
+  // الخطّة الحاليّة تأتي ضمن استعلام getCurrentUser نفسه (join) — بلا جولة إضافيّة
+  const sub = user.subscription;
 
   return (
     <div className="flex min-h-screen" style={{ background: "var(--fog)", direction: "rtl" }}>

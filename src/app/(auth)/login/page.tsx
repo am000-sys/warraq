@@ -2,14 +2,23 @@
 // مرجع: design-reference/warraq-v3.html (function AuthPage, mode='login')
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { Field, FieldLabel, FieldControl } from "@/components/ui/field";
 
+// useSearchParams يستلزم حدود Suspense كي تبقى الصفحة static (تُقدَّم من CDN)
 export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
   const callbackUrl = params.get("callbackUrl") ?? "/dashboard";

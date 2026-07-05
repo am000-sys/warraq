@@ -4,7 +4,7 @@ import NextAuth, { type DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { redirect } from "next/navigation";
-import bcrypt from "bcryptjs";
+import { verifyPassword, hashPassword, needsRehash } from "@/lib/password";
 import { db } from "@/lib/db";
 
 declare module "next-auth" {
@@ -34,8 +34,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const user = await db.user.findUnique({ where: { email } });
         if (!user?.passwordHash) return null;
 
-        const ok = await bcrypt.compare(password, user.passwordHash);
+        const ok = await verifyPassword(password, user.passwordHash);
         if (!ok) return null;
+
+        // ترحيل شفّاف للتجزئات القديمة الأثقل (كلفة 12) إلى الكلفة الحاليّة —
+        // مرّة واحدة لكلّ مستخدم، فيصير كلّ دخول لاحق أسرع بوضوح
+        if (needsRehash(user.passwordHash)) {
+          const newHash = await hashPassword(password);
+          await db.user
+            .update({ where: { id: user.id }, data: { passwordHash: newHash } })
+            .catch(() => {});
+        }
 
         return { id: user.id, email: user.email, name: user.name };
       },
@@ -75,12 +84,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 });
 
 // ── Helpers ──
-// مُغلّف بـ cache: استدعاؤه عدّة مرّات في الطلب الواحد (layout + الصفحة) = استعلام واحد فقط
+// مُغلّف بـ cache: استدعاؤه عدّة مرّات في الطلب الواحد (layout + الصفحة) = استعلام واحد فقط.
+// نضمّ الاشتراك وخطّته في الاستعلام نفسه (join) — يوفّر جولة قاعدة بيانات كاملة
+// في كلّ صفحات اللوحة (كان الـ layout يستعلم عن الاشتراك على حدة).
 export const getCurrentUser = cache(async () => {
   const session = await auth();
   if (!session?.user?.id) return null;
   return db.user.findUnique({
     where: { id: session.user.id },
+    include: { subscription: { include: { plan: true } } },
   });
 });
 

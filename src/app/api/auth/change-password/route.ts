@@ -1,7 +1,7 @@
 // src/app/api/auth/change-password/route.ts — تغيير كلمة المرور
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
+import { hashPassword, verifyPassword } from "@/lib/password";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
     }
 
     // تحقّق من كلمة المرور الحاليّة
-    const ok = await bcrypt.compare(body.currentPassword, user.passwordHash);
+    const ok = await verifyPassword(body.currentPassword, user.passwordHash);
     if (!ok) {
       return NextResponse.json(
         { error: "كلمة المرور الحاليّة غير صحيحة" },
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     }
 
     // hash جديد للكلمة الجديدة
-    const newHash = await bcrypt.hash(body.newPassword, 10);
+    const newHash = await hashPassword(body.newPassword);
     await db.user.update({
       where: { id: user.id },
       data: { passwordHash: newHash },

@@ -4,6 +4,7 @@
 //  - الأهليّة عبر الخطّة (الخطط المشمولة) أو عبر رصيد الاستخدام (pagesBalance).
 //  - الإعداد كلّه في SystemSetting (قابل للتحكّم لاحقاً من لوحة الإدارة) — بلا جداول جديدة.
 //  - التتبّع في AuditLog.
+import { cache } from "react";
 import { db } from "@/lib/db";
 import type { ClaudeModel } from "@prisma/client";
 
@@ -52,7 +53,8 @@ const KEYS = {
 } as const;
 
 // يقرأ الإعداد من SystemSetting مع قيَم افتراضيّة آمنة (يعمل حتى لو غابت الصفوف)
-export async function getClaudeConfig(): Promise<ClaudeConfig> {
+// مُغلّف بـ cache: نداءات متعدّدة في الطلب الواحد = استعلام واحد
+export const getClaudeConfig = cache(async (): Promise<ClaudeConfig> => {
   try {
     const rows = await db.systemSetting.findMany({
       where: { key: { in: Object.values(KEYS) } },
@@ -76,7 +78,7 @@ export async function getClaudeConfig(): Promise<ClaudeConfig> {
   } catch {
     return { ...DEFAULTS };
   }
-}
+});
 
 export type ClaudeAccess = {
   enabled: boolean; // الميزة مفعّلة عالمياً
@@ -91,8 +93,19 @@ export type ClaudeAccess = {
   textModel: ClaudeModel;
 };
 
+// بيانات المستخدم اللازمة للأهليّة — تُمرَّر جاهزة من الصفحة إن كانت محمَّلة أصلاً
+// (getCurrentUser يجلب الاشتراك وخطّته بنفس الاستعلام) فنوفّر جولتي قاعدة بيانات
+export type ClaudeAccessUser = {
+  systemRole: string;
+  pagesBalance: number;
+  subscription: { status: string; plan: { slug: string } } | null;
+};
+
 // المصدر الوحيد للحقيقة: هل يستطيع المستخدم استخدام خدمات Claude؟
-export async function getClaudeAccess(userId: string): Promise<ClaudeAccess> {
+export async function getClaudeAccess(
+  userId: string,
+  preloaded?: ClaudeAccessUser,
+): Promise<ClaudeAccess> {
   const cfg = await getClaudeConfig();
   const base = {
     enabled: cfg.enabled,
@@ -106,10 +119,16 @@ export async function getClaudeAccess(userId: string): Promise<ClaudeAccess> {
     return { ...base, eligible: false, mode: "none", reason: "disabled", balance: 0, planSlug: "free" };
   }
 
-  const user = await db.user.findUnique({
-    where: { id: userId },
-    select: { systemRole: true, pagesBalance: true, subscriptionId: true },
-  });
+  const user =
+    preloaded ??
+    (await db.user.findUnique({
+      where: { id: userId },
+      select: {
+        systemRole: true,
+        pagesBalance: true,
+        subscription: { select: { status: true, plan: { select: { slug: true } } } },
+      },
+    }));
   if (!user) {
     return { ...base, eligible: false, mode: "none", reason: "no_user", balance: 0, planSlug: "free" };
   }
@@ -117,14 +136,8 @@ export async function getClaudeAccess(userId: string): Promise<ClaudeAccess> {
   // أدوات المستند تابعة للمعالجة: متاحة لكلّ مستخدم بلا قفل ولا خصم إضافيّ
   // ما دامت مفعّلة عالمياً (يضبط المالك التفعيل من الإعدادات). mode=plan ⇒ بلا خصم.
   let planSlug = user.systemRole === "SYSTEM_ADMIN" ? "admin" : "user";
-  if (user.systemRole !== "SYSTEM_ADMIN" && user.subscriptionId) {
-    const sub = await db.subscription
-      .findUnique({
-        where: { id: user.subscriptionId },
-        select: { status: true, plan: { select: { slug: true } } },
-      })
-      .catch(() => null);
-    if (sub && sub.status === "ACTIVE") planSlug = sub.plan.slug;
+  if (user.systemRole !== "SYSTEM_ADMIN" && user.subscription?.status === "ACTIVE") {
+    planSlug = user.subscription.plan.slug;
   }
 
   return {
