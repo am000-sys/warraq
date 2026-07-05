@@ -9,7 +9,7 @@ import { Activity } from "lucide-react";
 async function measureDbLatency(): Promise<{ samples: number[]; ok: boolean }> {
   const samples: number[] = [];
   try {
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 6; i++) {
       const t = performance.now();
       await db.$queryRaw`SELECT 1`;
       samples.push(Math.round(performance.now() - t));
@@ -193,7 +193,7 @@ export default async function AdminSystemPage() {
             style={{ paddingBottom: 12, borderBottom: "1px solid var(--border-sub)" }}
           >
             <dt style={{ fontSize: 13, color: "var(--stone)" }}>
-              زمن قاعدة البيانات (٣ عيّنات، بالمللي ثانية)
+              زمن قاعدة البيانات (٦ عيّنات — الأولى تشمل فتح الاتصال)
             </dt>
             <dd
               style={{
