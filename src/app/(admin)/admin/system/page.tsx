@@ -20,6 +20,45 @@ async function measureDbLatency(): Promise<{ samples: number[]; ok: boolean }> {
   }
 }
 
+// مضيف قاعدة البيانات (الاسم فقط — لا يُعرض المستخدم ولا كلمة المرور أبداً)
+function dbHost(): string | null {
+  try {
+    const raw = process.env.DATABASE_URL;
+    if (!raw) return null;
+    return new URL(raw).hostname;
+  } catch {
+    return null;
+  }
+}
+
+// اقتراح أقرب منطقة Vercel من نمط اسم مضيف القاعدة (AWS regions الشائعة)
+const REGION_MAP: [string, string][] = [
+  ["us-east-1", "iad1 (واشنطن)"],
+  ["us-east-2", "cle1 (كليفلاند)"],
+  ["us-west-1", "sfo1 (سان فرانسيسكو)"],
+  ["us-west-2", "pdx1 (بورتلاند)"],
+  ["eu-central-1", "fra1 (فرانكفورت)"],
+  ["eu-west-1", "dub1 (دبلن)"],
+  ["eu-west-2", "lhr1 (لندن)"],
+  ["eu-west-3", "cdg1 (باريس)"],
+  ["eu-north-1", "arn1 (ستوكهولم)"],
+  ["ap-southeast-1", "sin1 (سنغافورة)"],
+  ["ap-southeast-2", "syd1 (سيدني)"],
+  ["ap-south-1", "bom1 (مومباي)"],
+  ["ap-northeast-1", "hnd1 (طوكيو)"],
+  ["ap-northeast-2", "icn1 (سيول)"],
+  ["sa-east-1", "gru1 (ساو باولو)"],
+  ["me-south-1", "dxb1 (دبي)"],
+  ["me-central-1", "dxb1 (دبي)"],
+  ["af-south-1", "cpt1 (كيب تاون)"],
+];
+
+function suggestVercelRegion(host: string | null): string | null {
+  if (!host) return null;
+  const hit = REGION_MAP.find(([aws]) => host.includes(aws));
+  return hit ? hit[1] : null;
+}
+
 // حكم عمليّ على زمن القاعدة (أفضل عيّنة = زمن الشبكة الصافي بين الدالّة والقاعدة)
 function latencyVerdict(best: number): { label: string; color: string; advice: string | null } {
   if (best <= 5)
@@ -56,6 +95,8 @@ export default async function AdminSystemPage() {
   ]);
 
   const region = process.env.VERCEL_REGION || null;
+  const host = dbHost();
+  const suggested = suggestVercelRegion(host);
   const best = dbLatency.samples.length ? Math.min(...dbLatency.samples) : null;
   const verdict = best !== null ? latencyVerdict(best) : null;
 
@@ -108,6 +149,45 @@ export default async function AdminSystemPage() {
               {region ?? "غير متاحة (تشغيل محلّي)"}
             </dd>
           </div>
+          <div
+            className="flex justify-between items-center flex-wrap"
+            style={{ gap: 8, paddingBottom: 12, borderBottom: "1px solid var(--border-sub)" }}
+          >
+            <dt style={{ fontSize: 13, color: "var(--stone)" }}>مضيف قاعدة البيانات</dt>
+            <dd
+              style={{
+                fontSize: 12,
+                fontFamily: "ui-monospace, Menlo, monospace",
+                direction: "ltr",
+                background: "var(--fog)",
+                padding: "4px 10px",
+                borderRadius: 6,
+                wordBreak: "break-all",
+              }}
+            >
+              {host ?? "—"}
+            </dd>
+          </div>
+          {suggested && (
+            <div
+              className="flex justify-between items-center"
+              style={{ paddingBottom: 12, borderBottom: "1px solid var(--border-sub)" }}
+            >
+              <dt style={{ fontSize: 13, color: "var(--stone)" }}>
+                منطقة Vercel المقترحة (الأقرب للقاعدة)
+              </dt>
+              <dd
+                style={{
+                  fontSize: 12.5,
+                  fontWeight: 500,
+                  color: "var(--orange)",
+                  fontFamily: "Tajawal, sans-serif",
+                }}
+              >
+                {suggested}
+              </dd>
+            </div>
+          )}
           <div
             className="flex justify-between items-center"
             style={{ paddingBottom: 12, borderBottom: "1px solid var(--border-sub)" }}
