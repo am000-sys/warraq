@@ -2,7 +2,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import bcrypt from "bcryptjs";
+import { hashPassword } from "@/lib/password";
 import { db } from "@/lib/db";
 
 const schema = z.object({
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "رابط غير صالح أو منتهي" }, { status: 400 });
     }
 
-    const passwordHash = await bcrypt.hash(password, 12);
+    const passwordHash = await hashPassword(password);
     await db.$transaction([
       db.user.update({
         where: { email: reset.email },

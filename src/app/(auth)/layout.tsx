@@ -1,7 +1,7 @@
 // src/app/(auth)/layout.tsx — إطار مصادقة بسيط متمحور
 // مرجع: design-reference/warraq-v3.html (function AuthPage)
-
-export const dynamic = "force-dynamic";
+// ملاحظة أداء: لا force-dynamic هنا — هذه الصفحات نماذج عميل خالصة، فتُبنى
+// static وتُقدَّم من الـ CDN مباشرة (بلا استدعاء دالّة خادم ولا cold start)
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (

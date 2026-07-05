@@ -56,24 +56,34 @@ export default async function JobDetailPage({
     if (!member) notFound();
   }
 
-  // عدد الصفحات المكتملة (للتنقّل)
-  const totalCompleted = await db.jobPage.count({
-    where: { jobId: id, status: "COMPLETED" },
-  });
+  // ثلاث جولات مستقلّة عن بعضها → تُنفَّذ بالتوازي (توفير زمن ذهاب وإياب للقاعدة)
+  const [totalCompleted, jumpFound, claudeAccess] = await Promise.all([
+    // عدد الصفحات المكتملة (للتنقّل)
+    db.jobPage.count({ where: { jobId: id, status: "COMPLETED" } }),
+    // البحث بالرقم المطبوع
+    q
+      ? db.jobPage.findFirst({
+          where: { jobId: id, status: "COMPLETED", printedNumber: q },
+          select: { sequentialNumber: true },
+        })
+      : Promise.resolve(null),
+    // أهليّة خدمات Claude الإضافيّة — بيانات المستخدم محمَّلة أصلاً فلا استعلام لها
+    job.status === "COMPLETED"
+      ? getClaudeAccess(user.id, {
+          systemRole: user.systemRole,
+          pagesBalance: user.pagesBalance,
+          subscription: user.subscription
+            ? {
+                status: user.subscription.status,
+                plan: { slug: user.subscription.plan.slug },
+              }
+            : null,
+        })
+      : Promise.resolve(null),
+  ]);
 
   const totalPagesCount = Math.ceil(totalCompleted / PER_PAGE);
-
-  // البحث بالرقم المطبوع
-  let jumpSeq: number | null = null;
-  if (q) {
-    const found = await db.jobPage.findFirst({
-      where: { jobId: id, status: "COMPLETED", printedNumber: q },
-      select: { sequentialNumber: true },
-    });
-    if (found) {
-      jumpSeq = found.sequentialNumber;
-    }
-  }
+  const jumpSeq: number | null = jumpFound?.sequentialNumber ?? null;
 
   // الصفحة الحاليّة من الترقيم
   let currentPage = Math.max(1, parseInt(p ?? "1") || 1);
@@ -99,10 +109,6 @@ export default async function JobDetailPage({
   });
 
   const pct = (job.processedPages / Math.max(1, job.totalPages)) * 100;
-
-  // أهليّة خدمات Claude الإضافيّة
-  const claudeAccess =
-    job.status === "COMPLETED" ? await getClaudeAccess(user.id) : null;
 
   const baseUrl = `/jobs/${id}`;
 
@@ -241,18 +247,19 @@ export default async function JobDetailPage({
             {pages.map((page) => {
               const quality = scorePageQuality(page.textContent ?? "");
               const { main, footnotes } = extractFootnotes(page.textContent ?? "");
+              // ألوان النظام التصميمي: أخضر = ممتازة، برتقالي = متوسّطة، وردي = تحتاج مراجعة
               const qualityColor =
                 quality.label === "high"
-                  ? "#16a34a"
+                  ? "var(--success)"
                   : quality.label === "medium"
-                  ? "#ca8a04"
-                  : "#dc2626";
+                  ? "var(--orange)"
+                  : "var(--rose)";
               const qualityBg =
                 quality.label === "high"
-                  ? "rgba(22,163,74,0.08)"
+                  ? "rgba(109,189,122,0.12)"
                   : quality.label === "medium"
-                  ? "rgba(202,138,4,0.08)"
-                  : "rgba(220,38,38,0.08)";
+                  ? "var(--orange-soft)"
+                  : "rgba(201,123,132,0.10)";
               const qualityLabel =
                 quality.label === "high"
                   ? "جودة ممتازة"

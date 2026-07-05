@@ -5,6 +5,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// ── أرقام عربيّة بفواصل الآلاف (للأرصدة والإحصاءات الكبيرة) ──
+export function arNum(n: number): string {
+  return n.toLocaleString("ar-SA");
+}
+
 // ── Arabic numeral helper ──
 export function ar(n: number | string): string {
   const map: Record<string, string> = {

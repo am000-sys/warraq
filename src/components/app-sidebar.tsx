@@ -139,11 +139,11 @@ export function AppSidebar({ user }: Props) {
               <Link
                 key={item.k}
                 href={item.k}
-                className="flex items-center gap-2.5 transition-all no-underline"
+                className={`flex items-center gap-2.5 transition-all no-underline${active ? "" : " hover:bg-fog"}`}
                 style={{
                   padding: "10px 12px",
                   borderRadius: 10,
-                  background: active ? "var(--orange-soft)" : "transparent",
+                  background: active ? "var(--orange-soft)" : undefined,
                   color: active ? "var(--orange)" : "var(--stone)",
                   fontWeight: active ? 500 : 400,
                   fontSize: 14,

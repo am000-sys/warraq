@@ -3,9 +3,11 @@ import { Prisma } from "@prisma/client";
 import { getCurrentUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
+import { EmptyState } from "@/components/empty-state";
 import { InitDbButton } from "@/components/init-db-button";
 import { StudyClient, type SummaryMeta } from "@/components/study-client";
 import { getStudyConfig, isStudyConfigured } from "@/lib/study";
+import { BookOpenCheck, Hourglass } from "lucide-react";
 
 export const metadata = { title: "الملخّص الدراسي — ورّاق" };
 
@@ -91,17 +93,13 @@ export default async function StudyPage() {
             <InitDbButton />
           </>
         ) : (
-          <div
-            className="card text-center"
-            style={{
-              borderRadius: 16,
-              padding: "48px 24px",
-              color: "var(--stone)",
-              fontFamily: "Tajawal, sans-serif",
-              fontSize: 14,
-            }}
-          >
-            خدمة الملخّص الدراسي قيد التجهيز — عُد بعد قليل.
+          <div className="card" style={{ borderRadius: 16 }}>
+            <EmptyState
+              icon={Hourglass}
+              title="الخدمة قيد التجهيز"
+              description="خدمة الملخّص الدراسي تُجهَّز حالياً — عُد بعد قليل."
+              compact
+            />
           </div>
         )}
       </>
@@ -117,17 +115,12 @@ export default async function StudyPage() {
         subtitle="حوّل مقرّرك أو كتابك إلى ملخّص منظّم للمذاكرة — بنقولٍ موثّقة وأرقام صفحات من المادّة نفسها"
       />
       {!available ? (
-        <div
-          className="card text-center"
-          style={{
-            borderRadius: 16,
-            padding: "48px 24px",
-            color: "var(--stone)",
-            fontFamily: "Tajawal, sans-serif",
-            fontSize: 14,
-          }}
-        >
-          خدمة الملخّص الدراسي غير متاحة حالياً. عُد لاحقاً أو تواصل مع الدعم.
+        <div className="card" style={{ borderRadius: 16 }}>
+          <EmptyState
+            icon={BookOpenCheck}
+            title="الخدمة غير متاحة حالياً"
+            description="خدمة الملخّص الدراسي غير مفعّلة في الوقت الراهن. عُد لاحقاً أو تواصل مع الدعم."
+          />
         </div>
       ) : (
         <StudyClient

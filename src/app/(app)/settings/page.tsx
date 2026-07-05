@@ -3,15 +3,18 @@ import { getCurrentUser } from "@/lib/auth";
 import { PageHeader } from "@/components/page-header";
 import { ChangePasswordForm } from "@/components/change-password-form";
 import { DeleteAccountButton } from "@/components/delete-account-button";
-import { ar } from "@/lib/utils";
+import { arNum } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
+
+export const metadata = { title: "الإعدادات — ورّاق" };
 
 export default async function SettingsPage() {
   const user = (await getCurrentUser())!;
 
   return (
-    <div>
-      <PageHeader title="الإعدادات" />
+    // عرض مقيّد: نماذج الإعدادات تُقرأ أريح في عمود لا يتمدّد على كامل الشاشة
+    <div style={{ maxWidth: 760 }}>
+      <PageHeader title="الإعدادات" subtitle="حسابك وتفضيلاتك وكلمة المرور" />
 
       {/* Account info */}
       <div className="card mb-4" style={{ borderRadius: 16 }}>
@@ -31,7 +34,7 @@ export default async function SettingsPage() {
           <SettingRow label="البريد الإلكتروني" value={user.email} ltr />
           <SettingRow
             label="رصيد الصفحات"
-            value={ar(user.pagesBalance)}
+            value={arNum(user.pagesBalance)}
             highlight
           />
           <SettingRow

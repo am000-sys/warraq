@@ -48,20 +48,22 @@ export function StatusPill({
   status: string;
   variant?: "success" | "processing" | "neutral" | "danger";
 }) {
+  // دلالة الألوان من النظام التصميمي: أخضر = مكتمل، برتقالي = نشِط الآن،
+  // وردي = فشل، رمادي = محايد
   const styles: Record<string, React.CSSProperties> = {
     success: {
+      background: "rgba(109,189,122,0.12)",
+      color: "var(--success)",
+      border: "1px solid rgba(109,189,122,0.25)",
+    },
+    processing: {
       background: "var(--orange-soft)",
       color: "var(--orange)",
       border: "1px solid rgba(246,146,81,0.2)",
     },
-    processing: {
-      background: "rgba(66,133,244,0.08)",
-      color: "#4285f4",
-      border: "1px solid rgba(66,133,244,0.15)",
-    },
     danger: {
       background: "rgba(201,123,132,0.10)",
-      color: "#c97b84",
+      color: "var(--rose)",
       border: "1px solid rgba(201,123,132,0.20)",
     },
     neutral: {
@@ -72,15 +74,31 @@ export function StatusPill({
   };
   return (
     <span
+      className="inline-flex items-center"
       style={{
         fontSize: 11,
         padding: "3px 10px",
         borderRadius: "var(--r-badge)",
         fontFamily: "Tajawal, sans-serif",
         fontWeight: 500,
+        gap: 5,
+        whiteSpace: "nowrap",
         ...styles[variant],
       }}
     >
+      {variant === "processing" && (
+        <span
+          className="animate-pulse-dot"
+          style={{
+            width: 5,
+            height: 5,
+            borderRadius: "50%",
+            background: "currentColor",
+            display: "inline-block",
+            flexShrink: 0,
+          }}
+        />
+      )}
       {status}
     </span>
   );
