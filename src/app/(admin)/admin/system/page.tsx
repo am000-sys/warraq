@@ -256,6 +256,34 @@ export default async function AdminSystemPage() {
             {verdict.advice}
           </p>
         )}
+
+        {/* فحوصات مزوّدي الذكاء — تفتح تقريراً خاماً مع حكم عربيّ وخطوات علاج */}
+        <div
+          className="flex flex-wrap items-center"
+          style={{ gap: 8, marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border-sub)" }}
+        >
+          <span style={{ fontSize: 12, color: "var(--pebble)", fontFamily: "Tajawal, sans-serif" }}>
+            فحوصات المزوّدين:
+          </span>
+          <a
+            href="/api/admin/qwen-test"
+            target="_blank"
+            rel="noreferrer"
+            className="btn-ghost no-underline"
+            style={{ fontSize: 12, padding: "7px 14px" }}
+          >
+            فحص Qwen / علي بابا (الملخّص الدراسي)
+          </a>
+          <a
+            href="/api/admin/mistral-test"
+            target="_blank"
+            rel="noreferrer"
+            className="btn-ghost no-underline"
+            style={{ fontSize: 12, padding: "7px 14px" }}
+          >
+            فحص Mistral (التفريغ)
+          </a>
+        </div>
       </div>
 
       <InitDbButton />
