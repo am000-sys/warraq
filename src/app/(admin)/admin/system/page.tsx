@@ -59,25 +59,44 @@ function suggestVercelRegion(host: string | null): string | null {
   return hit ? hit[1] : null;
 }
 
-// حكم عمليّ على زمن القاعدة (أفضل عيّنة = زمن الشبكة الصافي بين الدالّة والقاعدة)
-function latencyVerdict(best: number): { label: string; color: string; advice: string | null } {
+// حكم عمليّ على زمن القاعدة (أفضل عيّنة = زمن الشبكة الصافي بين الدالّة والقاعدة).
+// sameRegion: هل منطقة الدالّة تطابق المنطقة المقترحة من مضيف القاعدة؟ —
+// تُميّز بين مشكلة مسافة (انقل المنطقة) ومشكلة موصّل (حسّن الاتصال).
+function latencyVerdict(
+  best: number,
+  sameRegion: boolean,
+): { label: string; color: string; advice: string | null } {
   if (best <= 5)
     return { label: "ممتاز — نفس المنطقة", color: "var(--success)", advice: null };
   if (best <= 25)
     return { label: "جيّد", color: "var(--success)", advice: null };
-  if (best <= 80)
-    return {
-      label: "مقبول — لكن ليس مثاليّاً",
-      color: "var(--orange)",
-      advice:
-        "القاعدة ليست في منطقة الدوالّ نفسها. قرّبهما لتقليص زمن كلّ صفحة.",
-    };
-  return {
-    label: "بعيد — هذا سبب البطء الرئيس",
-    color: "var(--rose)",
-    advice:
-      "كلّ استعلام يدفع هذا الزمن كاملاً، والصفحة الواحدة تنفّذ عدّة استعلامات. الحلّ: في Vercel → Settings → Functions → Region اختر المنطقة الأقرب لقاعدة البيانات (تجدها في عنوان DATABASE_URL)، أو انقل القاعدة لمنطقة الدوالّ.",
-  };
+  if (best <= 80) {
+    return sameRegion
+      ? {
+          label: "جيّد — يتبقّى زمن الموصّل",
+          color: "var(--orange)",
+          advice:
+            "المنطقتان متطابقتان، والمتبقّي كلفة الموصّل المشترك (pooler). خطوة مجّانيّة: في DATABASE_URL ارفع connection_limit إلى 5 (إن كان 1) ليستعيد التطبيق توازي الاستعلامات. ولمزيد من الخفض لاحقاً: موصّل مخصّص من مزوّد القاعدة.",
+        }
+      : {
+          label: "مقبول — لكن ليس مثاليّاً",
+          color: "var(--orange)",
+          advice: "القاعدة ليست في منطقة الدوالّ نفسها. قرّبهما لتقليص زمن كلّ صفحة.",
+        };
+  }
+  return sameRegion
+    ? {
+        label: "بطيء رغم تطابق المنطقة",
+        color: "var(--rose)",
+        advice:
+          "الزمن أعلى ممّا تبرّره الشبكة — افحص حِمل القاعدة/خطّتها، أو جرّب موصّلاً مخصّصاً بدل المشترك.",
+      }
+    : {
+        label: "بعيد — هذا سبب البطء الرئيس",
+        color: "var(--rose)",
+        advice:
+          "كلّ استعلام يدفع هذا الزمن كاملاً، والصفحة الواحدة تنفّذ عدّة استعلامات. الحلّ: في Vercel → Settings → Functions → Region اختر المنطقة الأقرب لقاعدة البيانات (تجدها في عنوان DATABASE_URL)، أو انقل القاعدة لمنطقة الدوالّ.",
+      };
 }
 
 export default async function AdminSystemPage() {
@@ -97,8 +116,10 @@ export default async function AdminSystemPage() {
   const region = process.env.VERCEL_REGION || null;
   const host = dbHost();
   const suggested = suggestVercelRegion(host);
+  // "hnd1 (طوكيو)" → "hnd1" للمقارنة مع منطقة الدالّة الحاليّة
+  const sameRegion = Boolean(region && suggested && suggested.startsWith(region));
   const best = dbLatency.samples.length ? Math.min(...dbLatency.samples) : null;
-  const verdict = best !== null ? latencyVerdict(best) : null;
+  const verdict = best !== null ? latencyVerdict(best, sameRegion) : null;
 
   return (
     <div>
