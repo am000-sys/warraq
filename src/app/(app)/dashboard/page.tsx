@@ -24,7 +24,10 @@ export const metadata = { title: "لوحة التحكم — ورّاق" };
 export default async function DashboardPage() {
   const user = (await getCurrentUser())!;
 
-  const [recentJobs, totalJobs, monthlyAgg, processingJobs] = await Promise.all([
+  // الإحصاءات الثلاث في جولة قاعدة واحدة (subqueries) بدل ثلاث جولات —
+  // في الإنتاج كلّ جولة تدفع زمن ذهاب وإياب كاملاً للقاعدة
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+  const [recentJobs, [stats]] = await Promise.all([
     db.job.findMany({
       where: { userId: user.id },
       orderBy: { createdAt: "desc" },
@@ -38,20 +41,20 @@ export default async function DashboardPage() {
         createdAt: true,
       },
     }),
-    db.job.count({ where: { userId: user.id, status: "COMPLETED" } }),
-    db.job.aggregate({
-      where: {
-        userId: user.id,
-        completedAt: {
-          gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-        },
-      },
-      _sum: { processedPages: true },
-    }),
-    db.job.count({ where: { userId: user.id, status: "PROCESSING" } }),
+    db.$queryRaw<[{ monthly: bigint; total: bigint; processing: bigint }]>`
+      SELECT
+        (SELECT COALESCE(SUM("processedPages"), 0) FROM "Job"
+          WHERE "userId" = ${user.id} AND "completedAt" >= ${monthStart}) AS monthly,
+        (SELECT COUNT(*) FROM "Job"
+          WHERE "userId" = ${user.id} AND status = 'COMPLETED') AS total,
+        (SELECT COUNT(*) FROM "Job"
+          WHERE "userId" = ${user.id} AND status = 'PROCESSING') AS processing
+    `,
   ]);
 
-  const monthlyPages = monthlyAgg._sum.processedPages ?? 0;
+  const monthlyPages = Number(stats?.monthly ?? 0);
+  const totalJobs = Number(stats?.total ?? 0);
+  const processingJobs = Number(stats?.processing ?? 0);
   const greeting = greetingByHour();
   const firstName = (user.name || user.email).split(" ")[0];
 

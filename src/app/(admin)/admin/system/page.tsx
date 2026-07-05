@@ -1,9 +1,50 @@
-// src/app/(admin)/admin/system/page.tsx — إعدادات النظام + سجلّ النشاط
+// src/app/(admin)/admin/system/page.tsx — إعدادات النظام + سجلّ النشاط + تشخيص الأداء
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { InitDbButton } from "@/components/init-db-button";
+import { Activity } from "lucide-react";
+
+// قياس زمن الذهاب والإياب لقاعدة البيانات من داخل دالّة الخادم نفسها.
+// عيّنات متتابعة: الأولى قد تشمل فتح الاتصال، والأفضل (min) يمثّل زمن الشبكة الصافي.
+async function measureDbLatency(): Promise<{ samples: number[]; ok: boolean }> {
+  const samples: number[] = [];
+  try {
+    for (let i = 0; i < 3; i++) {
+      const t = performance.now();
+      await db.$queryRaw`SELECT 1`;
+      samples.push(Math.round(performance.now() - t));
+    }
+    return { samples, ok: true };
+  } catch {
+    return { samples, ok: false };
+  }
+}
+
+// حكم عمليّ على زمن القاعدة (أفضل عيّنة = زمن الشبكة الصافي بين الدالّة والقاعدة)
+function latencyVerdict(best: number): { label: string; color: string; advice: string | null } {
+  if (best <= 5)
+    return { label: "ممتاز — نفس المنطقة", color: "var(--success)", advice: null };
+  if (best <= 25)
+    return { label: "جيّد", color: "var(--success)", advice: null };
+  if (best <= 80)
+    return {
+      label: "مقبول — لكن ليس مثاليّاً",
+      color: "var(--orange)",
+      advice:
+        "القاعدة ليست في منطقة الدوالّ نفسها. قرّبهما لتقليص زمن كلّ صفحة.",
+    };
+  return {
+    label: "بعيد — هذا سبب البطء الرئيس",
+    color: "var(--rose)",
+    advice:
+      "كلّ استعلام يدفع هذا الزمن كاملاً، والصفحة الواحدة تنفّذ عدّة استعلامات. الحلّ: في Vercel → Settings → Functions → Region اختر المنطقة الأقرب لقاعدة البيانات (تجدها في عنوان DATABASE_URL)، أو انقل القاعدة لمنطقة الدوالّ.",
+  };
+}
 
 export default async function AdminSystemPage() {
+  // القياس أوّلاً وبتسلسل — كي لا تُزاحمه استعلامات الصفحة فتتشوّه الأرقام
+  const dbLatency = await measureDbLatency();
+
   const [recentLogs, settings] = await Promise.all([
     db.auditLog
       .findMany({
@@ -14,9 +55,107 @@ export default async function AdminSystemPage() {
     db.systemSetting.findMany().catch(() => []),
   ]);
 
+  const region = process.env.VERCEL_REGION || null;
+  const best = dbLatency.samples.length ? Math.min(...dbLatency.samples) : null;
+  const verdict = best !== null ? latencyVerdict(best) : null;
+
   return (
     <div>
       <PageHeader title="النظام" subtitle="إعدادات وسجلّ نشاط المنصّة." />
+
+      {/* تشخيص الأداء — يقيس من داخل بيئة التشغيل الفعليّة */}
+      <div className="card mb-7" style={{ borderRadius: 16 }}>
+        <div className="flex items-center" style={{ gap: 10, marginBottom: 16 }}>
+          <div
+            className="flex items-center justify-center flex-shrink-0"
+            style={{ width: 32, height: 32, borderRadius: 10, background: "var(--orange-soft)" }}
+          >
+            <Activity size={15} color="var(--orange)" strokeWidth={1.8} />
+          </div>
+          <div>
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 500,
+                color: "var(--carbon)",
+                fontFamily: "Tajawal, sans-serif",
+              }}
+            >
+              تشخيص الأداء
+            </div>
+            <div style={{ fontSize: 11, color: "var(--pebble)", fontFamily: "Tajawal, sans-serif" }}>
+              يُقاس عند كلّ تحميل لهذه الصفحة، من داخل دالّة الخادم نفسها
+            </div>
+          </div>
+        </div>
+
+        <dl className="flex flex-col" style={{ gap: 12, fontFamily: "Tajawal, sans-serif" }}>
+          <div
+            className="flex justify-between items-center"
+            style={{ paddingBottom: 12, borderBottom: "1px solid var(--border-sub)" }}
+          >
+            <dt style={{ fontSize: 13, color: "var(--stone)" }}>منطقة دالّة الخادم (Vercel)</dt>
+            <dd
+              style={{
+                fontSize: 12,
+                fontFamily: "ui-monospace, Menlo, monospace",
+                direction: "ltr",
+                background: "var(--fog)",
+                padding: "4px 10px",
+                borderRadius: 6,
+              }}
+            >
+              {region ?? "غير متاحة (تشغيل محلّي)"}
+            </dd>
+          </div>
+          <div
+            className="flex justify-between items-center"
+            style={{ paddingBottom: 12, borderBottom: "1px solid var(--border-sub)" }}
+          >
+            <dt style={{ fontSize: 13, color: "var(--stone)" }}>
+              زمن قاعدة البيانات (٣ عيّنات، بالمللي ثانية)
+            </dt>
+            <dd
+              style={{
+                fontSize: 12,
+                fontFamily: "ui-monospace, Menlo, monospace",
+                direction: "ltr",
+                background: "var(--fog)",
+                padding: "4px 10px",
+                borderRadius: 6,
+              }}
+            >
+              {dbLatency.ok ? dbLatency.samples.join(" / ") + " ms" : "فشل الاتصال"}
+            </dd>
+          </div>
+          {verdict && (
+            <div className="flex justify-between items-center">
+              <dt style={{ fontSize: 13, color: "var(--stone)" }}>التقييم</dt>
+              <dd style={{ fontSize: 13, fontWeight: 500, color: verdict.color }}>
+                {verdict.label}
+              </dd>
+            </div>
+          )}
+        </dl>
+
+        {verdict?.advice && (
+          <p
+            style={{
+              marginTop: 14,
+              fontSize: 12.5,
+              lineHeight: 1.9,
+              color: "var(--graphite)",
+              fontFamily: "Tajawal, sans-serif",
+              background: "var(--orange-soft)",
+              border: "1px solid var(--orange-mid)",
+              borderRadius: 12,
+              padding: "10px 14px",
+            }}
+          >
+            {verdict.advice}
+          </p>
+        )}
+      </div>
 
       <InitDbButton />
 
