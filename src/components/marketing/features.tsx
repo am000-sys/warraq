@@ -6,7 +6,7 @@ import {
   Hash,
   Feather,
   Zap,
-  Layers,
+  BookOpenCheck,
   FileDown,
   Building2,
   Check,
@@ -112,14 +112,14 @@ export function Features() {
           >
             <IconTile icon={Zap} />
             <div className="mb-2" style={{ fontSize: 17, fontWeight: 500, color: "var(--carbon)" }}>
-              معالجة سريعة
+              معالجة سريعة قابلة للاستئناف
             </div>
             <p className="font-light m-0" style={{ fontSize: 14, color: "var(--stone)", lineHeight: 1.7 }}>
-              معالجة الصفحات في ثوانٍ، مع تشغيل متوازٍ للكتب الضخمة دون انتظار.
+              معالجة على دفعات في الخلفية، وأي انقطاع لا يُفقدك الصفحات المنجَزة.
             </p>
           </Reveal>
 
-          {/* ٤ — ثلاثة نماذج (خليّة داكنة) */}
+          {/* ٤ — تصحيح الآيات القرآنيّة (خليّة داكنة) */}
           <Reveal
             delay={0.08}
             className={`md:col-span-4 ${cellBase}`}
@@ -127,41 +127,48 @@ export function Features() {
           >
             <div className="flex flex-col md:flex-row items-start gap-6">
               <div className="flex-1">
-                <IconTile icon={Layers} dark />
+                <IconTile icon={BookOpenCheck} dark />
                 <div className="mb-2" style={{ fontSize: 19, fontWeight: 500, color: "#fff" }}>
-                  ثلاثة نماذج ذكاء
+                  تصحيح الآيات القرآنية تلقائياً
                 </div>
                 <p
                   className="font-light m-0"
                   style={{ fontSize: 14.5, color: "rgba(255,255,255,0.55)", lineHeight: 1.75, maxWidth: 360 }}
                 >
-                  سريع للنصوص الواضحة، جيّد للأغلب، وفائق لأصعب المخطوطات. اختر الأنسب
-                  لكلّ كتاب.
+                  تُقابَل الآيات المقتبسة بين القوسين ﴿ ﴾ بالرسم العثماني من مصدر معتمَد
+                  وتُصحَّح أثناء التفريغ، دون أي كلفة إضافية.
                 </p>
               </div>
               <div className="flex flex-col gap-2 self-center w-full md:w-auto" aria-hidden>
-                {[
-                  { k: "سريع", active: false },
-                  { k: "جيد", active: true },
-                  { k: "فائق", active: false },
-                ].map((m) => (
-                  <div
-                    key={m.k}
-                    className="flex items-center justify-between gap-8"
-                    style={{
-                      minWidth: 150,
-                      padding: "8px 14px",
-                      borderRadius: 10,
-                      fontSize: 13,
-                      color: m.active ? "#fff" : "rgba(255,255,255,0.45)",
-                      background: m.active ? "rgba(246,146,81,0.16)" : "rgba(255,255,255,0.04)",
-                      border: `1px solid ${m.active ? "rgba(246,146,81,0.4)" : "rgba(255,255,255,0.08)"}`,
-                    }}
-                  >
-                    {m.k}
-                    {m.active && <Check size={14} strokeWidth={2} style={{ color: "var(--orange)" }} />}
-                  </div>
-                ))}
+                <div
+                  className="flex items-center justify-center"
+                  style={{
+                    minWidth: 170,
+                    padding: "10px 16px",
+                    borderRadius: 10,
+                    fontSize: 15,
+                    color: "rgba(255,255,255,0.75)",
+                    background: "rgba(255,255,255,0.04)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    letterSpacing: "0.12em",
+                  }}
+                >
+                  ﴿ ··· ﴾
+                </div>
+                <div
+                  className="flex items-center justify-center gap-2"
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: 10,
+                    fontSize: 12.5,
+                    color: "#fff",
+                    background: "rgba(246,146,81,0.16)",
+                    border: "1px solid rgba(246,146,81,0.4)",
+                  }}
+                >
+                  <Check size={14} strokeWidth={2} style={{ color: "var(--orange)" }} />
+                  مطابَقة بالرسم العثماني
+                </div>
               </div>
             </div>
           </Reveal>

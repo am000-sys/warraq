@@ -11,16 +11,16 @@ const steps = [
     d: "PDF أو صور PNG/JPG/TIFF. حجم يصل إلى ٥٠٠ ميجابايت لكل وظيفة. رفع مجمّع مدعوم.",
   },
   {
-    t: "اختر النموذج",
-    d: "ثلاثة نماذج ذكاء: اختر الفائق للمخطوطات الأصعب ودقّة أعلى.",
+    t: "تُعالَج تلقائياً",
+    d: "تفريغ عالي الدقّة على دفعات قابلة للاستئناف، وإشعار فور اكتمال كل الصفحات.",
   },
   {
-    t: "انتظر المعالجة",
-    d: "معالجة تلقائية في الخلفية. إشعار فور اكتمال كل الصفحات.",
+    t: "راجع النص",
+    d: "تصفّح صفحة بصفحة بترقيمها المطبوع، مع تصحيح الآيات المقتبسة تلقائياً.",
   },
   {
     t: "صدِّر النتائج",
-    d: "نص جاهز بصيغ TXT وMD وDOCX وJSON، أو ادمجه عبر API.",
+    d: "نص جاهز بصيغ TXT وMD وDOCX وJSON وXLSX، أو ادمجه عبر API.",
   },
 ];
 
@@ -168,53 +168,8 @@ function Step0() {
   );
 }
 
+// الخطوة ٢: تقدّم المعالجة على دفعات
 function Step1() {
-  const models = [
-    { k: "سريع", d: "للكتب الحديثة الواضحة", active: false },
-    { k: "جيد", d: "موصى به للأغلب", active: true },
-    { k: "فائق", d: "الأدقّ للمخطوطات الصعبة", active: false },
-  ];
-  return (
-    <div className="flex flex-col" style={{ gap: 10 }}>
-      {models.map((m) => (
-        <div
-          key={m.k}
-          className="flex justify-between items-center"
-          style={{
-            padding: "14px 16px",
-            borderRadius: 12,
-            border: `1.5px solid ${m.active ? "var(--orange)" : "var(--border)"}`,
-            background: m.active ? "rgba(246,146,81,0.04)" : "var(--snow)",
-          }}
-        >
-          <div>
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 500,
-                color: "var(--carbon)",
-                fontFamily: "Tajawal, sans-serif",
-              }}
-            >
-              {m.k}
-            </div>
-            <div style={{ fontSize: 12, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>
-              {m.d}
-            </div>
-          </div>
-          {m.active && (
-            <div
-              className="flex-shrink-0"
-              style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--orange)" }}
-            />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function Step2() {
   const pages = [
     { p: "صفحة ١", pct: 100 },
     { p: "صفحة ٢", pct: 100 },
@@ -250,41 +205,93 @@ function Step2() {
   );
 }
 
+// الخطوة ٣: مراجعة النصّ بترقيمه المطبوع مع تصحيح الآيات
+function Step2() {
+  return (
+    <div className="flex flex-col items-center" style={{ gap: 14 }}>
+      <div
+        className="w-full"
+        style={{
+          maxWidth: 300,
+          background: "var(--snow)",
+          border: "1px solid var(--border)",
+          borderRadius: 12,
+          padding: "16px 18px",
+        }}
+      >
+        <div className="flex justify-between items-center" style={{ marginBottom: 12 }}>
+          <span style={{ fontSize: 11, color: "var(--pebble)", fontFamily: "Tajawal, sans-serif" }}>
+            النص المستخرج
+          </span>
+          <span
+            className="badge"
+            style={{ fontSize: 11, background: "var(--orange-soft)", borderColor: "var(--orange-mid)", color: "var(--carbon)" }}
+          >
+            ص ٢٤٧
+          </span>
+        </div>
+        <div className="flex flex-col" style={{ gap: 8 }} aria-hidden>
+          {["92%", "100%", "78%", "88%"].map((w, i) => (
+            <div key={i} style={{ height: 6, width: w, background: "rgba(0,0,0,0.09)", borderRadius: 2 }} />
+          ))}
+        </div>
+      </div>
+      <div className="flex gap-2 flex-wrap justify-center">
+        <span className="badge" style={{ fontSize: 11 }}>
+          الترقيم المطبوع محفوظ
+        </span>
+        <span className="badge" style={{ fontSize: 11 }}>
+          الآيات مصحّحة بالرسم العثماني
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// الخطوة ٤: صيغ التصدير
 function Step3() {
   const formats = [
     { f: "TXT", d: "نص خام" },
     { f: "MD", d: "Markdown" },
     { f: "DOCX", d: "Word" },
-    { f: "JSON", d: "API" },
+    { f: "XLSX", d: "Excel" },
   ];
   return (
-    <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-      {formats.map((x) => (
-        <div
-          key={x.f}
-          style={{
-            padding: 16,
-            background: "var(--snow)",
-            borderRadius: 12,
-            border: "1px solid var(--border)",
-          }}
-        >
+    <div>
+      <div className="grid" style={{ gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {formats.map((x) => (
           <div
+            key={x.f}
             style={{
-              fontSize: 18,
-              fontWeight: 600,
-              color: "var(--carbon)",
-              marginBottom: 4,
-              fontFamily: "Inter, sans-serif",
+              padding: 16,
+              background: "var(--snow)",
+              borderRadius: 12,
+              border: "1px solid var(--border)",
             }}
           >
-            {x.f}
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: 600,
+                color: "var(--carbon)",
+                marginBottom: 4,
+                fontFamily: "Inter, sans-serif",
+              }}
+            >
+              {x.f}
+            </div>
+            <div style={{ fontSize: 12, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>
+              {x.d}
+            </div>
           </div>
-          <div style={{ fontSize: 12, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}>
-            {x.d}
-          </div>
-        </div>
-      ))}
+        ))}
+      </div>
+      <div
+        className="text-center"
+        style={{ marginTop: 12, fontSize: 12, color: "var(--pebble)", fontFamily: "Tajawal, sans-serif" }}
+      >
+        وJSON للمطوّرين عبر الـ API
+      </div>
     </div>
   );
 }
