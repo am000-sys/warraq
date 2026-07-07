@@ -31,6 +31,12 @@ export function BookToTextMockup() {
   const [textVisible, setTextVisible] = useState(0);
 
   useEffect(() => {
+    // احترام تفضيل تقليل الحركة: نصّ مكتمل ثابت بلا مسح ولا كتابة
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      setScanPos(0);
+      setTextVisible(100);
+      return;
+    }
     let pos = 0;
     let chars = 0;
     let t: ReturnType<typeof setInterval> | null = null;

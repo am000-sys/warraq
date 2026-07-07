@@ -52,9 +52,6 @@ export function Pricing({ standalone = false }: { standalone?: boolean }) {
     >
       <div className="container-warraq">
         <div className="text-center" style={{ marginBottom: 52 }}>
-          <div className="badge" style={{ marginBottom: 18 }}>
-            الأسعار
-          </div>
           <h2
             className="mb-3"
             style={{
@@ -89,7 +86,7 @@ export function Pricing({ standalone = false }: { standalone?: boolean }) {
           >
             {[
               { k: "monthly" as const, l: "شهري" },
-              { k: "yearly" as const, l: "سنوي — وفّر ٢٠٪" },
+              { k: "yearly" as const, l: "سنوي · وفّر ٢٠٪" },
             ].map((b) => (
               <button
                 key={b.k}

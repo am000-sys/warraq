@@ -1,6 +1,7 @@
 // src/components/marketing/cta-band.tsx
 import Link from "next/link";
 import { Logo } from "@/components/logo";
+import { Reveal } from "@/components/reveal";
 
 export function CTABand() {
   return (
@@ -19,7 +20,7 @@ export function CTABand() {
             "radial-gradient(ellipse 60% 60% at 50% 100%, rgba(246,146,81,0.07) 0%, transparent 70%)",
         }}
       />
-      <div className="container-warraq relative">
+      <Reveal className="container-warraq relative">
         <div className="flex justify-center mb-8">
           <Logo size={1.1} inverted />
         </div>
@@ -50,16 +51,16 @@ export function CTABand() {
             fontFamily: "Tajawal, sans-serif",
           }}
         >
-          ابدأ مجاناً بـ ٥٠ صفحة — بدون بطاقة ائتمانية.
+          خمسون صفحة مجانية عند التسجيل، بدون بطاقة ائتمانية.
         </p>
         <Link
           href="/signup"
           className="btn-primary no-underline"
           style={{ fontSize: 16, padding: "15px 36px" }}
         >
-          ابدأ مجاناً — ٥٠ صفحة
+          ابدأ مجاناً
         </Link>
-      </div>
+      </Reveal>
     </section>
   );
 }

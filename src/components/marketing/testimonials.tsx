@@ -1,6 +1,8 @@
 // src/components/marketing/use-cases.tsx (مُصدَّر كـ Testimonials للتوافق)
-// قسم «لمن وَرَّاق» — وصف صادق للجمهور المستهدف بلا شهادات مُختلَقة
+// قسم «لمن وَرَّاق» — عائلة تخطيط مختلفة عن البطاقات: شبكة مفتوحة بفواصل
+// شعريّة (hairlines) ومساحات بيضاء، بلا صناديق. وصف صادق بلا شهادات مُختلَقة.
 import { GraduationCap, BookMarked, Library, Building2 } from "lucide-react";
+import { Reveal } from "@/components/reveal";
 
 const audiences = [
   {
@@ -29,81 +31,69 @@ export function Testimonials() {
   return (
     <section style={{ padding: "96px 0", background: "var(--fog)" }}>
       <div className="container-warraq">
-        <div className="text-center" style={{ marginBottom: 52 }}>
-          <div className="badge" style={{ marginBottom: 18 }}>
-            لمن وَرَّاق
-          </div>
-          <h2
-            style={{
-              fontFamily: "Tajawal, sans-serif",
-              fontSize: "clamp(26px,3.5vw,44px)",
-              fontWeight: 300,
-              color: "var(--carbon)",
-              letterSpacing: "-0.02em",
-              marginBottom: 14,
-            }}
-          >
-            مصمّم لخدمة التراث
-          </h2>
-          <p
-            className="font-light mx-auto"
-            style={{
-              fontSize: 17,
-              color: "var(--stone)",
-              fontFamily: "Tajawal, sans-serif",
-              maxWidth: 460,
-              lineHeight: 1.65,
-            }}
-          >
-            أداة متخصّصة لكلّ من يعمل على النصّ العربي المصوّر.
-          </p>
-        </div>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-10 md:gap-16">
+          {/* العنوان في عمود البداية — يرافق القائمة أثناء التمرير */}
+          <Reveal className="md:col-span-4">
+            <div className="md:sticky md:top-28">
+              <h2 className="text-h2 mb-4" style={{ color: "var(--carbon)" }}>
+                مصمّم
+                <br />
+                لخدمة التراث
+              </h2>
+              <p
+                className="font-light m-0"
+                style={{ fontSize: 16, color: "var(--stone)", lineHeight: 1.7, maxWidth: 300 }}
+              >
+                أداة متخصّصة لكلّ من يعمل على النصّ العربي المصوّر.
+              </p>
+            </div>
+          </Reveal>
 
-        <div className="grid wq-grid-2" style={{ gridTemplateColumns: "repeat(2,1fr)", gap: 18 }}>
-          {audiences.map((a, i) => {
-            const Icon = a.icon;
-            return (
-              <div key={i} className="card" style={{ display: "flex", gap: 16 }}>
-                <div
-                  className="flex items-center justify-center flex-shrink-0"
+          {/* القائمة: صفوف مفتوحة بفاصل شعري واحد بين كلّ صفّ */}
+          <div className="md:col-span-8">
+            {audiences.map((a, i) => {
+              const Icon = a.icon;
+              return (
+                <Reveal
+                  key={a.t}
+                  delay={i * 0.06}
+                  className="flex gap-5 items-start"
                   style={{
-                    width: 44,
-                    height: 44,
-                    background: "var(--orange-soft)",
-                    border: "1px solid rgba(246,146,81,0.18)",
-                    borderRadius: 12,
-                    color: "var(--orange)",
+                    padding: "26px 0",
+                    borderTop: i > 0 ? "1px solid var(--border-sub)" : "none",
                   }}
                 >
-                  <Icon size={20} strokeWidth={1.7} />
-                </div>
-                <div>
                   <div
+                    className="flex items-center justify-center flex-shrink-0"
                     style={{
-                      fontFamily: "Tajawal, sans-serif",
-                      fontSize: 17,
-                      fontWeight: 500,
-                      color: "var(--carbon)",
-                      marginBottom: 6,
+                      width: 44,
+                      height: 44,
+                      background: "var(--orange-soft)",
+                      border: "1px solid var(--orange-mid)",
+                      borderRadius: "var(--r-inner)",
+                      color: "var(--orange)",
                     }}
                   >
-                    {a.t}
+                    <Icon size={20} strokeWidth={1.7} />
                   </div>
-                  <div
-                    className="font-light"
-                    style={{
-                      fontSize: 14,
-                      color: "var(--stone)",
-                      lineHeight: 1.7,
-                      fontFamily: "Tajawal, sans-serif",
-                    }}
-                  >
-                    {a.d}
+                  <div>
+                    <div
+                      className="mb-1.5"
+                      style={{ fontSize: 17, fontWeight: 500, color: "var(--carbon)" }}
+                    >
+                      {a.t}
+                    </div>
+                    <p
+                      className="font-light m-0"
+                      style={{ fontSize: 14.5, color: "var(--stone)", lineHeight: 1.75, maxWidth: 520 }}
+                    >
+                      {a.d}
+                    </p>
                   </div>
-                </div>
-              </div>
-            );
-          })}
+                </Reveal>
+              );
+            })}
+          </div>
         </div>
       </div>
     </section>

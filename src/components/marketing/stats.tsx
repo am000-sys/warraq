@@ -1,8 +1,10 @@
 // src/components/marketing/stats.tsx
 // إحصائيات صادقة عن قدرات المنصّة (لا أرقام استخدام مُختلَقة)
+import { Reveal } from "@/components/reveal";
+
 const items = [
-  { n: "٣", l: "نماذج ذكاء (سريع · جيد · فائق)" },
-  { n: "٥", l: "صيغ تصدير (TXT · MD · DOCX · JSON · PDF)" },
+  { n: "٣", l: "نماذج ذكاء (سريع، جيد، فائق)" },
+  { n: "٥", l: "صيغ تصدير (TXT, MD, DOCX, JSON, PDF)" },
   { n: "∞", l: "صفحات في الخطط المدفوعة" },
   { n: "٢٤/٧", l: "معالجة تلقائية في الخلفية" },
 ];
@@ -19,8 +21,9 @@ export function Stats() {
       <div className="container-warraq">
         <div className="grid wq-grid-4" style={{ gridTemplateColumns: "repeat(4,1fr)" }}>
           {items.map((s, i) => (
-            <div
-              key={i}
+            <Reveal
+              key={s.l}
+              delay={i * 0.07}
               style={{
                 padding: "44px 28px",
                 textAlign: "center",
@@ -29,7 +32,6 @@ export function Stats() {
             >
               <div
                 style={{
-                  fontFamily: "Tajawal, sans-serif",
                   fontSize: 46,
                   fontWeight: 300,
                   color: "var(--carbon)",
@@ -40,17 +42,8 @@ export function Stats() {
               >
                 {s.n}
               </div>
-              <div
-                style={{
-                  fontSize: 13,
-                  color: "var(--stone)",
-                  fontFamily: "Tajawal, sans-serif",
-                  lineHeight: 1.5,
-                }}
-              >
-                {s.l}
-              </div>
-            </div>
+              <div style={{ fontSize: 13, color: "var(--stone)", lineHeight: 1.5 }}>{s.l}</div>
+            </Reveal>
           ))}
         </div>
       </div>

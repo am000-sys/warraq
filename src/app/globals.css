@@ -318,6 +318,27 @@ body {
 }
 
 @layer utilities {
+  /* ── الكشف عند التمرير (scroll reveal) — يُفعَّل عبر <Reveal /> ── */
+  .wq-reveal {
+    opacity: 0;
+    transform: translateY(22px);
+    transition:
+      opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    transition-delay: var(--reveal-delay, 0s);
+    will-change: opacity, transform;
+  }
+  .wq-reveal.wq-visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* ── دخول متدرّج لعناصر الـ hero عند تحميل الصفحة ── */
+  .wq-enter {
+    animation: wq-enter-in 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--enter-delay, 0s);
+  }
+
   .text-display {
     font-size: clamp(40px, 6vw, 72px);
     font-weight: 300;
@@ -420,6 +441,40 @@ body {
 /* شريط علوي للجوال (مخفيّ على سطح المكتب) */
 .wq-mobile-topbar {
   display: none;
+}
+
+/* دخول عناصر الـ hero (مُعرَّف خارج @theme ليُضمَن في الناتج دائماً) */
+@keyframes wq-enter-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ══════════════════════════════════
+   احترام تفضيل تقليل الحركة (وصوليّة — إلزامي)
+   كلّ الحركات تنطفئ ويظهر المحتوى ثابتاً مكتملاً
+══════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .wq-reveal,
+  .wq-enter {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+  .animate-pulse-dot,
+  .animate-scan-line,
+  .animate-fade-in {
+    animation: none !important;
+  }
 }
 
 /* ───────────────────────────────────────────────────────────

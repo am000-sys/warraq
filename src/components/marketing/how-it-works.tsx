@@ -2,6 +2,8 @@
 "use client";
 
 import { useState } from "react";
+import { FileText } from "lucide-react";
+import { Reveal } from "@/components/reveal";
 
 const steps = [
   {
@@ -10,7 +12,7 @@ const steps = [
   },
   {
     t: "اختر النموذج",
-    d: "ثلاثة نماذج ذكاء — اختر الفائق للمخطوطات الأصعب ودقّة أعلى.",
+    d: "ثلاثة نماذج ذكاء: اختر الفائق للمخطوطات الأصعب ودقّة أعلى.",
   },
   {
     t: "انتظر المعالجة",
@@ -29,7 +31,7 @@ export function HowItWorks() {
     <section id="how" style={{ padding: "96px 0", background: "var(--snow)" }}>
       <div className="container-warraq">
         <div className="grid items-center wq-grid-2" style={{ gridTemplateColumns: "1fr 1fr", gap: 64 }}>
-          <div>
+          <Reveal>
             <div className="badge mb-4" style={{ marginBottom: 18 }}>
               كيف يعمل
             </div>
@@ -110,10 +112,11 @@ export function HowItWorks() {
                 );
               })}
             </div>
-          </div>
+          </Reveal>
 
           {/* Visual panel */}
-          <div
+          <Reveal
+            delay={0.1}
             className="card flex flex-col justify-center"
             style={{
               minHeight: 340,
@@ -125,7 +128,7 @@ export function HowItWorks() {
             {active === 1 && <Step1 />}
             {active === 2 && <Step2 />}
             {active === 3 && <Step3 />}
-          </div>
+          </Reveal>
         </div>
       </div>
     </section>
@@ -146,7 +149,7 @@ function Step0() {
           gap: 6,
         }}
       >
-        <span style={{ fontSize: 28 }}>📄</span>
+        <FileText size={26} strokeWidth={1.5} style={{ color: "var(--orange)" }} />
         <span style={{ fontSize: 9, color: "var(--pebble)", fontFamily: "Inter, sans-serif" }}>
           PDF / PNG
         </span>
