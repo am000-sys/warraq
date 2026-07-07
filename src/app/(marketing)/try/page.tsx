@@ -40,7 +40,7 @@ export default function TryPage() {
       if (data?.limitReached) setLimitReached(true);
       return;
     }
-    setText(data.text || "(لم يُستخرج نصّ — جرّب صورة أوضح)");
+    setText(data.text || "(لم يُستخرج نصّ، جرّب صورة أوضح)");
   }
 
   return (
@@ -67,7 +67,7 @@ export default function TryPage() {
             className="font-light"
             style={{ fontSize: 16, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}
           >
-            ارفع صورة صفحة عربيّة — بدون تسجيل. (٥٠ صفحة مجاناً)
+            ارفع صورة صفحة عربيّة بدون تسجيل، وستحصل على النصّ فوراً.
           </p>
         </div>
 

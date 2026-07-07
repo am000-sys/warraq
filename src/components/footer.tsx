@@ -97,7 +97,7 @@ export function Footer() {
               fontFamily: "Tajawal, sans-serif",
             }}
           >
-            صُنع بـ ♥ لخدمة التراث العربي
+            صُنع لخدمة التراث العربي
           </span>
         </div>
       </div>

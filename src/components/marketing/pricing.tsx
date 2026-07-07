@@ -9,7 +9,7 @@ const plans = [
   {
     tier: "مجاني",
     price: { monthly: 0, yearly: 0 },
-    feats: ["٥٠ صفحة مجاناً", "نموذج سريع", "تصدير TXT و MD", "دعم بالبريد"],
+    feats: ["٥٠ صفحة مجاناً", "تفريغ عالي الدقّة", "تصدير TXT و MD", "دعم بالبريد"],
     cta: "ابدأ مجاناً",
   },
   {
@@ -18,10 +18,10 @@ const plans = [
     badge: "الأكثر شيوعاً",
     feats: [
       "٥٠٠ صفحة / شهر",
-      "نموذجا سريع + جيد",
       "جميع صيغ التصدير",
       "أولوية المعالجة",
-      "دعم أولوية",
+      "دعم ذو أولوية",
+      "كل مزايا المجاني",
     ],
     cta: "اشترك الآن",
     featured: true,
@@ -31,10 +31,10 @@ const plans = [
     price: { monthly: 140, yearly: 112 },
     feats: [
       "٢٥٠٠ صفحة / شهر",
-      "جميع النماذج (فائق)",
-      "إدارة فريق",
+      "إدارة فريق وأدوار",
+      "وصول API للمطوّرين",
       "مدير حساب مخصص",
-      "وصول API",
+      "كل مزايا الاحترافي",
     ],
     cta: "تواصل معنا",
   },
@@ -52,9 +52,6 @@ export function Pricing({ standalone = false }: { standalone?: boolean }) {
     >
       <div className="container-warraq">
         <div className="text-center" style={{ marginBottom: 52 }}>
-          <div className="badge" style={{ marginBottom: 18 }}>
-            الأسعار
-          </div>
           <h2
             className="mb-3"
             style={{
@@ -89,7 +86,7 @@ export function Pricing({ standalone = false }: { standalone?: boolean }) {
           >
             {[
               { k: "monthly" as const, l: "شهري" },
-              { k: "yearly" as const, l: "سنوي — وفّر ٢٠٪" },
+              { k: "yearly" as const, l: "سنوي · وفّر ٢٠٪" },
             ].map((b) => (
               <button
                 key={b.k}
