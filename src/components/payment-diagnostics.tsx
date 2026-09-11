@@ -117,6 +117,13 @@ export function PaymentDiagnostics({
     .flatMap((g) => g.charges)
     .filter((c) => c.liveMode === true && c.status === "CAPTURED");
   const notProduction = Boolean(deployEnv && deployEnv !== "production");
+  // خلاصة رقميّة تُجيب مباشرةً: كم وصل البوّابة فعلاً؟ CAPTURED اختباريّة = صفر ريال.
+  const allCharges = gateways.flatMap((g) => g.charges);
+  const testCaptured = allCharges.filter(
+    (c) => c.liveMode === false && c.status === "CAPTURED",
+  );
+  const sumSar = (rows: TapChargeRow[]) =>
+    rows.reduce((t, c) => t + c.localAmountSar, 0).toFixed(2).replace(/\.00$/, "");
 
   return (
     <div className="card mb-7" style={{ borderRadius: 16 }}>
@@ -176,6 +183,67 @@ export function PaymentDiagnostics({
           </strong>{" "}
           هذه مبالغ فعليّة يجب أن تجدها في لوحة Tap بوضع Live. طابِق معرّفاتها أدناه مع اللوحة.
         </Notice>
+      )}
+
+      {allCharges.length > 0 && (
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            flexWrap: "wrap",
+            marginBottom: 16,
+            fontFamily: "Tajawal, sans-serif",
+          }}
+        >
+          <div
+            style={{
+              flex: "1 1 200px",
+              background: "var(--fog)",
+              borderRadius: 12,
+              padding: "12px 14px",
+            }}
+          >
+            <div style={{ fontSize: 11, color: "var(--pebble)" }}>وصل البوّابة فعلاً</div>
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: 500,
+                color: liveCaptured.length ? "var(--success)" : "var(--stone)",
+              }}
+            >
+              {sumSar(liveCaptured)} ريال
+              <span style={{ fontSize: 11, color: "var(--pebble)" }}>
+                {" "}
+                ({liveCaptured.length} عمليّة)
+              </span>
+            </div>
+          </div>
+          <div
+            style={{
+              flex: "1 1 200px",
+              background: "var(--fog)",
+              borderRadius: 12,
+              padding: "12px 14px",
+            }}
+          >
+            <div style={{ fontSize: 11, color: "var(--pebble)" }}>
+              مُحصَّل اختباريّاً (محاكاة — بلا مال)
+            </div>
+            <div
+              style={{
+                fontSize: 18,
+                fontWeight: 500,
+                color: testCaptured.length ? "var(--rose)" : "var(--stone)",
+              }}
+            >
+              {sumSar(testCaptured)} ريال
+              <span style={{ fontSize: 11, color: "var(--pebble)" }}>
+                {" "}
+                ({testCaptured.length} عمليّة)
+              </span>
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="flex flex-col" style={{ gap: 24, fontFamily: "Tajawal, sans-serif" }}>
@@ -249,10 +317,20 @@ export function PaymentDiagnostics({
                               <span
                                 style={{
                                   color:
-                                    c.status === "CAPTURED" ? "var(--success)" : "var(--stone)",
+                                    c.status === "CAPTURED"
+                                      ? c.liveMode === true
+                                        ? "var(--success)"
+                                        : "var(--rose)"
+                                      : "var(--stone)",
                                 }}
                               >
                                 {c.status ?? "—"}
+                                {c.status === "CAPTURED" && c.liveMode === false && (
+                                  <span style={{ fontSize: 10.5, opacity: 0.85 }}>
+                                    {" "}
+                                    (محاكاة — بلا مال)
+                                  </span>
+                                )}
                               </span>
                             )}
                           </td>
@@ -287,7 +365,9 @@ export function PaymentDiagnostics({
           fontFamily: "Tajawal, sans-serif",
         }}
       >
-        دلالة الحالات لدى Tap: <strong>CAPTURED</strong> = حُصِّل المبلغ فعلاً ·{" "}
+        دلالة الحالات لدى Tap: <strong>CAPTURED</strong> = اكتملت الشحنة —{" "}
+        <em>في بيئتها</em>؛ فإن كانت اختباريّة فهي محاكاة بلا مال، ولا تكون مالاً حقيقيّاً إلّا
+        مع «حقيقيّة» ·{" "}
         <strong>ABANDONED</strong> = غادر العميل صفحة الدفع دون إتمامها ·{" "}
         <strong>INITIATED</strong> = أُنشئت ولم تُدفع بعد · <strong>DECLINED</strong> = رفضها
         المُصدِر. وإن كان الوضع «مباشر» والشحنة «حقيقيّة» ومُحصَّلة ومع ذلك لا تجد المبلغ في
