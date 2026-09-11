@@ -41,13 +41,20 @@ export async function sendEmail(opts: {
   to: string;
   subject: string;
   html: string;
+  headers?: Record<string, string>;
 }) {
   if (!RESEND_API_KEY) {
     console.warn("[email] RESEND_API_KEY not set — skipping send");
     return;
   }
 
-  const body = JSON.stringify({ from: FROM, to: opts.to, subject: opts.subject, html: opts.html });
+  const body = JSON.stringify({
+    from: FROM,
+    to: opts.to,
+    subject: opts.subject,
+    html: opts.html,
+    ...(opts.headers ? { headers: opts.headers } : {}),
+  });
   const maxAttempts = RETRY_DELAYS_MS.length + 1;
   let lastErr: unknown;
 
@@ -116,7 +123,7 @@ export async function sendEmail(opts: {
 // أرسل بريداً دون حجب الاستجابة، مع ضمان تنفيذه بعد إرسال الردّ (يصمد في serverless).
 // يبتلع الأخطاء ويسجّلها فقط — فلا يُسقِط الطلب الأساسيّ بسبب فشل البريد.
 export function queueEmail(
-  opts: { to: string; subject: string; html: string },
+  opts: { to: string; subject: string; html: string; headers?: Record<string, string> },
   context = "send",
 ) {
   const run = () =>
@@ -128,6 +135,32 @@ export function queueEmail(
     // إن استُدعي خارج سياق طلب (after غير متاح)، أرسل مباشرةً كحلّ احتياطيّ
     void run();
   }
+}
+
+// ترويسات «عاجل» — تُبرز الرسالة في Outlook وغيره
+export const URGENT_HEADERS: Record<string, string> = {
+  "X-Priority": "1",
+  "X-MSMail-Priority": "High",
+  "Importance": "high",
+};
+
+// بريد المالك للإشعارات العاجلة. يُضبط بـ OWNER_NOTIFY_EMAIL (يقبل عدّة عناوين
+// مفصولة بفاصلة)، وإلّا فالبريد المثبَّت أدناه.
+const DEFAULT_OWNER_EMAIL = "a.m.000@outlook.com";
+
+// نطاقات بذور التطوير لا تُسلَّم — استبعادها يمنع فشل الإرسال بلا طائل
+const UNDELIVERABLE = /@(?:.*\.)?(?:test|local|localhost|invalid|example)(?:\.[a-z]{2,})?$/i;
+
+// قائمة المستقبِلين: بريد المالك المضبوط + أيّ بُرُد إضافيّة (مالكو النظام)، بلا تكرار
+export function ownerNotifyEmails(extra: Array<string | null | undefined> = []): string[] {
+  const configured = (process.env.OWNER_NOTIFY_EMAIL || DEFAULT_OWNER_EMAIL)
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+  const all = [...configured, ...extra].filter((e): e is string => Boolean(e));
+  return [...new Set(all.map((e) => e.toLowerCase()))].filter(
+    (e) => e.includes("@") && !UNDELIVERABLE.test(e),
+  );
 }
 
 export function passwordResetEmail(name: string, resetUrl: string) {
@@ -150,18 +183,33 @@ export function passwordResetEmail(name: string, resetUrl: string) {
   };
 }
 
-export function newTopupForOwnerEmail(userEmail: string, pages: number, amountSar: number) {
+export function newTopupForOwnerEmail(opts: {
+  userEmail: string;
+  senderName: string;
+  pages: number;
+  amountHalala: number;
+  requestId: string;
+  createdAt: Date;
+}) {
+  const amount = (opts.amountHalala / 100).toLocaleString("ar-SA");
+  const when = opts.createdAt.toLocaleString("ar-SA", { timeZone: "Asia/Riyadh" });
+  const row = (label: string, value: string) => `
+          <tr>
+            <td style="padding:6px 0;color:#949494;font-size:13px;white-space:nowrap;">${label}</td>
+            <td style="padding:6px 0 6px 12px;color:#181825;font-size:13px;font-weight:500;">${value}</td>
+          </tr>`;
   return {
-    subject: "طلب شحن جديد بانتظار المراجعة — وَرَّاق",
+    subject: `عاجل: طلب شحن جديد · ${opts.pages} صفحة · ${amount} ريال — وَرَّاق`,
     html: `
-      <div style="font-family: 'Tajawal', sans-serif; direction: rtl; max-width: 480px; margin: 0 auto; padding: 32px;">
-        <h2 style="font-weight: 500; color: #181825;">طلب شحن جديد</h2>
-        <p style="color: #484758; line-height: 1.7;">
-          من: <strong>${userEmail}</strong><br>
-          الباقة: <strong style="color:#f69251;">${pages}</strong> صفحة · ${(amountSar / 100).toLocaleString("ar-SA")} ريال
-        </p>
-        <a href="https://warraq-nu.vercel.app/admin/topups" style="display: inline-block; background: #f69251; color: #000; padding: 12px 28px; border-radius: 28px; text-decoration: none; font-weight: 500; margin: 16px 0;">
-          مراجعة الطلب
+      <div style="font-family: 'Tajawal', sans-serif; direction: rtl; max-width: 520px; margin: 0 auto; padding: 32px;">
+        <span style="display:inline-block;background:rgba(246,146,81,0.12);color:#f69251;border-radius:100px;padding:4px 12px;font-size:12px;font-weight:500;">عاجل</span>
+        <h2 style="font-weight: 500; color: #181825; margin: 12px 0 4px;">طلب شحن جديد بانتظار المراجعة</h2>
+        <p style="color:#949494;font-size:13px;margin:0 0 20px;">أُرفِق إيصال التحويل — راجِعه واعتمِد الطلب ليُضاف الرصيد.</p>
+        <table style="width:100%;border-collapse:collapse;background:#f7f7f7;border-radius:16px;padding:8px;">
+          <tbody>${row("المستخدم", opts.userEmail)}${row("اسم المُحوِّل", opts.senderName)}${row("الباقة", `${opts.pages} صفحة`)}${row("المبلغ", `${amount} ريال`)}${row("وقت الطلب", when)}${row("رقم الطلب", opts.requestId)}</tbody>
+        </table>
+        <a href="${APP_URL}/admin/topups" style="display: inline-block; background: #f69251; color: #000; padding: 12px 28px; border-radius: 28px; text-decoration: none; font-weight: 500; margin: 20px 0 0;">
+          مراجعة الطلب واعتماده
         </a>
       </div>
     `,
