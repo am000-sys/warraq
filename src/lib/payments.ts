@@ -1,7 +1,7 @@
 // src/lib/payments.ts — تسوية معاملات الدفع (مشترك بين الـ webhooks وصفحة العودة)
 import { db } from "@/lib/db";
 import { stripe } from "@/lib/stripe";
-import { retrieveTapCharge } from "@/lib/tap";
+import { retrieveTapCharge, isUnsettledTestCharge } from "@/lib/tap";
 import type { TransactionStatus } from "@prisma/client";
 
 // ادّعاء ذرّي: ينقل المعاملة PENDING → SUCCEEDED مرّة واحدة فقط ثمّ يضيف الصفحات.
@@ -22,10 +22,10 @@ export async function creditTransaction(txId: string): Promise<void> {
 }
 
 // تعليم المعاملة المعلّقة كفاشلة (لا يمسّ الرصيد)
-export async function markTransactionFailed(txId: string): Promise<void> {
+export async function markTransactionFailed(txId: string, reason?: string): Promise<void> {
   await db.transaction.updateMany({
     where: { id: txId, status: "PENDING" },
-    data: { status: "FAILED" },
+    data: { status: "FAILED", ...(reason ? { description: reason } : {}) },
   });
 }
 
@@ -43,6 +43,14 @@ export async function reconcilePendingTransaction(
       const charge = await retrieveTapCharge(tx.externalId);
       const status = charge?.status;
       if (status === "CAPTURED") {
+        // تحصيل اختباريّ في الإنتاج: لا مال يُسوّى، فلا رصيد يُمنح
+        if (isUnsettledTestCharge(charge)) {
+          await markTransactionFailed(
+            txId,
+            "عمليّة اختباريّة لم تُسوَّ — لم يُخصم مبلغ ولم يُمنح رصيد",
+          );
+          return "FAILED";
+        }
         await creditTransaction(txId);
         return "SUCCEEDED";
       }

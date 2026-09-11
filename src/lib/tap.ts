@@ -81,6 +81,15 @@ export async function createTapCharge(
   };
 }
 
+// شحنة مُحصَّلة في البيئة الاختباريّة: تأخذ تفويضاً من الشبكة فعلاً — فيظهر حجز مؤقّت
+// في تطبيق البنك ثمّ يُطلقه البنك خلال يوم — لكنّها لا تُسوَّى أبداً ولا يصل التاجر شيء.
+// منح الرصيد عليها في الإنتاج = صفحات مجّانيّة بلا دفع، فنرفضه ما لم يُسمح به عمداً.
+export function isUnsettledTestCharge(charge: unknown): boolean {
+  if (process.env.VERCEL_ENV !== "production") return false;
+  if (process.env.TAP_ALLOW_TEST_IN_PRODUCTION === "1") return false;
+  return (charge as { live_mode?: unknown } | null)?.live_mode === false;
+}
+
 export async function retrieveTapCharge(chargeId: string) {
   if (!secretKey) throw new Error("TAP_NOT_CONFIGURED");
   const res = await fetch(`${TAP_API}/charges/${chargeId}`, {
