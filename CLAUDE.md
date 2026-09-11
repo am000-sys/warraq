@@ -398,14 +398,26 @@ npm run dev
 ## ١٠.٨ مزوّد الملخّص الدراسي (Claude / Qwen) + تصدير Excel
 
 ### مزوّد الملخّص الدراسي — قابل للتبديل
-ميزة «الملخّص الدراسي» (`src/lib/study.ts`) تدعم مزوّدَين، والتوجيه يتمّ **آليّاً حسب
-بادئة معرّف النموذج** في `study_model`/`study_model_premium`:
+> **الحالة الراهنة:** الميزة **موقوفة** وتعرض «قريباً» (`STUDY_ENABLED` غير مضبوط)،
+> بعد تعطّل مسار Qwen. المزوّد المُعدّ للانتقال إليه: **Kimi (Moonshot)** — يلزمه
+> `MOONSHOT_API_KEY` ثمّ `STUDY_DEFAULT_MODEL="kimi-…"` و`STUDY_ENABLED="1"`.
+
+ميزة «الملخّص الدراسي» (`src/lib/study.ts`) تدعم ثلاثة مزوّدين، والتوجيه يتمّ **آليّاً
+حسب بادئة معرّف النموذج** في `study_model`/`study_model_premium` (أو في متغيّرَي البيئة
+`STUDY_DEFAULT_MODEL`/`STUDY_DEFAULT_MODEL_PREMIUM` — إذ لا توجد واجهة لتحرير
+`SystemSetting`):
 - **`claude-*`** ⇒ Anthropic Batches API (الافتراضي — بلا أيّ تغيير).
+- **`kimi-*` / `moonshot-*`** ⇒ مزوّد Kimi (`src/lib/kimi.ts`) عبر **الدردشة المتوافقة
+  مع OpenAI** على `https://api.moonshot.ai/v1` (تُبدَّل بـ `MOONSHOT_BASE_URL`). نداء
+  متزامن، ومعرّف الدفعة يُخزَّن مبدوءاً بـ `"kimi:"`.
 - **`qwen-*`** ⇒ مزوّد Qwen (`src/lib/qwen.ts`) عبر **Batch API المتوافق مع OpenAI**
   (`https://dashscope-intl.aliyuncs.com/compatible-mode/v1`): رفع JSONL → إنشاء دفعة
   → استطلاع → تنزيل الناتج. يحتاج `QWEN_API_KEY` (أو `DASHSCOPE_API_KEY`).
 - **القاعدة:** المزوّد الوحيد الذي يستعمل Claude مباشرةً هو هذه الميزة. التفريغ (OCR)
   وAsk/Report تستعمل Mistral ولا تتأثّر بهذا التبديل إطلاقاً.
+- **الأدوات المشتركة:** `src/lib/openai-compat.ts` يحمل ما يشترك فيه المزوّدان
+  المتوافقان مع OpenAI (تحليل الردّ، تصنيف `finish_reason`، ترميز المعرّف الوهميّ
+  `inline:`، النداء بإعادة المحاولة) — فلا يُكرَّر المنطق عند إضافة مزوّد ثالث.
 - **ضمانات الرصيد محفوظة:** `study-poll.ts` محايد تجاه المزوّد ويبقى **بلا تعديل** —
   معرّف دفعة Qwen يُخزَّن مبدوءاً بـ `"qwen:"`، والمعرّف غير المبدوء = Claude (توافق
   رجعيّ للسجلّات الجارية). منطق المتابعة عند بلوغ سقف الإخراج يعمل للمزوّدَين (سقف

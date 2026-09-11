@@ -24,6 +24,8 @@ import {
   calcStudyCost,
   getStudyConfig,
   isStudyConfigured,
+  STUDY_ENABLED,
+  STUDY_OFF_MESSAGE,
   maxTokensForBatch,
   submitStudyBatch,
   type StudyDepth,
@@ -47,6 +49,10 @@ export async function POST(
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 401 });
+  }
+  // الميزة موقوفة مؤقّتاً — لا تُقبل طلبات جديدة (التسوية الجارية لا تتأثّر)
+  if (!STUDY_ENABLED) {
+    return NextResponse.json({ error: STUDY_OFF_MESSAGE, comingSoon: true }, { status: 503 });
   }
   if (!isStudyConfigured) {
     return NextResponse.json({ error: "خدمة الملخّص الدراسي غير مهيّأة" }, { status: 503 });

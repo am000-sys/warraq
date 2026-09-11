@@ -13,6 +13,16 @@
 //
 // توافق رجعيّ: السجلّات الجارية بمعرّف دفعة حقيقيّ (غير مبدوء بـ inline:) تُستكمل
 // عبر مسار استطلاع الدفعة في checkQwenBatch.
+import {
+  chatFetchWithRetry,
+  classifyFinish,
+  decodeInline,
+  encodeInline,
+  parseChatResponse,
+  stripEndMark,
+  INLINE_PREFIX,
+  type ChatMessage,
+} from "@/lib/openai-compat";
 import type { StudyBatchStatus } from "@/lib/study";
 
 const apiKey = process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY || "";
@@ -28,8 +38,6 @@ const MAX_OUTPUT = Math.max(
 );
 // مسار الدردشة المتوافق مع OpenAI (نسبيّ إلى BASE_URL الذي ينتهي بـ /v1).
 const CHAT_PATH = "/chat/completions";
-// بادئة المعرّف الوهميّ الذي يحمل الناتج المتزامن مُرمَّزاً (base64 لـ JSON).
-const INLINE_PREFIX = "inline:";
 
 export const isQwenConfigured = Boolean(apiKey && apiKey.length > 10);
 export function isQwenModel(model: string): boolean {
@@ -37,14 +45,7 @@ export function isQwenModel(model: string): boolean {
 }
 
 // ─── أدوات نقيّة (قابلة للاختبار محليّاً بلا شبكة) ─────────────
-export type QwenMessage = { role: "system" | "user" | "assistant"; content: string };
-
-// يحوّل finish_reason إلى دلالة موحّدة: length=بلغ السقف، content_filter=رفض.
-export function classifyFinish(reason: string | null | undefined): "stop" | "truncated" | "refused" {
-  if (reason === "length") return "truncated";
-  if (reason === "content_filter") return "refused";
-  return "stop";
-}
+export type QwenMessage = ChatMessage;
 
 // يحلّل محتوى ملفّ ناتج الدفعة (JSONL، عادةً سطر واحد لطلبنا الوحيد) إلى حالة موحّدة.
 export function parseBatchOutput(jsonl: string, endMark: string): StudyBatchStatus {
@@ -96,6 +97,7 @@ export function parseBatchOutput(jsonl: string, endMark: string): StudyBatchStat
 // ─── نداءات HTTP (مع إعادة محاولة للأخطاء العابرة ٤٢٩/٥xx) ──────
 // ٤ محاولات بتراجع أسّي (2s/4s/8s): حدود QPM على الحسابات المدفوعة حديثاً
 // منخفضة فتكثر 429 العابرة — المهلة تتّسع لها (maxDuration=300 في المسارات).
+// يُستعمل لمسار الدفعات القديم (GET/POST على /batches و/files) — التوافق الرجعيّ.
 async function qwenFetch(path: string, init: RequestInit): Promise<Response> {
   let last = "";
   for (let attempt = 0; attempt < 4; attempt++) {
@@ -111,53 +113,6 @@ async function qwenFetch(path: string, init: RequestInit): Promise<Response> {
   throw new Error(last || "Qwen request failed");
 }
 
-// يحلّل ردّ الدردشة المتزامن (JSON متوافق مع OpenAI) إلى حالة موحّدة.
-export function parseChatResponse(json: string, endMark: string): StudyBatchStatus {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(json);
-  } catch {
-    return { state: "failed", message: "تعذّر تحليل ردّ المزوّد" };
-  }
-  const rec = parsed as {
-    choices?: { message?: { content?: string }; finish_reason?: string }[];
-    usage?: { prompt_tokens?: number; completion_tokens?: number };
-    error?: unknown;
-  };
-  if (rec.error) {
-    return { state: "failed", message: "تعذّرت معالجة الطلب لدى المزوّد — أعد المحاولة" };
-  }
-  const choice = rec.choices?.[0];
-  const finish = classifyFinish(choice?.finish_reason);
-  if (finish === "refused") return { state: "refused" };
-
-  const content = (choice?.message?.content ?? "").trim();
-  if (!content) return { state: "failed", message: "أعاد النموذج ردّاً فارغاً" };
-
-  // علامة النهاية تُفكّ عند الاستطلاع (حيث تُعرف)؛ لا نقصّها إن لم تُمرَّر.
-  return {
-    state: "succeeded",
-    markdown: endMark ? content.split(endMark).join("").trimEnd() : content,
-    inputTokens: rec.usage?.prompt_tokens ?? 0,
-    outputTokens: rec.usage?.completion_tokens ?? 0,
-    truncated: finish === "truncated",
-  };
-}
-
-// ترميز/فكّ الناتج المتزامن داخل المعرّف الوهميّ (لا جداول جديدة، بنفس عقد batchId).
-function encodeInline(status: StudyBatchStatus): string {
-  return INLINE_PREFIX + Buffer.from(JSON.stringify(status), "utf8").toString("base64");
-}
-function decodeInline(id: string): StudyBatchStatus {
-  try {
-    return JSON.parse(
-      Buffer.from(id.slice(INLINE_PREFIX.length), "base64").toString("utf8"),
-    ) as StudyBatchStatus;
-  } catch {
-    return { state: "failed", message: "تعذّر استرجاع الناتج — أعد المحاولة" };
-  }
-}
-
 // ─── واجهة المزوّد (مطابقة لدوالّ Claude في study.ts) ──────────
 // تُجري النداء المتزامن وتعيد معرّفاً وهميّاً (inline:) يحمل الناتج المُرمَّز ليفكّه
 // الاستطلاع فوراً. أخطاء النقل الصلبة تُرمى ليتولّاها المسار (استرداد + FAILED).
@@ -167,20 +122,19 @@ export async function submitQwenBatch(opts: {
   maxTokens: number;
 }): Promise<string> {
   if (!isQwenConfigured) throw new Error("QWEN_NOT_CONFIGURED");
-  const res = await qwenFetch(CHAT_PATH, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      // محاولة تعطيل فحص المحتوى (إنذارات كاذبة على النصوص التراثيّة). تُتجاهل
-      // الترويسة إن لم يدعمها النموذج/الحساب فلا ضرر.
-      "X-DashScope-DataInspection": "disable",
-    },
-    body: JSON.stringify({
+  const res = await chatFetchWithRetry({
+    url: `${BASE_URL}${CHAT_PATH}`,
+    apiKey,
+    providerLabel: "Qwen",
+    // محاولة تعطيل فحص المحتوى (إنذارات كاذبة على النصوص التراثيّة). تُتجاهل
+    // الترويسة إن لم يدعمها النموذج/الحساب فلا ضرر.
+    extraHeaders: { "X-DashScope-DataInspection": "disable" },
+    body: {
       model: opts.model,
       messages: opts.messages,
       max_tokens: Math.min(opts.maxTokens, MAX_OUTPUT),
       temperature: 0.2,
-    }),
+    },
   });
   // بلا قصّ لعلامة النهاية هنا (تُمرَّر "" )؛ القصّ يتمّ عند الاستطلاع بالعلامة الفعليّة.
   const status = parseChatResponse(await res.text(), "");
@@ -190,14 +144,8 @@ export async function submitQwenBatch(opts: {
 // يفحص الحالة ويستخرج الناتج — بنفس StudyBatchStatus.
 // المعرّف الوهميّ (inline:) يُفكّ فوراً؛ المعرّف الحقيقيّ = دفعة جارية (توافق رجعيّ).
 export async function checkQwenBatch(batchId: string, endMark: string): Promise<StudyBatchStatus> {
-  if (batchId.startsWith(INLINE_PREFIX)) {
-    const status = decodeInline(batchId);
-    // فكّ علامة النهاية هنا حتى لا تظهر في الناتج (الناتج رُمّز بعلامة وسيطة).
-    if (status.state === "succeeded") {
-      return { ...status, markdown: status.markdown.split(endMark).join("").trimEnd() };
-    }
-    return status;
-  }
+  // فكّ علامة النهاية هنا حتى لا تظهر في الناتج (الناتج رُمّز بعلامة وسيطة).
+  if (batchId.startsWith(INLINE_PREFIX)) return stripEndMark(decodeInline(batchId), endMark);
   if (!isQwenConfigured) throw new Error("QWEN_NOT_CONFIGURED");
   const res = await qwenFetch(`/batches/${batchId}`, { method: "GET" });
   const batch = (await res.json()) as {

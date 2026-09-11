@@ -19,6 +19,14 @@ import {
   cancelQwenBatch,
   type QwenMessage,
 } from "@/lib/qwen";
+import {
+  isKimiConfigured,
+  isKimiModel,
+  submitKimiBatch,
+  checkKimiBatch,
+  cancelKimiBatch,
+  type KimiMessage,
+} from "@/lib/kimi";
 
 // الثوابت المشتركة مع الواجهة (خيارات/تسعير) في ملفّ نقيّ بلا اعتماد على الخادم
 export {
@@ -36,8 +44,14 @@ const apiKey = process.env.ANTHROPIC_API_KEY;
 const isAnthropicConfigured = Boolean(
   apiKey && apiKey !== "sk-ant-stub-temp" && apiKey.startsWith("sk-ant-"),
 );
-// الخدمة مهيّأة إن توفّر أيّ مزوّد: Claude (الافتراضي) أو Qwen (بديل مجانيّ يضبطه المالك).
-export const isStudyConfigured = isAnthropicConfigured || isQwenConfigured;
+// الخدمة مهيّأة إن توفّر أيّ مزوّد: Claude أو Qwen أو Kimi (يضبطه المالك).
+export const isStudyConfigured = isAnthropicConfigured || isQwenConfigured || isKimiConfigured;
+
+// إيقاف مؤقّت للميزة: يحجب الواجهة وقبول طلبات جديدة، ولا يمسّ تسوية المهامّ
+// الجارية في study-poll حتى لا تبقى معلّقة بلا نهاية. يُعاد تشغيلها بـ "1".
+export const STUDY_ENABLED = process.env.STUDY_ENABLED === "1";
+export const STUDY_OFF_MESSAGE =
+  "الملخّص الدراسي قيد التطوير وسيتاح قريباً. بقيّة خدمات المنصّة تعمل كالمعتاد.";
 const client = isAnthropicConfigured ? new Anthropic({ apiKey }) : null;
 
 // ─── الإعداد (SystemSetting بمفاتيح study_*) ───────────────
@@ -53,17 +67,31 @@ export type StudyConfig = {
   premiumEnabled: boolean; // إتاحة «الدقّة القصوى» للمستخدمين (سلاح تحكّم بالتكلفة)
 };
 
+// معرّف نموذج مقبول: claude-* أو qwen-* أو kimi-*/moonshot-* — التوجيه حسب البادئة.
+export function isSupportedStudyModel(v: unknown): v is string {
+  return (
+    typeof v === "string" &&
+    (v.startsWith("claude-") || v.startsWith("qwen-") || isKimiModel(v))
+  );
+}
+
+// قراءة معرّف نموذج من البيئة مع التحقّق — معرّف مجهول البادئة يُتجاهَل بدل أن
+// يُعطّل الميزة صامتاً عند أوّل نداء.
+function envModel(key: string): string | undefined {
+  const v = process.env[key]?.trim();
+  return isSupportedStudyModel(v) ? v : undefined;
+}
+
 const DEFAULTS: StudyConfig = {
   enabled: true,
   rate: 1.5,
   minCost: 15,
   ratePremium: 4.5,
   minCostPremium: 45,
-  // qwen-plus-latest: السياق الحديث (~١٢٩ ألف توكِن) المتاح على القاعدة الدوليّة.
-  // (الاسم المستعار qwen-plus يشير لِلقطة قديمة بحدّ ٣٠٧٢٠ توكِن، و qwen-long غير
-  // متاح على القاعدة الدوليّة.)
-  model: "qwen-plus-latest",
-  modelPremium: "qwen-plus-latest",
+  // النموذج الافتراضي: من البيئة إن ضُبط (لا توجد واجهة لتحرير SystemSetting)،
+  // وإلّا qwen-plus-latest — السياق الحديث المتاح على القاعدة الدوليّة.
+  model: envModel("STUDY_DEFAULT_MODEL") ?? "qwen-plus-latest",
+  modelPremium: envModel("STUDY_DEFAULT_MODEL_PREMIUM") ?? "qwen-plus-latest",
   maxChars: 800_000,
   premiumEnabled: true,
 };
@@ -97,9 +125,7 @@ export async function getStudyConfig(): Promise<StudyConfig> {
     cfg.minCost = num(KEYS.minCost) ?? cfg.minCost;
     cfg.ratePremium = num(KEYS.ratePremium, 0.1) ?? cfg.ratePremium;
     cfg.minCostPremium = num(KEYS.minCostPremium) ?? cfg.minCostPremium;
-    // يُقبل معرّف Claude (claude-*) أو Qwen (qwen-*) — التوجيه يتمّ حسب البادئة.
-    const okModel = (v: unknown): v is string =>
-      typeof v === "string" && (v.startsWith("claude-") || v.startsWith("qwen-"));
+    const okModel = isSupportedStudyModel;
     const m = map.get(KEYS.model);
     if (okModel(m)) cfg.model = m;
     const mp = map.get(KEYS.modelPremium);
@@ -250,8 +276,9 @@ function buildDialogMessages(context: string, checkpoint?: string): DialogMsg[] 
 }
 
 // يسلّم المهمة كاملة دفعةً واحدة ويعيد معرّف الدفعة للمتابعة.
-// التوجيه حسب بادئة معرّف النموذج: qwen-* ⇒ مزوّد Qwen (المعرّف يُبدَأ بـ "qwen:")،
-// وإلّا ⇒ Anthropic Batches (المعرّف يبقى كما هو — توافق رجعيّ للسجلّات الجارية).
+// التوجيه حسب بادئة معرّف النموذج: kimi-*/moonshot-* ⇒ Kimi (المعرّف يُبدَأ بـ
+// "kimi:")، وqwen-* ⇒ Qwen ("qwen:")، وإلّا ⇒ Anthropic Batches (المعرّف يبقى كما
+// هو — توافق رجعيّ للسجلّات الجارية).
 // لا تبديل مزوّد تلقائيّاً: تعذُّر المزوّد المضبوط يُسلَّم كخطأ واضح (استرداد + رسالة).
 export async function submitStudyBatch(opts: {
   model: string;
@@ -261,6 +288,13 @@ export async function submitStudyBatch(opts: {
   checkpoint?: string;
 }): Promise<string> {
   const dialog = buildDialogMessages(opts.context, opts.checkpoint);
+
+  if (isKimiModel(opts.model)) {
+    // Kimi (متوافق مع OpenAI): رسالة النظام دور مستقلّ ضمن المصفوفة
+    const messages: KimiMessage[] = [{ role: "system", content: opts.system }, ...dialog];
+    const id = await submitKimiBatch({ model: opts.model, messages, maxTokens: opts.maxTokens });
+    return `kimi:${id}`;
+  }
 
   if (isQwenModel(opts.model)) {
     // Qwen (متوافق مع OpenAI): رسالة النظام دور مستقلّ ضمن المصفوفة
@@ -301,7 +335,8 @@ export type StudyBatchStatus =
 
 // يفحص حالة الدفعة، ويستخرج الناتج عند الاكتمال
 export async function checkStudyBatch(batchId: string): Promise<StudyBatchStatus> {
-  // معرّف مبدوء بـ "qwen:" ⇒ مزوّد Qwen؛ غير المبدوء ⇒ Anthropic (توافق رجعيّ)
+  // بادئة المعرّف تحدّد المزوّد؛ بلا بادئة ⇒ Anthropic (توافق رجعيّ للسجلّات الجارية)
+  if (batchId.startsWith("kimi:")) return checkKimiBatch(batchId.slice(5), STUDY_END_MARK);
   if (batchId.startsWith("qwen:")) return checkQwenBatch(batchId.slice(5), STUDY_END_MARK);
   if (!client) throw new Error("ANTHROPIC_NOT_CONFIGURED");
   const batch = await client.messages.batches.retrieve(batchId);
@@ -339,6 +374,7 @@ export async function checkStudyBatch(batchId: string): Promise<StudyBatchStatus
 
 // إلغاء دفعة (عند حذف ملخّص قيد المعالجة) — لإيقاف أيّ كلفة متبقّية
 export async function cancelStudyBatch(batchId: string): Promise<void> {
+  if (batchId.startsWith("kimi:")) return cancelKimiBatch();
   if (batchId.startsWith("qwen:")) return cancelQwenBatch(batchId.slice(5));
   if (!client) return;
   await client.messages.batches.cancel(batchId).catch(() => {});

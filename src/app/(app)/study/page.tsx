@@ -6,8 +6,13 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { InitDbButton } from "@/components/init-db-button";
 import { StudyClient, type SummaryMeta } from "@/components/study-client";
-import { getStudyConfig, isStudyConfigured } from "@/lib/study";
-import { BookOpenCheck, Hourglass } from "lucide-react";
+import {
+  getStudyConfig,
+  isStudyConfigured,
+  STUDY_ENABLED,
+  STUDY_OFF_MESSAGE,
+} from "@/lib/study";
+import { Hourglass } from "lucide-react";
 
 export const metadata = { title: "الملخّص الدراسي — ورّاق" };
 
@@ -106,7 +111,7 @@ export default async function StudyPage() {
     );
   }
 
-  const available = cfg.enabled && isStudyConfigured;
+  const available = STUDY_ENABLED && cfg.enabled && isStudyConfigured;
 
   return (
     <>
@@ -117,9 +122,9 @@ export default async function StudyPage() {
       {!available ? (
         <div className="card" style={{ borderRadius: 16 }}>
           <EmptyState
-            icon={BookOpenCheck}
-            title="الخدمة غير متاحة حالياً"
-            description="خدمة الملخّص الدراسي غير مفعّلة في الوقت الراهن. عُد لاحقاً أو تواصل مع الدعم."
+            icon={Hourglass}
+            title="قريباً"
+            description={STUDY_OFF_MESSAGE}
           />
         </div>
       ) : (
