@@ -12,6 +12,7 @@ import {
 } from "@/lib/packages";
 import { ar } from "@/lib/utils";
 import { Field, FieldLabel, FieldControl } from "@/components/ui/field";
+import { CARD_PAYMENTS_OFF_MESSAGE } from "@/lib/payments-config";
 
 type Bank = { bankName: string; iban: string };
 type Req = {
@@ -25,7 +26,15 @@ type Req = {
   createdAt: string;
 };
 
-export function TopUpClient({ packages, bank }: { packages: TopUpPackage[]; bank: Bank }) {
+export function TopUpClient({
+  packages,
+  bank,
+  cardPaymentsEnabled = false,
+}: {
+  packages: TopUpPackage[];
+  bank: Bank;
+  cardPaymentsEnabled?: boolean;
+}) {
   const [selected, setSelected] = useState<TopUpPackage | null>(null);
   const [senderName, setSenderName] = useState("");
   const [receipt, setReceipt] = useState<string | null>(null);
@@ -356,43 +365,69 @@ export function TopUpClient({ packages, bank }: { packages: TopUpPackage[]; bank
             </div>
           )}
 
-          {/* الدفع الفوريّ بالبطاقة / Apple Pay */}
-          <div className="flex flex-wrap" style={{ gap: 12 }}>
-            <button
-              type="button"
-              onClick={() => payWithCard("tap")}
-              disabled={paying !== null}
-              className="btn-primary justify-center"
-              style={{ flex: "1 1 200px", fontSize: 14, padding: 13, opacity: paying !== null ? 0.6 : 1 }}
+          {/* الدفع الفوريّ بالبطاقة / Apple Pay — موقوف حتّى تفعيل البوّابة */}
+          {cardPaymentsEnabled ? (
+            <>
+              <div className="flex flex-wrap" style={{ gap: 12 }}>
+                <button
+                  type="button"
+                  onClick={() => payWithCard("tap")}
+                  disabled={paying !== null}
+                  className="btn-primary justify-center"
+                  style={{ flex: "1 1 200px", fontSize: 14, padding: 13, opacity: paying !== null ? 0.6 : 1 }}
+                >
+                  {paying === "tap" ? "جارٍ التحويل…" : "Apple Pay · مدى · بطاقة"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => payWithCard("stripe")}
+                  disabled={paying !== null}
+                  className="btn-ghost justify-center"
+                  style={{ flex: "1 1 200px", fontSize: 14, padding: 13, opacity: paying !== null ? 0.6 : 1 }}
+                >
+                  {paying === "stripe" ? "جارٍ التحويل…" : "بطاقة دوليّة · Apple/Google Pay"}
+                </button>
+              </div>
+              <p
+                style={{
+                  fontSize: 11,
+                  color: "var(--pebble)",
+                  fontFamily: "Tajawal, sans-serif",
+                  marginTop: 8,
+                }}
+              >
+                دفع فوريّ وآمن — يُضاف الرصيد تلقائيّاً بعد إتمام الدفع.
+              </p>
+            </>
+          ) : (
+            <div
+              className="flex items-center"
+              style={{
+                gap: 10,
+                background: "var(--fog)",
+                border: "1px dashed var(--border)",
+                borderRadius: 14,
+                padding: "14px 16px",
+                fontFamily: "Tajawal, sans-serif",
+              }}
             >
-              {paying === "tap" ? "جارٍ التحويل…" : "Apple Pay · مدى · بطاقة"}
-            </button>
-            <button
-              type="button"
-              onClick={() => payWithCard("stripe")}
-              disabled={paying !== null}
-              className="btn-ghost justify-center"
-              style={{ flex: "1 1 200px", fontSize: 14, padding: 13, opacity: paying !== null ? 0.6 : 1 }}
-            >
-              {paying === "stripe" ? "جارٍ التحويل…" : "بطاقة دوليّة · Apple/Google Pay"}
-            </button>
-          </div>
-          <p
-            style={{
-              fontSize: 11,
-              color: "var(--pebble)",
-              fontFamily: "Tajawal, sans-serif",
-              marginTop: 8,
-            }}
-          >
-            دفع فوريّ وآمن — يُضاف الرصيد تلقائيّاً بعد إتمام الدفع.
-          </p>
+              <span
+                className="badge flex-shrink-0"
+                style={{ background: "var(--orange-soft)", color: "var(--orange)", fontSize: 11 }}
+              >
+                قريباً
+              </span>
+              <p style={{ fontSize: 12.5, lineHeight: 1.8, color: "var(--stone)", margin: 0 }}>
+                {CARD_PAYMENTS_OFF_MESSAGE}
+              </p>
+            </div>
+          )}
 
           {/* فاصل */}
           <div className="flex items-center" style={{ gap: 12, margin: "18px 0" }}>
             <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
             <span style={{ fontSize: 12, color: "var(--pebble)", fontFamily: "Tajawal, sans-serif" }}>
-              أو حوّل بنكيّاً
+              {cardPaymentsEnabled ? "أو حوّل بنكيّاً" : "حوّل بنكيّاً"}
             </span>
             <div style={{ flex: 1, height: 1, background: "var(--border)" }} />
           </div>

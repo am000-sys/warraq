@@ -229,7 +229,7 @@ export function Pricing({ standalone = false }: { standalone?: boolean }) {
             fontFamily: "Tajawal, sans-serif",
           }}
         >
-          شامل ضريبة القيمة المضافة · يُقبل mada، Visa، Apple Pay، STC Pay
+          شامل ضريبة القيمة المضافة · الدفع بالتحويل البنكيّ — والبطاقات قريباً
         </p>
       </div>
     </section>
