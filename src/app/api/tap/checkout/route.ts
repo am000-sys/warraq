@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { createTapCharge, isTapConfigured } from "@/lib/tap";
+import { createTapCharge, isTapConfigured, tapKeyMode } from "@/lib/tap";
 import { getPackage, getFlexiblePackage } from "@/lib/packages";
 
 const schema = z.object({
@@ -80,18 +80,33 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // قاعدة الموقع: من الطلب أوّلاً، وإلّا من الإعداد — يلزم لرابطي العودة والإشعار
+    const baseUrl = origin || process.env.NEXTAUTH_URL || "";
     const charge = await createTapCharge({
       amountSar,
       description,
       customer: { email: user.email, name: user.name },
-      redirectUrl: `${origin}/billing/return?tx=${tx.id}`,
+      redirectUrl: `${baseUrl}/billing/return?tx=${tx.id}`,
+      // Tap ترسل الإشعار إلى post.url الخاصّ بالشحنة — بدونه لا يصل webhook أصلاً
+      webhookUrl: process.env.TAP_WEBHOOK_URL || (baseUrl ? `${baseUrl}/api/tap/webhook` : undefined),
       metadata: { userId: user.id, txId: tx.id, type: data.type, pages: String(pagesGranted) },
     });
 
+    // حفظ وضع الشحنة (مباشر/اختباريّ) — شحنة اختباريّة تنجح في التطبيق لكنّها
+    // لا تُحصّل مالاً ولا تظهر في لوحة Tap المباشرة، فنُبقي الأثر للتشخيص لاحقاً.
     await db.transaction.update({
       where: { id: tx.id },
-      data: { externalId: charge.id },
+      data: {
+        externalId: charge.id,
+        metadata: { liveMode: charge.liveMode, keyMode: tapKeyMode() },
+      },
     });
+
+    if (charge.liveMode === false || tapKeyMode() === "test") {
+      console.warn(
+        `[tap.checkout] شحنة بوضع اختباريّ (${charge.id}) — لن تُحصَّل أموال حقيقيّة. راجع TAP_SECRET_KEY.`,
+      );
+    }
 
     return NextResponse.json({ url: charge.url });
   } catch (err) {

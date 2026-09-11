@@ -2,6 +2,9 @@
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { InitDbButton } from "@/components/init-db-button";
+import { PaymentDiagnostics, type GatewayDiagnostic } from "@/components/payment-diagnostics";
+import { isTapConfigured, tapKeyMode, retrieveTapCharge } from "@/lib/tap";
+import { isStripeConfigured } from "@/lib/stripe";
 import { Activity } from "lucide-react";
 
 // قياس زمن الذهاب والإياب لقاعدة البيانات من داخل دالّة الخادم نفسها.
@@ -99,11 +102,79 @@ function latencyVerdict(
       };
 }
 
+// تشخيص بوّابات الدفع: وضع المفتاح المُشغَّل فعلاً + حالة آخر شحنة كما تراها البوّابة.
+// نستعلم Tap مباشرةً عن آخر معاملة لأنّ live_mode لا يُعرف إلّا من ردّ البوّابة نفسها.
+async function paymentDiagnostics(): Promise<GatewayDiagnostic[]> {
+  const base = process.env.NEXTAUTH_URL || null;
+
+  const lastTap = isTapConfigured
+    ? await db.transaction
+        .findFirst({
+          where: { gateway: "TAP", externalId: { not: null } },
+          orderBy: { createdAt: "desc" },
+        })
+        .catch(() => null)
+    : null;
+
+  let tapCharge: GatewayDiagnostic["lastCharge"] = null;
+  if (lastTap?.externalId) {
+    try {
+      const charge = await retrieveTapCharge(lastTap.externalId);
+      tapCharge = {
+        id: lastTap.externalId,
+        status: typeof charge?.status === "string" ? charge.status : null,
+        liveMode: typeof charge?.live_mode === "boolean" ? charge.live_mode : null,
+        amount:
+          charge?.amount != null ? `${charge.amount} ${charge.currency ?? ""}`.trim() : null,
+        createdAt: lastTap.createdAt,
+        // شحنة لا تُعرف لدى Tap = مفتاح مختلف عن الذي أنشأها (اختباريّ/حساب آخر)
+        ...(charge?.errors?.[0]?.description
+          ? { error: String(charge.errors[0].description) }
+          : {}),
+      };
+    } catch {
+      tapCharge = {
+        id: lastTap.externalId,
+        status: null,
+        liveMode: null,
+        amount: null,
+        createdAt: lastTap.createdAt,
+        error: "تعذّر الوصول إلى Tap للتحقّق",
+      };
+    }
+  }
+
+  const stripeKey = process.env.STRIPE_SECRET_KEY?.trim();
+  const stripeMode: GatewayDiagnostic["mode"] = !stripeKey
+    ? null
+    : stripeKey.startsWith("sk_live_")
+      ? "live"
+      : stripeKey.startsWith("sk_test_")
+        ? "test"
+        : "unknown";
+
+  return [
+    {
+      name: "Tap Payments",
+      configured: isTapConfigured,
+      mode: tapKeyMode(),
+      webhookUrl: process.env.TAP_WEBHOOK_URL || (base ? `${base}/api/tap/webhook` : null),
+      lastCharge: tapCharge,
+    },
+    {
+      name: "Stripe",
+      configured: isStripeConfigured,
+      mode: stripeMode,
+      webhookUrl: base ? `${base}/api/stripe/webhook` : null,
+    },
+  ];
+}
+
 export default async function AdminSystemPage() {
   // القياس أوّلاً وبتسلسل — كي لا تُزاحمه استعلامات الصفحة فتتشوّه الأرقام
   const dbLatency = await measureDbLatency();
 
-  const [recentLogs, settings] = await Promise.all([
+  const [recentLogs, settings, gateways] = await Promise.all([
     db.auditLog
       .findMany({
         orderBy: { createdAt: "desc" },
@@ -111,6 +182,7 @@ export default async function AdminSystemPage() {
       })
       .catch(() => []),
     db.systemSetting.findMany().catch(() => []),
+    paymentDiagnostics().catch((): GatewayDiagnostic[] => []),
   ]);
 
   const region = process.env.VERCEL_REGION || null;
@@ -124,6 +196,8 @@ export default async function AdminSystemPage() {
   return (
     <div>
       <PageHeader title="النظام" subtitle="إعدادات وسجلّ نشاط المنصّة." />
+
+      {gateways.length > 0 && <PaymentDiagnostics gateways={gateways} />}
 
       {/* تشخيص الأداء — يقيس من داخل بيئة التشغيل الفعليّة */}
       <div className="card mb-7" style={{ borderRadius: 16 }}>
