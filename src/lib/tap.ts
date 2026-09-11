@@ -15,6 +15,22 @@ export function tapKeyMode(): TapKeyMode {
   return "unknown"; // مفتاح بصيغة غير معروفة (أو مفتاح منشور pk_ بالخطأ)
 }
 
+// حارس الإنتاج: مفتاح اختباريّ على الإنتاج حالة خطرة — شوهدت شحنات تُحصَّل من بطاقات
+// مدى حقيقيّة (Apple Pay، برمز تفويض ومرجع مُصدِر) بينما تُقيّدها Tap بـ live_mode:false،
+// فلا تدخل رصيد التاجر ولا تُسوّى. نمنع إنشاء شحنات جديدة حتّى يُضبط مفتاح الإنتاج،
+// ويُفتح تجاوزه عمداً بـ TAP_ALLOW_TEST_IN_PRODUCTION=1.
+export function tapBlockReason(): string | null {
+  if (process.env.VERCEL_ENV !== "production") return null;
+  if (process.env.TAP_ALLOW_TEST_IN_PRODUCTION === "1") return null;
+  if (tapKeyMode() === "test") {
+    return "الدفع بالبطاقة معطّل مؤقّتاً: مفتاح Tap على الإنتاج اختباريّ (sk_test_)، والعمليّات المُنشأة به لا تصل حساب التاجر. اضبط مفتاح الإنتاج (sk_live_) ثمّ أعد النشر.";
+  }
+  if (tapKeyMode() === "unknown") {
+    return "الدفع بالبطاقة معطّل مؤقّتاً: صيغة مفتاح Tap غير معروفة. راجع TAP_SECRET_KEY.";
+  }
+  return null;
+}
+
 const TAP_API = "https://api.tap.company/v2";
 
 type TapChargeInput = {

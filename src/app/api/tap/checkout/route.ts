@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { createTapCharge, isTapConfigured, tapKeyMode } from "@/lib/tap";
+import { createTapCharge, isTapConfigured, tapKeyMode, tapBlockReason } from "@/lib/tap";
 import { getPackage, getFlexiblePackage } from "@/lib/packages";
 
 const schema = z.object({
@@ -28,6 +28,13 @@ export async function POST(req: NextRequest) {
       },
       { status: 503 },
     );
+  }
+
+  // حارس: لا نأخذ مالاً حقيقيّاً بمفتاح لا يُسوّى إلى حساب التاجر
+  const blocked = tapBlockReason();
+  if (blocked) {
+    console.error("[tap.checkout] محجوب:", blocked);
+    return NextResponse.json({ error: blocked, configRequired: true }, { status: 503 });
   }
 
   try {
