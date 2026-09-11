@@ -4,7 +4,12 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { getPackage, getFlexiblePackage } from "@/lib/packages";
-import { queueEmail, newTopupForOwnerEmail } from "@/lib/email";
+import {
+  queueEmail,
+  newTopupForOwnerEmail,
+  ownerNotifyEmails,
+  URGENT_HEADERS,
+} from "@/lib/email";
 
 const schema = z.object({
   packageId: z.enum(["small", "medium", "large", "flex"]),
@@ -50,10 +55,11 @@ export async function POST(req: NextRequest) {
         receiptImage: data.receiptImage,
         status: "PENDING",
       },
-      select: { id: true, status: true },
+      select: { id: true, status: true, createdAt: true },
     });
 
-    // إشعار المالك (مالكو النظام) بطلب جديد — يُتجاهَل بصمت إن لم يُضبط Resend
+    // إشعار عاجل للمالك بكلّ طلب شحن — إلى بريد المالك المضبوط وبُرُد مالكي النظام.
+    // بُرُد بذور التطوير (نطاق .test ونحوه) تُستبعَد تلقائيّاً فلا يفشل الإرسال بلا طائل.
     const admins = await db.user.findMany({
       where: { systemRole: "SYSTEM_ADMIN" },
       select: { email: true },
@@ -62,14 +68,20 @@ export async function POST(req: NextRequest) {
       where: { id: session.user.id },
       select: { email: true },
     });
-    for (const a of admins) {
-      queueEmail({
-        to: a.email,
-        ...newTopupForOwnerEmail(me?.email ?? "مستخدم", pkg.pages, Math.round(pkg.amountSar * 100)),
-      }, "topup-admin-notify");
+    const recipients = ownerNotifyEmails(admins.map((a) => a.email));
+    const mail = newTopupForOwnerEmail({
+      userEmail: me?.email ?? "مستخدم",
+      senderName: data.senderName,
+      pages: pkg.pages,
+      amountHalala: Math.round(pkg.amountSar * 100),
+      requestId: request.id,
+      createdAt: request.createdAt,
+    });
+    for (const to of recipients) {
+      queueEmail({ to, ...mail, headers: URGENT_HEADERS }, "topup-owner-notify");
     }
 
-    return NextResponse.json({ request });
+    return NextResponse.json({ request: { id: request.id, status: request.status } });
   } catch (err) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
