@@ -1,6 +1,6 @@
 // src/app/api/tap/webhook/route.ts — استقبال أحداث Tap
 import { NextRequest, NextResponse } from "next/server";
-import { retrieveTapCharge, isTapConfigured } from "@/lib/tap";
+import { retrieveTapCharge, isTapConfigured, isUnsettledTestCharge } from "@/lib/tap";
 import { creditTransaction, markTransactionFailed } from "@/lib/payments";
 
 export async function POST(req: NextRequest) {
@@ -20,7 +20,15 @@ export async function POST(req: NextRequest) {
     if (!txId) return NextResponse.json({ received: true });
 
     if (status === "CAPTURED") {
-      await creditTransaction(txId);
+      // تحصيل اختباريّ في الإنتاج: لا مال يُسوّى، فلا رصيد يُمنح
+      if (isUnsettledTestCharge(charge)) {
+        await markTransactionFailed(
+          txId,
+          "عمليّة اختباريّة لم تُسوَّ — لم يُخصم مبلغ ولم يُمنح رصيد",
+        );
+      } else {
+        await creditTransaction(txId);
+      }
     } else if (status === "FAILED" || status === "DECLINED") {
       await markTransactionFailed(txId);
     }

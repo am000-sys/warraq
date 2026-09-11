@@ -2,6 +2,13 @@
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { InitDbButton } from "@/components/init-db-button";
+import {
+  PaymentDiagnostics,
+  type GatewayDiagnostic,
+  type TapChargeRow,
+} from "@/components/payment-diagnostics";
+import { isTapConfigured, tapKeyMode, retrieveTapCharge } from "@/lib/tap";
+import { isStripeConfigured } from "@/lib/stripe";
 import { Activity } from "lucide-react";
 
 // قياس زمن الذهاب والإياب لقاعدة البيانات من داخل دالّة الخادم نفسها.
@@ -99,11 +106,87 @@ function latencyVerdict(
       };
 }
 
+// تشخيص بوّابات الدفع: وضع المفتاح المُشغَّل فعلاً + حالة آخر شحنة كما تراها البوّابة.
+// نستعلم Tap مباشرةً عن آخر معاملة لأنّ live_mode لا يُعرف إلّا من ردّ البوّابة نفسها.
+// تشخيص بوّابات الدفع: وضع المفتاح المُشغَّل فعلاً + حالة آخر الشحنات كما تراها البوّابة.
+// نستعلم Tap مباشرةً لأنّ live_mode لا يُعرف إلّا من ردّ البوّابة نفسها — وقراءة قاعدة
+// البيانات وحدها لا تُميّز شحنة حقيقيّة من اختباريّة.
+const TAP_CHARGES_TO_CHECK = 8;
+
+async function paymentDiagnostics(): Promise<GatewayDiagnostic[]> {
+  const base = process.env.NEXTAUTH_URL || null;
+
+  const recentTap = isTapConfigured
+    ? await db.transaction
+        .findMany({
+          where: { gateway: "TAP", externalId: { not: null } },
+          orderBy: { createdAt: "desc" },
+          take: TAP_CHARGES_TO_CHECK,
+        })
+        .catch(() => [])
+    : [];
+
+  // استعلام متوازٍ — لا نُسلسل ثماني رحلات شبكة
+  const tapCharges = await Promise.all(
+    recentTap.map(async (tx): Promise<TapChargeRow> => {
+      const row: TapChargeRow = {
+        id: tx.externalId!,
+        createdAt: tx.createdAt,
+        localStatus: tx.status,
+        localAmountSar: tx.amountSar / 100,
+        status: null,
+        liveMode: null,
+        amount: null,
+      };
+      try {
+        const charge = await retrieveTapCharge(tx.externalId!);
+        row.status = typeof charge?.status === "string" ? charge.status : null;
+        row.liveMode = typeof charge?.live_mode === "boolean" ? charge.live_mode : null;
+        row.amount =
+          charge?.amount != null ? `${charge.amount} ${charge.currency ?? ""}`.trim() : null;
+        // شحنة لا يعرفها المفتاح الحاليّ = أُنشئت بمفتاح آخر (بيئة أو حساب مختلف)
+        if (!row.status && charge?.errors?.[0]?.description) {
+          row.error = String(charge.errors[0].description);
+        }
+      } catch {
+        row.error = "تعذّر الوصول إلى Tap للتحقّق";
+      }
+      return row;
+    }),
+  );
+
+  const stripeKey = process.env.STRIPE_SECRET_KEY?.trim();
+  const stripeMode: GatewayDiagnostic["mode"] = !stripeKey
+    ? null
+    : stripeKey.startsWith("sk_live_")
+      ? "live"
+      : stripeKey.startsWith("sk_test_")
+        ? "test"
+        : "unknown";
+
+  return [
+    {
+      name: "Tap Payments",
+      configured: isTapConfigured,
+      mode: tapKeyMode(),
+      webhookUrl: process.env.TAP_WEBHOOK_URL || (base ? `${base}/api/tap/webhook` : null),
+      charges: tapCharges,
+    },
+    {
+      name: "Stripe",
+      configured: isStripeConfigured,
+      mode: stripeMode,
+      webhookUrl: base ? `${base}/api/stripe/webhook` : null,
+      charges: [],
+    },
+  ];
+}
+
 export default async function AdminSystemPage() {
   // القياس أوّلاً وبتسلسل — كي لا تُزاحمه استعلامات الصفحة فتتشوّه الأرقام
   const dbLatency = await measureDbLatency();
 
-  const [recentLogs, settings] = await Promise.all([
+  const [recentLogs, settings, gateways] = await Promise.all([
     db.auditLog
       .findMany({
         orderBy: { createdAt: "desc" },
@@ -111,6 +194,7 @@ export default async function AdminSystemPage() {
       })
       .catch(() => []),
     db.systemSetting.findMany().catch(() => []),
+    paymentDiagnostics().catch((): GatewayDiagnostic[] => []),
   ]);
 
   const region = process.env.VERCEL_REGION || null;
@@ -124,6 +208,14 @@ export default async function AdminSystemPage() {
   return (
     <div>
       <PageHeader title="النظام" subtitle="إعدادات وسجلّ نشاط المنصّة." />
+
+      {gateways.length > 0 && (
+        <PaymentDiagnostics
+          gateways={gateways}
+          deployEnv={process.env.VERCEL_ENV ?? null}
+          deployUrl={process.env.VERCEL_URL ?? null}
+        />
+      )}
 
       {/* تشخيص الأداء — يقيس من داخل بيئة التشغيل الفعليّة */}
       <div className="card mb-7" style={{ borderRadius: 16 }}>

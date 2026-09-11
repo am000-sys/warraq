@@ -1,5 +1,9 @@
 // src/app/api/stripe/checkout/route.ts — إنشاء جلسة دفع Stripe (بطاقات + Apple/Google Pay)
 import { NextRequest, NextResponse } from "next/server";
+import {
+  CARD_PAYMENTS_ENABLED,
+  CARD_PAYMENTS_OFF_MESSAGE,
+} from "@/lib/payments-config";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
@@ -15,6 +19,14 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // الدفع الإلكترونيّ موقوف — التحويل البنكيّ هو القناة المتاحة
+  if (!CARD_PAYMENTS_ENABLED) {
+    return NextResponse.json(
+      { error: CARD_PAYMENTS_OFF_MESSAGE, comingSoon: true },
+      { status: 503 },
+    );
+  }
+
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 401 });

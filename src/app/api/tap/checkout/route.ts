@@ -1,9 +1,13 @@
 // src/app/api/tap/checkout/route.ts — إنشاء عمليّة دفع Tap (مدى + Apple Pay سعودي + STC Pay)
 import { NextRequest, NextResponse } from "next/server";
+import {
+  CARD_PAYMENTS_ENABLED,
+  CARD_PAYMENTS_OFF_MESSAGE,
+} from "@/lib/payments-config";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { createTapCharge, isTapConfigured } from "@/lib/tap";
+import { createTapCharge, isTapConfigured, tapKeyMode, tapBlockReason } from "@/lib/tap";
 import { getPackage, getFlexiblePackage } from "@/lib/packages";
 
 const schema = z.object({
@@ -15,6 +19,14 @@ const schema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // الدفع الإلكترونيّ موقوف — التحويل البنكيّ هو القناة المتاحة
+  if (!CARD_PAYMENTS_ENABLED) {
+    return NextResponse.json(
+      { error: CARD_PAYMENTS_OFF_MESSAGE, comingSoon: true },
+      { status: 503 },
+    );
+  }
+
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "غير مصرّح" }, { status: 401 });
@@ -28,6 +40,13 @@ export async function POST(req: NextRequest) {
       },
       { status: 503 },
     );
+  }
+
+  // حارس: لا نأخذ مالاً حقيقيّاً بمفتاح لا يُسوّى إلى حساب التاجر
+  const blocked = tapBlockReason();
+  if (blocked) {
+    console.error("[tap.checkout] محجوب:", blocked);
+    return NextResponse.json({ error: blocked, configRequired: true }, { status: 503 });
   }
 
   try {
@@ -80,18 +99,33 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    // قاعدة الموقع: من الطلب أوّلاً، وإلّا من الإعداد — يلزم لرابطي العودة والإشعار
+    const baseUrl = origin || process.env.NEXTAUTH_URL || "";
     const charge = await createTapCharge({
       amountSar,
       description,
       customer: { email: user.email, name: user.name },
-      redirectUrl: `${origin}/billing/return?tx=${tx.id}`,
+      redirectUrl: `${baseUrl}/billing/return?tx=${tx.id}`,
+      // Tap ترسل الإشعار إلى post.url الخاصّ بالشحنة — بدونه لا يصل webhook أصلاً
+      webhookUrl: process.env.TAP_WEBHOOK_URL || (baseUrl ? `${baseUrl}/api/tap/webhook` : undefined),
       metadata: { userId: user.id, txId: tx.id, type: data.type, pages: String(pagesGranted) },
     });
 
+    // حفظ وضع الشحنة (مباشر/اختباريّ) — شحنة اختباريّة تنجح في التطبيق لكنّها
+    // لا تُحصّل مالاً ولا تظهر في لوحة Tap المباشرة، فنُبقي الأثر للتشخيص لاحقاً.
     await db.transaction.update({
       where: { id: tx.id },
-      data: { externalId: charge.id },
+      data: {
+        externalId: charge.id,
+        metadata: { liveMode: charge.liveMode, keyMode: tapKeyMode() },
+      },
     });
+
+    if (charge.liveMode === false || tapKeyMode() === "test") {
+      console.warn(
+        `[tap.checkout] شحنة بوضع اختباريّ (${charge.id}) — لن تُحصَّل أموال حقيقيّة. راجع TAP_SECRET_KEY.`,
+      );
+    }
 
     return NextResponse.json({ url: charge.url });
   } catch (err) {
