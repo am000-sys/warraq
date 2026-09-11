@@ -2,7 +2,11 @@
 import { db } from "@/lib/db";
 import { PageHeader } from "@/components/page-header";
 import { InitDbButton } from "@/components/init-db-button";
-import { PaymentDiagnostics, type GatewayDiagnostic } from "@/components/payment-diagnostics";
+import {
+  PaymentDiagnostics,
+  type GatewayDiagnostic,
+  type TapChargeRow,
+} from "@/components/payment-diagnostics";
 import { isTapConfigured, tapKeyMode, retrieveTapCharge } from "@/lib/tap";
 import { isStripeConfigured } from "@/lib/stripe";
 import { Activity } from "lucide-react";
@@ -104,45 +108,52 @@ function latencyVerdict(
 
 // تشخيص بوّابات الدفع: وضع المفتاح المُشغَّل فعلاً + حالة آخر شحنة كما تراها البوّابة.
 // نستعلم Tap مباشرةً عن آخر معاملة لأنّ live_mode لا يُعرف إلّا من ردّ البوّابة نفسها.
+// تشخيص بوّابات الدفع: وضع المفتاح المُشغَّل فعلاً + حالة آخر الشحنات كما تراها البوّابة.
+// نستعلم Tap مباشرةً لأنّ live_mode لا يُعرف إلّا من ردّ البوّابة نفسها — وقراءة قاعدة
+// البيانات وحدها لا تُميّز شحنة حقيقيّة من اختباريّة.
+const TAP_CHARGES_TO_CHECK = 8;
+
 async function paymentDiagnostics(): Promise<GatewayDiagnostic[]> {
   const base = process.env.NEXTAUTH_URL || null;
 
-  const lastTap = isTapConfigured
+  const recentTap = isTapConfigured
     ? await db.transaction
-        .findFirst({
+        .findMany({
           where: { gateway: "TAP", externalId: { not: null } },
           orderBy: { createdAt: "desc" },
+          take: TAP_CHARGES_TO_CHECK,
         })
-        .catch(() => null)
-    : null;
+        .catch(() => [])
+    : [];
 
-  let tapCharge: GatewayDiagnostic["lastCharge"] = null;
-  if (lastTap?.externalId) {
-    try {
-      const charge = await retrieveTapCharge(lastTap.externalId);
-      tapCharge = {
-        id: lastTap.externalId,
-        status: typeof charge?.status === "string" ? charge.status : null,
-        liveMode: typeof charge?.live_mode === "boolean" ? charge.live_mode : null,
-        amount:
-          charge?.amount != null ? `${charge.amount} ${charge.currency ?? ""}`.trim() : null,
-        createdAt: lastTap.createdAt,
-        // شحنة لا تُعرف لدى Tap = مفتاح مختلف عن الذي أنشأها (اختباريّ/حساب آخر)
-        ...(charge?.errors?.[0]?.description
-          ? { error: String(charge.errors[0].description) }
-          : {}),
-      };
-    } catch {
-      tapCharge = {
-        id: lastTap.externalId,
+  // استعلام متوازٍ — لا نُسلسل ثماني رحلات شبكة
+  const tapCharges = await Promise.all(
+    recentTap.map(async (tx): Promise<TapChargeRow> => {
+      const row: TapChargeRow = {
+        id: tx.externalId!,
+        createdAt: tx.createdAt,
+        localStatus: tx.status,
+        localAmountSar: tx.amountSar / 100,
         status: null,
         liveMode: null,
         amount: null,
-        createdAt: lastTap.createdAt,
-        error: "تعذّر الوصول إلى Tap للتحقّق",
       };
-    }
-  }
+      try {
+        const charge = await retrieveTapCharge(tx.externalId!);
+        row.status = typeof charge?.status === "string" ? charge.status : null;
+        row.liveMode = typeof charge?.live_mode === "boolean" ? charge.live_mode : null;
+        row.amount =
+          charge?.amount != null ? `${charge.amount} ${charge.currency ?? ""}`.trim() : null;
+        // شحنة لا يعرفها المفتاح الحاليّ = أُنشئت بمفتاح آخر (بيئة أو حساب مختلف)
+        if (!row.status && charge?.errors?.[0]?.description) {
+          row.error = String(charge.errors[0].description);
+        }
+      } catch {
+        row.error = "تعذّر الوصول إلى Tap للتحقّق";
+      }
+      return row;
+    }),
+  );
 
   const stripeKey = process.env.STRIPE_SECRET_KEY?.trim();
   const stripeMode: GatewayDiagnostic["mode"] = !stripeKey
@@ -159,13 +170,14 @@ async function paymentDiagnostics(): Promise<GatewayDiagnostic[]> {
       configured: isTapConfigured,
       mode: tapKeyMode(),
       webhookUrl: process.env.TAP_WEBHOOK_URL || (base ? `${base}/api/tap/webhook` : null),
-      lastCharge: tapCharge,
+      charges: tapCharges,
     },
     {
       name: "Stripe",
       configured: isStripeConfigured,
       mode: stripeMode,
       webhookUrl: base ? `${base}/api/stripe/webhook` : null,
+      charges: [],
     },
   ];
 }
@@ -197,7 +209,13 @@ export default async function AdminSystemPage() {
     <div>
       <PageHeader title="النظام" subtitle="إعدادات وسجلّ نشاط المنصّة." />
 
-      {gateways.length > 0 && <PaymentDiagnostics gateways={gateways} />}
+      {gateways.length > 0 && (
+        <PaymentDiagnostics
+          gateways={gateways}
+          deployEnv={process.env.VERCEL_ENV ?? null}
+          deployUrl={process.env.VERCEL_URL ?? null}
+        />
+      )}
 
       {/* تشخيص الأداء — يقيس من داخل بيئة التشغيل الفعليّة */}
       <div className="card mb-7" style={{ borderRadius: 16 }}>

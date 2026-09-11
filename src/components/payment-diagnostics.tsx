@@ -1,21 +1,27 @@
-// src/components/payment-diagnostics.tsx — تشخيص بوّابات الدفع (وضع المفاتيح + آخر شحنة فعليّة)
-// الغرض: كشف الحالة التي ينجح فيها الدفع في الموقع ولا تصل الأموال إلى حساب Tap —
-// وسببها الأغلب مفتاح اختباريّ (sk_test_) يُرجع CAPTURED دون تحصيل حقيقيّ.
+// src/components/payment-diagnostics.tsx — تشخيص بوّابات الدفع (وضع المفاتيح + الشحنات الفعليّة)
+// الغرض: كشف الحالة التي ينجح فيها الدفع في الموقع ولا تصل الأموال إلى حساب Tap.
+// ملاحظة جوهريّة: القراءة تخصّ **البيئة التي تعمل فيها هذه الصفحة وحدها** — متغيّرات
+// Vercel تُضبط لكلّ بيئة على حدة، فقد يكون مفتاح Preview اختباريّاً والإنتاج مباشراً.
 import { CreditCard } from "lucide-react";
+import type { TransactionStatus } from "@prisma/client";
+
+export type TapChargeRow = {
+  id: string;
+  createdAt: Date;
+  localStatus: TransactionStatus; // حالتها في قاعدتنا
+  localAmountSar: number;
+  status: string | null; // حالتها لدى Tap
+  liveMode: boolean | null;
+  amount: string | null;
+  error?: string;
+};
 
 export type GatewayDiagnostic = {
   name: string;
   configured: boolean;
   mode: "live" | "test" | "unknown" | null;
   webhookUrl: string | null;
-  lastCharge?: {
-    id: string;
-    status: string | null;
-    liveMode: boolean | null;
-    amount: string | null;
-    createdAt: Date;
-    error?: string;
-  } | null;
+  charges: TapChargeRow[];
 };
 
 function Row({
@@ -61,11 +67,56 @@ function modeLabel(mode: GatewayDiagnostic["mode"]) {
   return { text: "غير مُعَدّ", color: "var(--pebble)" };
 }
 
-export function PaymentDiagnostics({ gateways }: { gateways: GatewayDiagnostic[] }) {
-  // تحذير جامع: أيّ بوّابة مفعّلة بمفتاح اختباريّ، أو آخر شحنة بوضع اختباريّ
-  const testGateways = gateways.filter(
-    (g) => g.configured && (g.mode === "test" || g.lastCharge?.liveMode === false),
+const ENV_LABEL: Record<string, string> = {
+  production: "الإنتاج (Production)",
+  preview: "معاينة فرع (Preview)",
+  development: "تطوير (Development)",
+};
+
+function Notice({
+  tone,
+  children,
+}: {
+  tone: "warn" | "alert";
+  children: React.ReactNode;
+}) {
+  const color = tone === "alert" ? "201,123,132" : "246,146,81";
+  return (
+    <div
+      style={{
+        background: `rgba(${color},0.08)`,
+        border: `1px solid rgba(${color},0.25)`,
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 16,
+        fontFamily: "Tajawal, sans-serif",
+        fontSize: 12.5,
+        lineHeight: 1.9,
+        color: "var(--carbon)",
+      }}
+    >
+      {children}
+    </div>
   );
+}
+
+export function PaymentDiagnostics({
+  gateways,
+  deployEnv,
+  deployUrl,
+}: {
+  gateways: GatewayDiagnostic[];
+  deployEnv: string | null;
+  deployUrl: string | null;
+}) {
+  const testGateways = gateways.filter(
+    (g) => g.configured && (g.mode === "test" || g.charges.some((c) => c.liveMode === false)),
+  );
+  // شحنة حقيقيّة مُحصَّلة فعلاً — دليل قاطع أنّ بيئةً ما كانت مباشرة
+  const liveCaptured = gateways
+    .flatMap((g) => g.charges)
+    .filter((c) => c.liveMode === true && c.status === "CAPTURED");
+  const notProduction = Boolean(deployEnv && deployEnv !== "production");
 
   return (
     <div className="card mb-7" style={{ borderRadius: 16 }}>
@@ -88,83 +139,141 @@ export function PaymentDiagnostics({ gateways }: { gateways: GatewayDiagnostic[]
             تشخيص بوّابات الدفع
           </div>
           <div style={{ fontSize: 11, color: "var(--pebble)", fontFamily: "Tajawal, sans-serif" }}>
-            وضع المفاتيح المُشغَّلة فعلاً، وحالة آخر شحنة كما تراها البوّابة نفسها
+            وضع المفاتيح المُشغَّلة فعلاً، وحالة الشحنات كما تراها البوّابة نفسها
           </div>
         </div>
       </div>
 
-      {testGateways.length > 0 && (
-        <div
-          style={{
-            background: "rgba(201,123,132,0.08)",
-            border: "1px solid rgba(201,123,132,0.25)",
-            borderRadius: 12,
-            padding: 14,
-            marginBottom: 16,
-            fontFamily: "Tajawal, sans-serif",
-            fontSize: 12.5,
-            lineHeight: 1.9,
-            color: "var(--carbon)",
-          }}
-        >
-          <strong style={{ color: "var(--rose)" }}>
-            تنبيه: {testGateways.map((g) => g.name).join("، ")} تعمل بوضع اختباريّ.
+      {notProduction && (
+        <Notice tone="warn">
+          <strong style={{ color: "var(--orange)" }}>
+            انتبه: هذه القراءة تخصّ بيئة «{ENV_LABEL[deployEnv!] ?? deployEnv}» فقط.
           </strong>{" "}
-          الدفع ينجح في الموقع ويُضاف الرصيد للمستخدم، لكن لا مال يُحصَّل ولا تظهر العمليّة في
-          لوحة البوّابة المباشرة. الحلّ: استبدل المفتاح بمفتاح الإنتاج (يبدأ بـ{" "}
-          <code style={{ direction: "ltr", display: "inline-block" }}>sk_live_</code>) في متغيّرات
-          البيئة على Vercel ثمّ أعد النشر.
-        </div>
+          متغيّرات البيئة في Vercel تُضبط لكلّ بيئة على حدة، فقد يكون المفتاح هنا اختباريّاً
+          والإنتاج مباشراً أو العكس. للحكم على المدفوعات الحقيقيّة افتح هذه الصفحة على نطاق
+          الإنتاج.
+        </Notice>
       )}
 
-      <div className="flex flex-col" style={{ gap: 20, fontFamily: "Tajawal, sans-serif" }}>
+      {testGateways.length > 0 && (
+        <Notice tone="alert">
+          <strong style={{ color: "var(--rose)" }}>
+            {testGateways.map((g) => g.name).join("، ")} تعمل بوضع اختباريّ في هذه البيئة.
+          </strong>{" "}
+          الدفع ينجح في الموقع ويُضاف الرصيد للمستخدم، لكن لا مال يُحصَّل ولا تظهر العمليّة في
+          لوحة البوّابة المباشرة. ولأنّ البيئة الاختباريّة لا تلمس البطاقات الحقيقيّة، فأيّ مبلغ
+          خُصم فعلاً من بطاقة لم تخصمه شحنة اختباريّة — راجع الشحنات الحقيقيّة أدناه. الحلّ:
+          استبدل المفتاح بمفتاح الإنتاج (يبدأ بـ{" "}
+          <code style={{ direction: "ltr", display: "inline-block" }}>sk_live_</code>) في متغيّرات
+          البيئة على Vercel ثمّ أعد النشر.
+        </Notice>
+      )}
+
+      {liveCaptured.length > 0 && (
+        <Notice tone="warn">
+          <strong style={{ color: "var(--orange)" }}>
+            هناك {liveCaptured.length} شحنة حقيقيّة مُحصَّلة (CAPTURED · live).
+          </strong>{" "}
+          هذه مبالغ فعليّة يجب أن تجدها في لوحة Tap بوضع Live. طابِق معرّفاتها أدناه مع اللوحة.
+        </Notice>
+      )}
+
+      <div className="flex flex-col" style={{ gap: 24, fontFamily: "Tajawal, sans-serif" }}>
         {gateways.map((g) => {
           const m = modeLabel(g.mode);
           return (
-            <dl key={g.name} className="flex flex-col" style={{ gap: 12 }}>
+            <div key={g.name} className="flex flex-col" style={{ gap: 12 }}>
               <div style={{ fontSize: 13, fontWeight: 500, color: "var(--carbon)" }}>{g.name}</div>
-              <Row label="الوضع">
-                <span style={{ color: m.color }}>{m.text}</span>
-              </Row>
-              {g.webhookUrl && (
-                <Row label="رابط الإشعار (webhook)" mono>
-                  {g.webhookUrl}
+              <dl className="flex flex-col" style={{ gap: 12 }}>
+                <Row label="الوضع">
+                  <span style={{ color: m.color }}>{m.text}</span>
                 </Row>
-              )}
-              {g.lastCharge && (
-                <>
-                  <Row label="آخر عمليّة — المعرّف لدى البوّابة" mono>
-                    {g.lastCharge.id}
+                {deployEnv && <Row label="بيئة النشر">{ENV_LABEL[deployEnv] ?? deployEnv}</Row>}
+                {g.webhookUrl && (
+                  <Row label="رابط الإشعار (webhook)" mono>
+                    {g.webhookUrl}
                   </Row>
-                  <Row label="آخر عمليّة — حالتها لدى البوّابة">
-                    {g.lastCharge.error ? (
-                      <span style={{ color: "var(--rose)" }}>{g.lastCharge.error}</span>
-                    ) : (
-                      <span>
-                        {g.lastCharge.status ?? "—"}
-                        {g.lastCharge.amount ? ` · ${g.lastCharge.amount}` : ""}
-                      </span>
-                    )}
-                  </Row>
-                  {g.lastCharge.liveMode !== null && (
-                    <Row label="آخر عمليّة — حقيقيّة أم اختباريّة">
-                      <span
-                        style={{
-                          color: g.lastCharge.liveMode ? "var(--success)" : "var(--rose)",
-                        }}
-                      >
-                        {g.lastCharge.liveMode ? "حقيقيّة (live)" : "اختباريّة (test)"}
-                      </span>
-                    </Row>
-                  )}
-                </>
+                )}
+              </dl>
+
+              {g.configured && g.charges.length === 0 && (
+                <div style={{ fontSize: 12.5, color: "var(--pebble)" }}>لا توجد عمليّات بعد</div>
               )}
-              {g.configured && !g.lastCharge && (
-                <Row label="آخر عمليّة">
-                  <span style={{ color: "var(--pebble)" }}>لا توجد عمليّات بعد</span>
-                </Row>
+
+              {g.charges.length > 0 && (
+                <div style={{ overflowX: "auto" }}>
+                  <table
+                    style={{
+                      width: "100%",
+                      borderCollapse: "collapse",
+                      fontSize: 12,
+                      minWidth: 640,
+                    }}
+                  >
+                    <thead>
+                      <tr style={{ color: "var(--pebble)", textAlign: "right" }}>
+                        <th style={{ padding: "8px 6px", fontWeight: 400 }}>التاريخ</th>
+                        <th style={{ padding: "8px 6px", fontWeight: 400 }}>المعرّف لدى Tap</th>
+                        <th style={{ padding: "8px 6px", fontWeight: 400 }}>المبلغ</th>
+                        <th style={{ padding: "8px 6px", fontWeight: 400 }}>لدينا</th>
+                        <th style={{ padding: "8px 6px", fontWeight: 400 }}>لدى Tap</th>
+                        <th style={{ padding: "8px 6px", fontWeight: 400 }}>حقيقيّة؟</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {g.charges.map((c) => (
+                        <tr key={c.id} style={{ borderTop: "1px solid var(--border-sub)" }}>
+                          <td style={{ padding: "8px 6px", color: "var(--stone)" }}>
+                            {c.createdAt.toLocaleDateString("ar-SA")}
+                          </td>
+                          <td
+                            style={{
+                              padding: "8px 6px",
+                              fontFamily: "ui-monospace, Menlo, monospace",
+                              direction: "ltr",
+                              fontSize: 11,
+                            }}
+                          >
+                            {c.id}
+                          </td>
+                          <td style={{ padding: "8px 6px", direction: "ltr", textAlign: "right" }}>
+                            {c.amount ?? `${c.localAmountSar} SAR`}
+                          </td>
+                          <td style={{ padding: "8px 6px", color: "var(--stone)" }}>
+                            {c.localStatus}
+                          </td>
+                          <td style={{ padding: "8px 6px" }}>
+                            {c.error ? (
+                              <span style={{ color: "var(--rose)" }}>{c.error}</span>
+                            ) : (
+                              <span
+                                style={{
+                                  color:
+                                    c.status === "CAPTURED" ? "var(--success)" : "var(--stone)",
+                                }}
+                              >
+                                {c.status ?? "—"}
+                              </span>
+                            )}
+                          </td>
+                          <td style={{ padding: "8px 6px" }}>
+                            {c.liveMode === null ? (
+                              <span style={{ color: "var(--pebble)" }}>—</span>
+                            ) : (
+                              <span
+                                style={{ color: c.liveMode ? "var(--success)" : "var(--rose)" }}
+                              >
+                                {c.liveMode ? "حقيقيّة" : "اختباريّة"}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
-            </dl>
+            </div>
           );
         })}
       </div>
@@ -178,9 +287,13 @@ export function PaymentDiagnostics({ gateways }: { gateways: GatewayDiagnostic[]
           fontFamily: "Tajawal, sans-serif",
         }}
       >
-        إن كان الوضع «مباشر» والعمليّة «حقيقيّة» ومع ذلك لا تجد المبلغ في لوحة Tap: تأكّد أنّك
-        تنظر إلى الحساب نفسه (Live وليس Test في اللوحة، والـ business الصحيح)، ثمّ راجع دورة
-        التسوية — Tap تحتجز المبالغ ثمّ تحوّلها للبنك بعد مدّة التسوية المتّفق عليها.
+        دلالة الحالات لدى Tap: <strong>CAPTURED</strong> = حُصِّل المبلغ فعلاً ·{" "}
+        <strong>ABANDONED</strong> = غادر العميل صفحة الدفع دون إتمامها ·{" "}
+        <strong>INITIATED</strong> = أُنشئت ولم تُدفع بعد · <strong>DECLINED</strong> = رفضها
+        المُصدِر. وإن كان الوضع «مباشر» والشحنة «حقيقيّة» ومُحصَّلة ومع ذلك لا تجد المبلغ في
+        لوحة Tap: تأكّد أنّك تنظر إلى الحساب نفسه (Live وليس Test في اللوحة، والـ business
+        الصحيح)، ثمّ راجع دورة التسوية — Tap تحتجز المبالغ ثمّ تحوّلها للبنك بعد مدّة التسوية.
+        {deployUrl ? ` (النشر الحاليّ: ${deployUrl})` : ""}
       </p>
     </div>
   );
