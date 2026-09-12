@@ -33,9 +33,22 @@ const BASE_URL = (
 // نموذج ذي نافذة أضيق. منطق المتابعة في study-poll.ts يُكمل تلقائيّاً إن بُلغ الحدّ.
 const MAX_OUTPUT = Math.max(512, Number(process.env.KIMI_MAX_OUTPUT) || 131072);
 
-// مستوى التفكير (نماذج kimi-k3 تفكّر دوماً): يُرسل فقط عند ضبطه صراحةً، فلا نُمرّر
-// حقلاً قد يرفضه نموذج لا يدعمه. تبديله في منتصف العمل يُبطل إصابة الكاش البادئ.
-const REASONING_EFFORT = (process.env.KIMI_REASONING_EFFORT || "").trim();
+// مستوى التفكير: نماذج kimi-k3 تفكّر دوماً (لا يمكن إيقافه)، وتوكنات التفكير
+// تُطيل زمن النداء — وهو نداء متزامن محكوم بمهلة الدالّة. فالافتراضيّ لها "low":
+// كافٍ لمهمّة تلخيص واستخراج، وأقصر زمناً وأقلّ كلفة. يُبدَّل من البيئة
+// (KIMI_REASONING_EFFORT="high" مثلاً)، و"off" يمنع إرسال الحقل أصلاً لنموذج
+// لا يدعمه. وتبديله في منتصف العمل يُبطل إصابة الكاش البادئ.
+const REASONING_ENV = (process.env.KIMI_REASONING_EFFORT || "").trim();
+
+function reasoningEffortFor(model: string): string {
+  if (REASONING_ENV === "off") return "";
+  if (REASONING_ENV) return REASONING_ENV;
+  return model.startsWith("kimi-k3") ? "low" : "";
+}
+
+// ميزانيّة النداء المتزامن. مسارات Study عند maxDuration=300ث، فنقطع نحن عند
+// ٢٧٠ لتبقى ثوانٍ لتسجيل الفشل واسترداد الرصيد بدل أن تُقتل الدالّة صامتةً.
+const BUDGET_MS = Math.max(30_000, Number(process.env.KIMI_TIMEOUT_MS) || 270_000);
 
 // ─── نافذة السياق وحساب ميزانيّة الإخراج ───────────────────
 // لدى Moonshot: أقصى إخراج = نافذة النموذج **ناقص** توكنات المُدخَل. فطلب سقف
@@ -108,6 +121,7 @@ export async function submitKimiBatch(opts: {
   maxTokens: number;
 }): Promise<string> {
   if (!isKimiConfigured) throw new Error("KIMI_NOT_CONFIGURED");
+  const effort = reasoningEffortFor(opts.model);
   const res = await chatFetchWithRetry({
     url: `${BASE_URL}/chat/completions`,
     apiKey,
@@ -117,8 +131,9 @@ export async function submitKimiBatch(opts: {
       messages: opts.messages,
       // `max_completion_tokens` هو الحقل المعتمد لدى Moonshot، و`max_tokens` مهجور.
       max_completion_tokens: kimiOutputBudget(opts),
-      ...(REASONING_EFFORT ? { reasoning_effort: REASONING_EFFORT } : {}),
+      ...(effort ? { reasoning_effort: effort } : {}),
     },
+    totalBudgetMs: BUDGET_MS,
   });
   // بلا قصّ لعلامة النهاية هنا؛ القصّ يتمّ عند الاستطلاع بالعلامة الفعليّة.
   return encodeInline(parseChatResponse(await res.text(), ""));
