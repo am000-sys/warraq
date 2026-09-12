@@ -15,6 +15,9 @@ import {
   googleSecretLooksValid,
 } from "@/lib/auth";
 import { AuthDiagnostics, type AuthDiagnostic } from "@/components/auth-diagnostics";
+import { EmailDiagnostics } from "@/components/email-diagnostics";
+import { checkEmailDns } from "@/lib/email-dns";
+import { FROM } from "@/lib/email";
 import { Activity } from "lucide-react";
 
 // قياس زمن الذهاب والإياب لقاعدة البيانات من داخل دالّة الخادم نفسها.
@@ -218,7 +221,7 @@ export default async function AdminSystemPage() {
   // القياس أوّلاً وبتسلسل — كي لا تُزاحمه استعلامات الصفحة فتتشوّه الأرقام
   const dbLatency = await measureDbLatency();
 
-  const [recentLogs, settings, gateways, authDiag] = await Promise.all([
+  const [recentLogs, settings, gateways, authDiag, emailDns] = await Promise.all([
     db.auditLog
       .findMany({
         orderBy: { createdAt: "desc" },
@@ -228,6 +231,7 @@ export default async function AdminSystemPage() {
     db.systemSetting.findMany().catch(() => []),
     paymentDiagnostics().catch((): GatewayDiagnostic[] => []),
     authDiagnostics(),
+    checkEmailDns(FROM),
   ]);
 
   const region = process.env.VERCEL_REGION || null;
@@ -243,6 +247,8 @@ export default async function AdminSystemPage() {
       <PageHeader title="النظام" subtitle="إعدادات وسجلّ نشاط المنصّة." />
 
       <AuthDiagnostics data={authDiag} />
+
+      <EmailDiagnostics report={emailDns} />
 
       {gateways.length > 0 && (
         <PaymentDiagnostics
