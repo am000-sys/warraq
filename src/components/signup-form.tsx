@@ -15,8 +15,16 @@ import {
 } from "@/components/ui/field";
 import { GoogleButton, AuthDivider } from "@/components/google-button";
 import { VerifyCodeForm } from "@/components/verify-code-form";
+import { TurnstileWidget } from "@/components/turnstile-widget";
 
-export function SignupForm({ googleEnabled }: { googleEnabled: boolean }) {
+export function SignupForm({
+  googleEnabled,
+  turnstileSiteKey = "",
+}: {
+  googleEnabled: boolean;
+  // فارغ = التحدّي البشريّ غير مُعَدّ، فلا يُعرض ولا يُشترط
+  turnstileSiteKey?: string;
+}) {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -26,6 +34,7 @@ export function SignupForm({ googleEnabled }: { googleEnabled: boolean }) {
   // خطوة التحقّق تبقى في نفس المكوّن، فكلمة المرور محفوظة في الحالة ويتمّ
   // الدخول تلقائيّاً بعد التفعيل بلا مطالبة المستخدم بإدخالها ثانية.
   const [step, setStep] = useState<"form" | "verify">("form");
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -35,13 +44,20 @@ export function SignupForm({ googleEnabled }: { googleEnabled: boolean }) {
     const res = await fetch("/api/auth/signup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify({
+        name,
+        email,
+        password,
+        ...(turnstileToken ? { turnstileToken } : {}),
+      }),
     });
 
     const data = await res.json().catch(() => ({}));
     setLoading(false);
     if (!res.ok) {
       setError(data?.error ?? "تعذّر إنشاء الحساب — جرّب بريداً آخر.");
+      // رمز التحدّي يُستهلك مرّة واحدة لدى Cloudflare — نُبطله ليُعاد إصداره
+      setTurnstileToken(null);
       return;
     }
     setStep("verify");
@@ -177,15 +193,20 @@ export function SignupForm({ googleEnabled }: { googleEnabled: boolean }) {
             <FieldDescription>٨ أحرف على الأقل</FieldDescription>
           </Field>
 
+          {turnstileSiteKey && (
+            <TurnstileWidget siteKey={turnstileSiteKey} onToken={setTurnstileToken} />
+          )}
+
           <button
             type="submit"
-            disabled={loading}
+            // ننتظر رمز التحدّي حين يكون مُعَدّاً — وإلّا لا شرط إضافيّ إطلاقاً
+            disabled={loading || (Boolean(turnstileSiteKey) && !turnstileToken)}
             className="btn-primary w-full justify-center"
             style={{
               fontSize: 15,
               padding: 13,
               marginTop: 4,
-              opacity: loading ? 0.7 : 1,
+              opacity: loading || (Boolean(turnstileSiteKey) && !turnstileToken) ? 0.7 : 1,
             }}
           >
             {loading ? "..." : "إنشاء الحساب"}

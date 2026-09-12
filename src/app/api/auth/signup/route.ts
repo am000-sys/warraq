@@ -8,6 +8,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { hashPassword } from "@/lib/password";
 import { db } from "@/lib/db";
+import {
+  hitRateLimit,
+  clientIp,
+  LIMITS,
+  TOO_MANY_MESSAGE,
+} from "@/lib/rate-limit";
+import {
+  verifyTurnstile,
+  isTurnstileConfigured,
+  TURNSTILE_FAILED_MESSAGE,
+} from "@/lib/turnstile";
 import { queueEmail, verificationCodeEmail } from "@/lib/email";
 import { issueCode, sendLimitReached, CODE_TTL_MINUTES } from "@/lib/verification";
 import { FREE_INITIAL_PAGES } from "@/lib/billing";
@@ -16,13 +27,31 @@ const signupSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(72),
   name: z.string().min(2).max(80),
+  // رمز التحدّي البشريّ — اختياريّ في المخطّط لأنّ الميزة قد تكون موقوفة
+  turnstileToken: z.string().optional(),
 });
 
 
 export async function POST(req: NextRequest) {
+  // حدّ المعدّل حسب الـ IP — أوّل شيء، قبل أيّ عمل مكلِف
+  // (تجزئة كلمة المرور، الكتابة في القاعدة، إرسال البريد)
+  if (await hitRateLimit(req, LIMITS.signup)) {
+    return NextResponse.json({ error: TOO_MANY_MESSAGE }, { status: 429 });
+  }
+
   try {
     const body = await req.json();
     const parsed = signupSchema.parse(body);
+
+    // التحدّي البشريّ — بعد حدّ المعدّل وقبل التجزئة والكتابة والإرسال.
+    // لا أثر له إطلاقاً ما لم يُضبط مفتاحاه (isTurnstileConfigured).
+    if (isTurnstileConfigured) {
+      const check = await verifyTurnstile(parsed.turnstileToken, clientIp(req));
+      if (!check.ok) {
+        return NextResponse.json({ error: TURNSTILE_FAILED_MESSAGE }, { status: 400 });
+      }
+    }
+
     const email = parsed.email.toLowerCase().trim();
     const { password, name } = parsed;
 
