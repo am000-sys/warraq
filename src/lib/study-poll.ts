@@ -137,24 +137,35 @@ export async function settleStudyBatches(userId?: string): Promise<SettleResult>
               rec.focus as StudyFocus[],
               rec.depth as StudyDepth,
             );
-            const newBatchId = await submitStudyBatch({
-              model: rec.model,
-              system,
-              context,
-              maxTokens: maxTokensForBatch(rec.depth as StudyDepth, rec.model === cfg.modelPremium),
-              checkpoint: accumulated,
-            });
-            const claimed = await db.studySummary.updateMany({
-              where: { id: rec.id, status: "PROCESSING" },
-              data: {
-                markdown: accumulated, // نقطة حفظ للمقطع التالي
-                verification: { batchId: newBatchId, cont: cont + 1 },
-                inputTokens: { increment: status.inputTokens },
-                outputTokens: { increment: status.outputTokens },
-              },
-            });
-            if (claimed.count === 0) await cancelStudyBatch(newBatchId);
-            continue; // المتابعة قيد المعالجة الآن
+            // تعذُّر إرسال المتابعة لا يُعلّق السجلّ في PROCESSING إلى الأبد:
+            // نسقط إلى التسوية أدناه فيُسلَّم المنجَز مع تنبيه الاقتطاع — وهو
+            // عين ما يحدث عند بلوغ سقف المتابعات. (مثاله: نفاد نافذة النموذج
+            // بعد تراكم المنجَز، فإعادة المحاولة بنفس المُدخَل لن تنجح أبداً.)
+            try {
+              const newBatchId = await submitStudyBatch({
+                model: rec.model,
+                system,
+                context,
+                maxTokens: maxTokensForBatch(
+                  rec.depth as StudyDepth,
+                  rec.model === cfg.modelPremium,
+                ),
+                checkpoint: accumulated,
+              });
+              const claimed = await db.studySummary.updateMany({
+                where: { id: rec.id, status: "PROCESSING" },
+                data: {
+                  markdown: accumulated, // نقطة حفظ للمقطع التالي
+                  verification: { batchId: newBatchId, cont: cont + 1 },
+                  inputTokens: { increment: status.inputTokens },
+                  outputTokens: { increment: status.outputTokens },
+                },
+              });
+              if (claimed.count === 0) await cancelStudyBatch(newBatchId);
+              continue; // المتابعة قيد المعالجة الآن
+            } catch (err) {
+              console.error("[study.continue]", rec.id, err);
+            }
           }
         }
 

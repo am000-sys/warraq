@@ -16,6 +16,8 @@ import {
 } from "@/lib/auth";
 import { AuthDiagnostics, type AuthDiagnostic } from "@/components/auth-diagnostics";
 import { EmailDiagnostics } from "@/components/email-diagnostics";
+import { StudyDiagnostics } from "@/components/study-diagnostics";
+import { getStudyDiagnostics, type StudyDiagnostic } from "@/lib/study";
 import { checkEmailDns } from "@/lib/email-dns";
 import { FROM } from "@/lib/email";
 import { Activity } from "lucide-react";
@@ -221,7 +223,7 @@ export default async function AdminSystemPage() {
   // القياس أوّلاً وبتسلسل — كي لا تُزاحمه استعلامات الصفحة فتتشوّه الأرقام
   const dbLatency = await measureDbLatency();
 
-  const [recentLogs, settings, gateways, authDiag, emailDns] = await Promise.all([
+  const [recentLogs, settings, gateways, authDiag, emailDns, studyDiag] = await Promise.all([
     db.auditLog
       .findMany({
         orderBy: { createdAt: "desc" },
@@ -232,6 +234,7 @@ export default async function AdminSystemPage() {
     paymentDiagnostics().catch((): GatewayDiagnostic[] => []),
     authDiagnostics(),
     checkEmailDns(FROM),
+    getStudyDiagnostics().catch((): StudyDiagnostic | null => null),
   ]);
 
   const region = process.env.VERCEL_REGION || null;
@@ -249,6 +252,8 @@ export default async function AdminSystemPage() {
       <AuthDiagnostics data={authDiag} />
 
       <EmailDiagnostics report={emailDns} />
+
+      {studyDiag && <StudyDiagnostics data={studyDiag} />}
 
       {gateways.length > 0 && (
         <PaymentDiagnostics

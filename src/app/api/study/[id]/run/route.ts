@@ -181,8 +181,13 @@ export async function POST(
     // إضافة بطاقة وحدها لا تكفي: يجب تفعيل خدمة Model Studio في حساب علي بابا،
     // وقد يستغرق سريان التفعيل بعض الوقت.
     const isQuota = /quota|arrearage|in good standing|throttl|insufficient.*balance/i.test(raw);
+    // المادّة أكبر من نافذة النموذج — فُحصت قبل النداء فلم تُستهلك كلفة. إعادة
+    // المحاولة بنفس المادّة لن تنجح، فالرسالة تدلّ على الحلّ لا على «أعد المحاولة».
+    const isOverflow = /KIMI_CONTEXT_OVERFLOW/.test(raw);
     const detail = raw ? ` (${raw.slice(0, 200)})` : "";
-    const message = isContentFlag
+    const message = isOverflow
+      ? "المادّة أكبر من نافذة النموذج المستعمَل، فتعذّر إرسالها دفعةً واحدة. قسّم المادّة ولخّص كلّ جزء على حدة، أو اطلب من المالك ضبط نموذج بنافذة أوسع. لم يُخصم من رصيدك شيء."
+      : isContentFlag
       ? `رفض مزوّد الذكاء معالجة محتوى هذا المستند بفلتر المحتوى (قد يكون إنذاراً كاذباً لنصّ تراثيّ). لم يُخصم من رصيدك شيء.${detail}`
       : isQuota
         ? `نفدت الحصّة المجانيّة لمزوّد الذكاء ولم يسرِ الاشتراك المدفوع بعد — يلزم تفعيل خدمة Model Studio في حساب علي بابا (لا تكفي إضافة البطاقة وحدها)، وقد يستغرق سريان التفعيل بعض الوقت. لم يُخصم من رصيدك شيء.${detail}`
@@ -192,7 +197,7 @@ export async function POST(
       .catch(() => {});
     return NextResponse.json(
       { error: message },
-      { status: isContentFlag ? 422 : isQuota ? 503 : 500 },
+      { status: isOverflow ? 413 : isContentFlag ? 422 : isQuota ? 503 : 500 },
     );
   }
 }

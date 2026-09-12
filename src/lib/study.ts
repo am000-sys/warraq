@@ -25,6 +25,7 @@ import {
   submitKimiBatch,
   checkKimiBatch,
   cancelKimiBatch,
+  kimiContextWindow,
   type KimiMessage,
 } from "@/lib/kimi";
 
@@ -82,6 +83,14 @@ function envModel(key: string): string | undefined {
   return isSupportedStudyModel(v) ? v : undefined;
 }
 
+// النموذج عند غياب ضبطٍ صريح: يتبع المفتاح الموجود فعلاً في البيئة.
+// kimi-k3 أوّلاً لسعة نافذته (مليون توكن) — وحده يسع كتاباً كاملاً في نداء واحد،
+// وهو ما تتطلّبه بنية الملخّص الهرميّة المتّبعة لترتيب الكتاب.
+function fallbackModel(): string {
+  if (isKimiConfigured) return "kimi-k3";
+  return "qwen-plus-latest";
+}
+
 const DEFAULTS: StudyConfig = {
   enabled: true,
   rate: 1.5,
@@ -89,9 +98,9 @@ const DEFAULTS: StudyConfig = {
   ratePremium: 4.5,
   minCostPremium: 45,
   // النموذج الافتراضي: من البيئة إن ضُبط (لا توجد واجهة لتحرير SystemSetting)،
-  // وإلّا qwen-plus-latest — السياق الحديث المتاح على القاعدة الدوليّة.
-  model: envModel("STUDY_DEFAULT_MODEL") ?? "qwen-plus-latest",
-  modelPremium: envModel("STUDY_DEFAULT_MODEL_PREMIUM") ?? "qwen-plus-latest",
+  // وإلّا حسب المزوّد المهيّأ فعلاً — فلا تبقى الميزة تشير إلى مزوّد بلا مفتاح.
+  model: envModel("STUDY_DEFAULT_MODEL") ?? fallbackModel(),
+  modelPremium: envModel("STUDY_DEFAULT_MODEL_PREMIUM") ?? fallbackModel(),
   maxChars: 800_000,
   premiumEnabled: true,
 };
@@ -210,6 +219,8 @@ ${DEPTH_INSTRUCTIONS[depth]}
 3. ميّز بين الإحالة بالمعنى (يُعبَّر عنها: «ذكر فلانٌ أنّ...» بلا قوسي زخرفة) والنقل الحرفي (بين «...»). إذا كان مصدرك يقول "ينظر/انظر" فهو إحالة بالمعنى لا نقل حرفي.
 4. انسب كلّ قول إلى قائله ومصدره كما ورد في المادّة، ولا تنسب محتوى إلى كتابٍ غير موجود فيها.
 5. عند الشكّ، اكتب المعنى صراحةً ولا تختلق نصّاً ثمّ تُلصقه برقم صفحة.
+6. أتبِع كلّ نقل حرفيّ برقم صفحته المطبوع كما ورد في علامات [صفحة N] في المادّة، هكذا: «النصّ المنقول» [صفحة ١٢٣]. وإن لم تجد للنصّ علامة صفحة في المادّة فاترك الرقم ولا تُقدّره.
+7. المادّة مفرّغة آليّاً من كتاب مصوَّر، فقد يقع فيها تلف أو رموز مشوّهة. لا تُرمّم النصّ التالف بالتخمين ولا تُكمله من معرفتك — اكتب مكانه [نصّ تالف في الأصل] وامضِ.
 </citation_rules>
 
 <formatting_spec>
@@ -217,7 +228,7 @@ ${DEPTH_INSTRUCTIONS[depth]}
 - استعمل عناوين هرميّة واضحة: # لعنوان الملخّص، ## للمحاور الكبرى، ### للأقسام الفرعيّة.
 - التعاريف بصيغة: «المصطلح: شرحه» مع جعل المصطلح بخطّ غامق.
 - التعدادات والتقسيمات مرقّمة لا مدمجة في فقرة.
-- أقوال الفرق والمذاهب موحّدة الصيغة: **القائل** + «نصّه الحرفي إن وُجد» أو معناه + بيان معنى القول.
+- أقوال الفرق والمذاهب موحّدة الصيغة: **القائل** + «نصّه الحرفي إن وُجد» [صفحة N] أو معناه + بيان معنى القول.
 - صناديق التحليل اقتباسات Markdown (>) تُعنون بـ **خلاصة** أو **مربط الفهم**.
 - جداول المقارنة بصيغة جداول Markdown بأعمدة: الوجه / الموقف الأوّل / الموقف الثاني.
 - نثر متدفّق في الشرح، وقوائم في التعداد فقط.
@@ -235,7 +246,7 @@ ${DEPTH_INSTRUCTIONS[depth]}
 <success_criteria>
 قبل التسليم، تحقّق من:
 1. أنّ كلّ نصٍّ بين «...» موجودٌ حرفياً في المادّة المرفقة.
-2. أنّ كلّ رقم صفحة/جزء مأخوذٌ من المادّة لا مُقدَّراً.
+2. أنّ كلّ رقم صفحة/جزء مأخوذٌ من علامات [صفحة N] في المادّة لا مُقدَّراً، وأنّ كلّ نقل حرفيّ مقرونٌ بصفحته متى وُجدت.
 3. أنّ كلّ قول منسوبٌ إلى قائله ومصدره الصحيح.
 4. أنّ البنية الهرميّة تعكس ترتيب المادّة، وأنّ محاور التركيز المختارة ظاهرة ومنظّمة للمذاكرة.
 5. أنّك لم تُسقط مسألةً جوهريّةً اختصاراً.
@@ -275,6 +286,26 @@ function buildDialogMessages(context: string, checkpoint?: string): DialogMsg[] 
   return messages;
 }
 
+// رسائل Kimi — ترتيب مقصود يخالف بقيّة المزوّدين:
+// Moonshot يطابق **بادئة** الرسائل لإصابة الكاش، ويوصي بوضع السياق الكبير الثابت
+// في أوّل المصفوفة قبل رسالة التعليمات. فنضع الكتاب أوّلاً ثمّ التعليمات ثمّ سطر
+// إطلاق قصير — فتبقى البادئة متطابقة حرفاً بين النداء الأوّل ودفعة المتابعة، وهي
+// موضع إعادة إرسال الكتاب كاملاً. أيّ إقحام متغيّر (وقت/معرّف) في البادئة يُبطلها.
+const KIMI_TRIGGER = "لخّص المادّة أعلاه وفق تعليماتك.";
+
+function buildKimiMessages(system: string, context: string, checkpoint?: string): KimiMessage[] {
+  const messages: KimiMessage[] = [
+    { role: "system", content: `=== المادّة العلميّة ===\n\n${context}\n\n=== نهاية المادّة ===` },
+    { role: "system", content: system },
+    { role: "user", content: KIMI_TRIGGER },
+  ];
+  if (checkpoint && checkpoint.trim()) {
+    messages.push({ role: "assistant", content: checkpoint });
+    messages.push({ role: "user", content: CONTINUE_INSTRUCTION });
+  }
+  return messages;
+}
+
 // يسلّم المهمة كاملة دفعةً واحدة ويعيد معرّف الدفعة للمتابعة.
 // التوجيه حسب بادئة معرّف النموذج: kimi-*/moonshot-* ⇒ Kimi (المعرّف يُبدَأ بـ
 // "kimi:")، وqwen-* ⇒ Qwen ("qwen:")، وإلّا ⇒ Anthropic Batches (المعرّف يبقى كما
@@ -287,14 +318,14 @@ export async function submitStudyBatch(opts: {
   maxTokens: number;
   checkpoint?: string;
 }): Promise<string> {
-  const dialog = buildDialogMessages(opts.context, opts.checkpoint);
-
+  // فرع Kimi يبني رسائله بترتيبه الخاصّ، فلا يُركَّب له سياق الحوار المشترك.
   if (isKimiModel(opts.model)) {
-    // Kimi (متوافق مع OpenAI): رسالة النظام دور مستقلّ ضمن المصفوفة
-    const messages: KimiMessage[] = [{ role: "system", content: opts.system }, ...dialog];
+    const messages = buildKimiMessages(opts.system, opts.context, opts.checkpoint);
     const id = await submitKimiBatch({ model: opts.model, messages, maxTokens: opts.maxTokens });
     return `kimi:${id}`;
   }
+
+  const dialog = buildDialogMessages(opts.context, opts.checkpoint);
 
   if (isQwenModel(opts.model)) {
     // Qwen (متوافق مع OpenAI): رسالة النظام دور مستقلّ ضمن المصفوفة
@@ -431,4 +462,62 @@ export async function buildStudyContext(rec: {
       .join("\n\n");
   }
   return rec.sourceText ?? null;
+}
+
+// ─── تشخيص المزوّد (للوحة المالك) ──────────────────────────
+// يُجيب عن السؤال الذي يتكرّر عند كلّ تبديل مزوّد: أيّ نموذج يعمل الآن؟ وهل
+// مفتاحه مضبوط أصلاً؟ وهل يسع حدُّ الحروف المسموح به نافذةَ ذلك النموذج؟
+// قراءة خالصة بلا نداء شبكة — تُفتح مع لوحة النظام فلا تُضيف كلفة ولا زمناً.
+export type StudyProvider = "claude" | "qwen" | "kimi";
+
+export type StudyDiagnostic = {
+  enabled: boolean; // STUDY_ENABLED — الميزة معروضة للمستخدمين؟
+  configuredEnabled: boolean; // study_enabled في الإعداد
+  provider: StudyProvider;
+  providerReady: boolean; // مفتاح المزوّد المختار مضبوط؟
+  model: string;
+  modelPremium: string;
+  premiumEnabled: boolean;
+  maxChars: number;
+  contextWindow: number | null; // للنماذج التي نعرف نافذتها (Kimi)
+  estimatedPromptTokens: number | null; // تقدير المُدخَل عند بلوغ maxChars
+  fits: boolean | null; // هل يسع المُدخَل الأقصى نافذةَ النموذج؟
+  keys: { claude: boolean; qwen: boolean; kimi: boolean };
+};
+
+export function studyProviderOf(model: string): StudyProvider {
+  if (isKimiModel(model)) return "kimi";
+  if (isQwenModel(model)) return "qwen";
+  return "claude";
+}
+
+export async function getStudyDiagnostics(): Promise<StudyDiagnostic> {
+  const cfg = await getStudyConfig();
+  const provider = studyProviderOf(cfg.model);
+  const ready =
+    provider === "kimi" ? isKimiConfigured : provider === "qwen" ? isQwenConfigured : isAnthropicConfigured;
+
+  // تقدير المُدخَل عند الحدّ الأقصى: حروف المادّة + نحو ٦ آلاف حرف للتعليمات،
+  // بنفس نسبة kimi.ts المحافظة (٣ أحرف/توكن) فيبقى التقدير أعلى من الحقيقة.
+  const estimatedPromptTokens =
+    provider === "kimi" ? Math.ceil((cfg.maxChars + 6_000) / 3) : null;
+  const contextWindow = provider === "kimi" ? kimiContextWindow(cfg.model) : null;
+
+  return {
+    enabled: STUDY_ENABLED,
+    configuredEnabled: cfg.enabled,
+    provider,
+    providerReady: ready,
+    model: cfg.model,
+    modelPremium: cfg.modelPremium,
+    premiumEnabled: cfg.premiumEnabled,
+    maxChars: cfg.maxChars,
+    contextWindow,
+    estimatedPromptTokens,
+    fits:
+      contextWindow !== null && estimatedPromptTokens !== null
+        ? estimatedPromptTokens + 8192 <= contextWindow
+        : null,
+    keys: { claude: isAnthropicConfigured, qwen: isQwenConfigured, kimi: isKimiConfigured },
+  };
 }
