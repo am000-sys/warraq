@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { Reveal } from "@/components/reveal";
+import { AuthCta } from "@/components/marketing/auth-cta";
 
 export function CTABand() {
   return (
@@ -53,13 +54,7 @@ export function CTABand() {
         >
           خمسون صفحة مجانية عند التسجيل، بدون بطاقة ائتمانية.
         </p>
-        <Link
-          href="/signup"
-          className="btn-primary no-underline"
-          style={{ fontSize: 16, padding: "15px 36px" }}
-        >
-          ابدأ مجاناً
-        </Link>
+        <AuthCta style={{ fontSize: 16, padding: "15px 36px" }} />
       </Reveal>
     </section>
   );

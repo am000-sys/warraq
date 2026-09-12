@@ -10,6 +10,7 @@ import { hashPassword } from "@/lib/password";
 import { db } from "@/lib/db";
 import { queueEmail, verificationCodeEmail } from "@/lib/email";
 import { issueCode, sendLimitReached, CODE_TTL_MINUTES } from "@/lib/verification";
+import { FREE_INITIAL_PAGES } from "@/lib/billing";
 
 const signupSchema = z.object({
   email: z.string().email(),
@@ -17,7 +18,6 @@ const signupSchema = z.object({
   name: z.string().min(2).max(80),
 });
 
-const FREE_INITIAL_PAGES = 50;
 
 export async function POST(req: NextRequest) {
   try {

@@ -6,6 +6,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { Logo } from "@/components/logo";
+import { useAuthState } from "@/lib/use-auth-state";
 
 const links = [
   { l: "المميزات", href: "/#features" },
@@ -15,7 +16,7 @@ const links = [
 
 export function Nav() {
   const [scrolled, setScrolled] = useState(false);
-  const [authed, setAuthed] = useState<boolean | null>(null);
+  const authed = useAuthState() === "in";
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   // الحارس عنصر بارتفاع 48px أعلى المستند؛ خروجه من العرض = تمرير كافٍ
@@ -28,14 +29,6 @@ export function Nav() {
     );
     io.observe(el);
     return () => io.disconnect();
-  }, []);
-
-  // تحقّق من حالة الدخول دون إخراج المستخدم
-  useEffect(() => {
-    fetch("/api/auth/session")
-      .then((r) => r.json())
-      .then((s) => setAuthed(Boolean(s?.user)))
-      .catch(() => setAuthed(false));
   }, []);
 
   return (
