@@ -73,9 +73,17 @@ export function stripEndMark(status: StudyBatchStatus, endMark: string): StudyBa
   return { ...status, markdown: status.markdown.split(endMark).join("").trimEnd() };
 }
 
+// خطأ المهلة: النداء المتزامن تجاوز الميزانيّة المتاحة للدالّة. يُميَّز عن بقيّة
+// الأخطاء ليُترجَم إلى رسالة تدلّ على الحلّ بدل «أعد المحاولة» التي لا تُجدي.
+export const CHAT_TIMEOUT = "CHAT_TIMEOUT";
+
 // نداء HTTP مع إعادة محاولة للأخطاء العابرة (429 و5xx) بتراجع أسّي.
-// حدود الطلبات على الحسابات الجديدة منخفضة فتكثر 429 العابرة؛ المهلة تتّسع لها
-// (maxDuration=300 في مسارات Study).
+// حدود الطلبات على الحسابات الجديدة منخفضة فتكثر 429 العابرة.
+//
+// `totalBudgetMs`: سقف زمنيّ لكلّ المحاولات مجتمعةً. بلا سقف، نداءٌ متزامن طويل
+// (نموذج يفكّر على كتاب كامل) تقتله بيئة التشغيل عند maxDuration فلا يُنفَّذ أيّ
+// معالجة للخطأ — لا رسالة ولا استرداد فوريّ. بالسقف نقطع النداء بأنفسنا قبل ذلك
+// فيمرّ الفشل في مساره الطبيعيّ.
 export async function chatFetchWithRetry(opts: {
   url: string;
   apiKey: string;
@@ -83,19 +91,37 @@ export async function chatFetchWithRetry(opts: {
   extraHeaders?: Record<string, string>;
   providerLabel: string;
   attempts?: number;
+  totalBudgetMs?: number;
 }): Promise<Response> {
   const attempts = opts.attempts ?? 4;
+  const started = Date.now();
+  const remaining = () =>
+    opts.totalBudgetMs === undefined ? undefined : opts.totalBudgetMs - (Date.now() - started);
   let last = "";
   for (let attempt = 0; attempt < attempts; attempt++) {
-    const res = await fetch(opts.url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${opts.apiKey}`,
-        "content-type": "application/json",
-        ...(opts.extraHeaders ?? {}),
-      },
-      body: JSON.stringify(opts.body),
-    });
+    const left = remaining();
+    if (left !== undefined && left <= 1000) {
+      throw new Error(`${CHAT_TIMEOUT}: ${opts.providerLabel} تجاوز المهلة المتاحة`);
+    }
+    let res: Response;
+    try {
+      res = await fetch(opts.url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${opts.apiKey}`,
+          "content-type": "application/json",
+          ...(opts.extraHeaders ?? {}),
+        },
+        body: JSON.stringify(opts.body),
+        ...(left !== undefined ? { signal: AbortSignal.timeout(left) } : {}),
+      });
+    } catch (err) {
+      // قطعُ المهلة لا يُعاد معه المحاولة: النداء التالي سيتجاوزها كذلك.
+      if (err instanceof Error && (err.name === "TimeoutError" || err.name === "AbortError")) {
+        throw new Error(`${CHAT_TIMEOUT}: ${opts.providerLabel} تجاوز المهلة المتاحة`);
+      }
+      throw err;
+    }
     if (res.ok) return res;
     last = `${opts.providerLabel} ${res.status}: ${(await res.text().catch(() => "")).slice(0, 300)}`;
     if (res.status !== 429 && res.status < 500) break;
