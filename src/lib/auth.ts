@@ -95,7 +95,6 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   ],
   events: {
     // يقع لمستخدمي OAuth فقط (حسابات كلمة المرور يُنشئها مسار signup لدينا).
-    // بريد Google متحقَّق منه أصلاً، فالحساب مفعَّل منذ لحظته.
     async createUser({ user }) {
       if (!user.id) return;
       await db.auditLog
@@ -106,6 +105,21 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user.email) {
         queueEmail({ to: user.email, ...welcomeEmail(user.name ?? "") }, "welcome-google");
       }
+    },
+
+    // تعليم حساب Google مفعَّلاً. مزوّد Google في Auth.js بلا دالّة profile،
+    // فالتحويل الافتراضيّ لا يضبط emailVerified — ويُنشئ المحوِّل الحساب بـ null
+    // رغم أنّ حارس signIn أدناه لا يقبل إلّا بريداً متحقَّقاً منه لدى Google.
+    // نضبطه هنا لا في createUser وحده، فيُصحَّح كذلك لحسابات أُنشئت قبل هذا الإصلاح.
+    // مشروط بـ emailVerified: null فلا يُعيد الكتابة في كلّ دخول.
+    async signIn({ user, account }) {
+      if (account?.provider !== "google" || !user.id) return;
+      await db.user
+        .updateMany({
+          where: { id: user.id, emailVerified: null },
+          data: { emailVerified: new Date() },
+        })
+        .catch(() => {});
     },
   },
   callbacks: {
