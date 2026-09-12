@@ -4,11 +4,22 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
+import {
+  hitRateLimit,
+  LIMITS,
+  TOO_MANY_MESSAGE,
+} from "@/lib/rate-limit";
 import { queueEmail, passwordResetEmail, APP_URL } from "@/lib/email";
 
 const schema = z.object({ email: z.string().email() });
 
 export async function POST(req: NextRequest) {
+  // حدّ المعدّل حسب الـ IP — أوّل شيء، قبل أيّ عمل مكلِف
+  // (تجزئة كلمة المرور، الكتابة في القاعدة، إرسال البريد)
+  if (await hitRateLimit(req, LIMITS.forgotPassword)) {
+    return NextResponse.json({ error: TOO_MANY_MESSAGE }, { status: 429 });
+  }
+
   try {
     const { email } = schema.parse(await req.json());
 

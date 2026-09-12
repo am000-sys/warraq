@@ -8,6 +8,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { hashPassword } from "@/lib/password";
 import { db } from "@/lib/db";
+import {
+  hitRateLimit,
+  LIMITS,
+  TOO_MANY_MESSAGE,
+} from "@/lib/rate-limit";
 import { queueEmail, verificationCodeEmail } from "@/lib/email";
 import { issueCode, sendLimitReached, CODE_TTL_MINUTES } from "@/lib/verification";
 import { FREE_INITIAL_PAGES } from "@/lib/billing";
@@ -20,6 +25,12 @@ const signupSchema = z.object({
 
 
 export async function POST(req: NextRequest) {
+  // حدّ المعدّل حسب الـ IP — أوّل شيء، قبل أيّ عمل مكلِف
+  // (تجزئة كلمة المرور، الكتابة في القاعدة، إرسال البريد)
+  if (await hitRateLimit(req, LIMITS.signup)) {
+    return NextResponse.json({ error: TOO_MANY_MESSAGE }, { status: 429 });
+  }
+
   try {
     const body = await req.json();
     const parsed = signupSchema.parse(body);
