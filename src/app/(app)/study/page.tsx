@@ -8,7 +8,7 @@ import { InitDbButton } from "@/components/init-db-button";
 import { StudyClient, type SummaryMeta } from "@/components/study-client";
 import {
   getStudyConfig,
-  isStudyConfigured,
+  studyProviderReady,
   STUDY_ENABLED,
   STUDY_OFF_MESSAGE,
 } from "@/lib/study";
@@ -111,7 +111,7 @@ export default async function StudyPage() {
     );
   }
 
-  const available = STUDY_ENABLED && cfg.enabled && isStudyConfigured;
+  const available = STUDY_ENABLED && cfg.enabled && studyProviderReady(cfg.model);
 
   return (
     <>

@@ -81,7 +81,11 @@ export function StudyDiagnostics({ data }: { data: StudyDiagnostic }) {
             <span style={{ color: "var(--success)" }}>تعمل</span>
           ) : (
             <span style={{ color: "var(--pebble)" }}>
-              {!data.enabled ? "موقوفة — تعرض «قريباً»" : !data.providerReady ? "موقوفة — مفتاح المزوّد ناقص" : "موقوفة من الإعداد"}
+              {!data.enabled
+                ? "مُغلقة يدويّاً — تعرض «قريباً»"
+                : !data.providerReady
+                  ? "مُغلقة — مفتاح المزوّد المضبوط ناقص"
+                  : "مُغلقة من الإعداد (study_enabled)"}
             </span>
           )}
         </Row>
@@ -148,8 +152,8 @@ export function StudyDiagnostics({ data }: { data: StudyDiagnostic }) {
 
       {!data.enabled && data.providerReady && (
         <Note tone="info">
-          المزوّد جاهز والميزة موقوفة. اضبط <code>STUDY_ENABLED=&quot;1&quot;</code> في متغيّرات
-          البيئة ثمّ أعد النشر لتظهر للمستخدمين.
+          المزوّد جاهز والميزة مُغلقة يدويّاً بـ <code>STUDY_ENABLED=&quot;0&quot;</code>. احذف
+          المتغيّر أو اضبطه بغير <code>0</code> ثمّ أعد النشر لتظهر للمستخدمين.
         </Note>
       )}
     </div>

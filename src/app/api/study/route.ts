@@ -14,7 +14,7 @@ import {
   calcStudyCost,
   estimateSourcePages,
   getStudyConfig,
-  isStudyConfigured,
+  studyProviderReady,
   STUDY_ENABLED,
   STUDY_OFF_MESSAGE,
 } from "@/lib/study";
@@ -76,16 +76,17 @@ export async function POST(req: NextRequest) {
   if (!STUDY_ENABLED) {
     return NextResponse.json({ error: STUDY_OFF_MESSAGE, comingSoon: true }, { status: 503 });
   }
-  if (!isStudyConfigured) {
+  const cfg = await getStudyConfig();
+  if (!cfg.enabled) {
+    return NextResponse.json({ error: "خدمة الملخّص الدراسي موقوفة حالياً" }, { status: 403 });
+  }
+  // الفحص على مزوّد النموذج المضبوط نفسه لا على «أيّ مزوّد»: نموذج بلا مفتاح
+  // يعني فشل كلّ مهمّة، فالرفض هنا أنظف من قبولٍ يُخصم ثمّ يُستردّ.
+  if (!studyProviderReady(cfg.model)) {
     return NextResponse.json(
       { error: "خدمة الملخّص الدراسي غير مهيّأة بعد", configRequired: true },
       { status: 503 },
     );
-  }
-
-  const cfg = await getStudyConfig();
-  if (!cfg.enabled) {
-    return NextResponse.json({ error: "خدمة الملخّص الدراسي موقوفة حالياً" }, { status: 403 });
   }
 
   let body: z.infer<typeof createSchema>;

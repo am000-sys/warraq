@@ -48,9 +48,11 @@ const isAnthropicConfigured = Boolean(
 // الخدمة مهيّأة إن توفّر أيّ مزوّد: Claude أو Qwen أو Kimi (يضبطه المالك).
 export const isStudyConfigured = isAnthropicConfigured || isQwenConfigured || isKimiConfigured;
 
-// إيقاف مؤقّت للميزة: يحجب الواجهة وقبول طلبات جديدة، ولا يمسّ تسوية المهامّ
-// الجارية في study-poll حتى لا تبقى معلّقة بلا نهاية. يُعاد تشغيلها بـ "1".
-export const STUDY_ENABLED = process.env.STUDY_ENABLED === "1";
+// مفتاح الإيقاف اليدويّ: الميزة مفتوحة متى توفّر مزوّد مهيّأ، وتُغلق صراحةً بـ
+// STUDY_ENABLED="0" (يحجب الواجهة وقبول طلبات جديدة، ولا يمسّ تسوية المهامّ
+// الجارية في study-poll حتى لا تبقى معلّقة بلا نهاية).
+// كان المنطق مقلوباً (مغلقة ما لم تُفتح بـ "1") أيّام تعطّل مزوّد Qwen.
+export const STUDY_ENABLED = process.env.STUDY_ENABLED !== "0";
 export const STUDY_OFF_MESSAGE =
   "الملخّص الدراسي قيد التطوير وسيتاح قريباً. بقيّة خدمات المنصّة تعمل كالمعتاد.";
 const client = isAnthropicConfigured ? new Anthropic({ apiKey }) : null;
@@ -491,11 +493,20 @@ export function studyProviderOf(model: string): StudyProvider {
   return "claude";
 }
 
+// هل مفتاح المزوّد الذي سيُنادى فعلاً مضبوط؟ الفرق عن isStudyConfigured جوهريّ:
+// ذاك يصدق متى تهيّأ **أيّ** مزوّد، فتُفتح الميزة على نموذج بلا مفتاح وتفشل كلّ
+// مهمّة (مع استرداد الرصيد). هذا يفحص مزوّد النموذج المضبوط وحده.
+export function studyProviderReady(model: string): boolean {
+  const provider = studyProviderOf(model);
+  if (provider === "kimi") return isKimiConfigured;
+  if (provider === "qwen") return isQwenConfigured;
+  return isAnthropicConfigured;
+}
+
 export async function getStudyDiagnostics(): Promise<StudyDiagnostic> {
   const cfg = await getStudyConfig();
   const provider = studyProviderOf(cfg.model);
-  const ready =
-    provider === "kimi" ? isKimiConfigured : provider === "qwen" ? isQwenConfigured : isAnthropicConfigured;
+  const ready = studyProviderReady(cfg.model);
 
   // تقدير المُدخَل عند الحدّ الأقصى: حروف المادّة + نحو ٦ آلاف حرف للتعليمات،
   // بنفس نسبة kimi.ts المحافظة (٣ أحرف/توكن) فيبقى التقدير أعلى من الحقيقة.

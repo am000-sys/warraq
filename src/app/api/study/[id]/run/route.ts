@@ -23,7 +23,7 @@ import {
   buildStudySystemPrompt,
   calcStudyCost,
   getStudyConfig,
-  isStudyConfigured,
+  studyProviderReady,
   STUDY_ENABLED,
   STUDY_OFF_MESSAGE,
   maxTokensForBatch,
@@ -54,13 +54,14 @@ export async function POST(
   if (!STUDY_ENABLED) {
     return NextResponse.json({ error: STUDY_OFF_MESSAGE, comingSoon: true }, { status: 503 });
   }
-  if (!isStudyConfigured) {
-    return NextResponse.json({ error: "خدمة الملخّص الدراسي غير مهيّأة" }, { status: 503 });
-  }
 
   const userId = session.user.id;
   const isAdmin = session.user.systemRole === "SYSTEM_ADMIN";
   const cfg = await getStudyConfig();
+  // مزوّد النموذج المضبوط نفسه — لا «أيّ مزوّد» (انظر studyProviderReady).
+  if (!studyProviderReady(cfg.model)) {
+    return NextResponse.json({ error: "خدمة الملخّص الدراسي غير مهيّأة" }, { status: 503 });
+  }
 
   const rec = await db.studySummary.findUnique({ where: { id } });
   if (!rec || (rec.userId !== userId && !isAdmin)) {
