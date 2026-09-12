@@ -9,7 +9,9 @@ import { after } from "next/server";
 import { FREE_INITIAL_PAGES } from "@/lib/billing";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const FROM = process.env.EMAIL_FROM || "warraq <noreply@warraq.sa>";
+export const FROM = process.env.EMAIL_FROM || "warraq <noreply@warraq.sa>";
+// عنوان الردّ (اختياريّ) — يُضبط بـ EMAIL_REPLY_TO
+const REPLY_TO = process.env.EMAIL_REPLY_TO?.trim() || "";
 
 export const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://warraq-nu.vercel.app";
 
@@ -38,10 +40,34 @@ function isTransientNetworkError(err: unknown): boolean {
   );
 }
 
+// نصّ بديل من الـ HTML. رسالةٌ بلا بديل نصّيّ إشارةُ إزعاجٍ معروفة لدى المرشِّحات،
+// وبعض العملاء لا يعرض HTML أصلاً. نشتقّه آليّاً فلا يحتاج كلّ قالب صيانة منفصلة
+// ولا ينحرف عن المحتوى.
+export function htmlToText(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    // الروابط: نُبقي النصّ متبوعاً بالعنوان ليصل للقارئ في الوضع النصّيّ
+    .replace(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, "$2 ($1)")
+    .replace(/<\/(p|div|h[1-6]|tr|li)>/gi, "\n")
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/[ \t]+/g, " ")
+    .replace(/ *\n */g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 export async function sendEmail(opts: {
   to: string;
   subject: string;
   html: string;
+  text?: string;
   headers?: Record<string, string>;
 }) {
   if (!RESEND_API_KEY) {
@@ -54,6 +80,10 @@ export async function sendEmail(opts: {
     to: opts.to,
     subject: opts.subject,
     html: opts.html,
+    // بديل نصّيّ دائماً — يرفع فرص الوصول ويخدم من لا يعرض HTML
+    text: opts.text ?? htmlToText(opts.html),
+    // عنوان ردّ حقيقيّ: رسالة من noreply لا تُردّ عليها تبدو أقلّ مصداقيّة
+    ...(REPLY_TO ? { reply_to: REPLY_TO } : {}),
     ...(opts.headers ? { headers: opts.headers } : {}),
   });
   const maxAttempts = RETRY_DELAYS_MS.length + 1;
@@ -124,7 +154,13 @@ export async function sendEmail(opts: {
 // أرسل بريداً دون حجب الاستجابة، مع ضمان تنفيذه بعد إرسال الردّ (يصمد في serverless).
 // يبتلع الأخطاء ويسجّلها فقط — فلا يُسقِط الطلب الأساسيّ بسبب فشل البريد.
 export function queueEmail(
-  opts: { to: string; subject: string; html: string; headers?: Record<string, string> },
+  opts: {
+    to: string;
+    subject: string;
+    html: string;
+    text?: string;
+    headers?: Record<string, string>;
+  },
   context = "send",
 ) {
   const run = () =>
