@@ -11,6 +11,7 @@ import {
   studyProviderReady,
   STUDY_ENABLED,
   STUDY_OFF_MESSAGE,
+  STUDY_TRIAL_MESSAGE,
 } from "@/lib/study";
 import { Hourglass } from "lucide-react";
 
@@ -111,7 +112,10 @@ export default async function StudyPage() {
     );
   }
 
-  const available = STUDY_ENABLED && cfg.enabled && studyProviderReady(cfg.model);
+  // تجربة داخليّة: الميزة للمالك وحده حتى تُعتمد جودتها.
+  const trialLocked = cfg.ownerOnly && !isAdmin;
+  const available =
+    STUDY_ENABLED && cfg.enabled && studyProviderReady(cfg.model) && !trialLocked;
 
   return (
     <>
@@ -124,7 +128,7 @@ export default async function StudyPage() {
           <EmptyState
             icon={Hourglass}
             title="قريباً"
-            description={STUDY_OFF_MESSAGE}
+            description={trialLocked ? STUDY_TRIAL_MESSAGE : STUDY_OFF_MESSAGE}
           />
         </div>
       ) : (

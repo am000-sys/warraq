@@ -17,6 +17,7 @@ import {
   studyProviderReady,
   STUDY_ENABLED,
   STUDY_OFF_MESSAGE,
+  STUDY_TRIAL_MESSAGE,
 } from "@/lib/study";
 
 export const runtime = "nodejs";
@@ -82,6 +83,10 @@ export async function POST(req: NextRequest) {
   }
   // الفحص على مزوّد النموذج المضبوط نفسه لا على «أيّ مزوّد»: نموذج بلا مفتاح
   // يعني فشل كلّ مهمّة، فالرفض هنا أنظف من قبولٍ يُخصم ثمّ يُستردّ.
+  // تجربة داخليّة: لا تُقبل طلبات من غير المالك.
+  if (cfg.ownerOnly && session.user.systemRole !== "SYSTEM_ADMIN") {
+    return NextResponse.json({ error: STUDY_TRIAL_MESSAGE, comingSoon: true }, { status: 403 });
+  }
   if (!studyProviderReady(cfg.model)) {
     return NextResponse.json(
       { error: "خدمة الملخّص الدراسي غير مهيّأة بعد", configRequired: true },
