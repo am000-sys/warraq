@@ -1,7 +1,12 @@
 // src/components/study-diagnostics.tsx — تشخيص مزوّد الملخّص الدراسي (للمالك)
 // يُجيب عن أسئلة التبديل بين المزوّدين بنظرة واحدة: أيّ نموذج يعمل الآن؟ وهل
 // مفتاحه مضبوط؟ وهل يسع حدُّ الحروف المسموح به نافذةَ ذلك النموذج؟
-// مكوّن خادم بلا حالة — لا يُحمّل جافاسكربت إضافيّاً على اللوحة.
+// يعرض كذلك **مصدر** النموذج العامل (صفّ في القاعدة / متغيّر بيئة / افتراضيّ)،
+// ويتيح تبديله بنقرة — لأنّ صفّ القاعدة يتقدّم على البيئة، فضبطُ البيئة وحده قد
+// لا يُغيّر شيئاً وسبب ذلك غير ظاهر بلا هذا البيان.
+"use client";
+
+import { useState } from "react";
 import { GraduationCap } from "lucide-react";
 import type { StudyDiagnostic } from "@/lib/study";
 
@@ -46,8 +51,37 @@ function Note({ tone, children }: { tone: "warn" | "info"; children: React.React
   );
 }
 
+const SOURCE_LABEL: Record<StudyDiagnostic["modelSource"], string> = {
+  db: "صفّ في قاعدة البيانات (يتقدّم على البيئة)",
+  env: "متغيّر البيئة STUDY_DEFAULT_MODEL",
+  auto: "الافتراضيّ حسب المفتاح الموجود",
+};
+
 export function StudyDiagnostics({ data }: { data: StudyDiagnostic }) {
   const live = data.enabled && data.configuredEnabled && data.providerReady;
+  const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
+  const [msg, setMsg] = useState("");
+  const [model, setModel] = useState(data.model);
+
+  async function apply(next: string | null) {
+    setState("loading");
+    const res = await fetch("/api/admin/study-model", {
+      method: next ? "POST" : "DELETE",
+      ...(next ? { headers: { "content-type": "application/json" }, body: JSON.stringify({ model: next }) } : {}),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setState("done");
+      setModel(body.model ?? "—");
+      setMsg(next ? `ضُبط النموذج على ${body.model}. حدّث الصفحة.` : "حُذف الضبط — عاد إلى البيئة. حدّث الصفحة.");
+    } else {
+      setState("error");
+      setMsg(body.error ?? "تعذّر التنفيذ");
+    }
+  }
+
+  // التبديل معروض فقط حين يكون مفيداً: مفتاح Kimi موجود والنموذج العامل ليس منه.
+  const canSwitchToKimi = data.keys.kimi && data.provider !== "kimi";
 
   return (
     <div className="card mb-7" style={{ borderRadius: 16 }}>
@@ -98,7 +132,13 @@ export function StudyDiagnostics({ data }: { data: StudyDiagnostic }) {
         </Row>
 
         <Row label="النموذج (دقّة عالية)">
-          <code style={{ fontFamily: "Inter, monospace", fontSize: 12 }}>{data.model}</code>
+          <code style={{ fontFamily: "Inter, monospace", fontSize: 12 }}>{model}</code>
+        </Row>
+
+        <Row label="مصدر الضبط">
+          <span style={{ color: "var(--stone)", fontWeight: 400 }}>
+            {SOURCE_LABEL[data.modelSource]}
+          </span>
         </Row>
 
         <Row label="النموذج (دقّة قصوى)">
@@ -134,6 +174,44 @@ export function StudyDiagnostics({ data }: { data: StudyDiagnostic }) {
           </span>
         </Row>
       </dl>
+
+      {(canSwitchToKimi || data.modelSource === "db") && (
+        <div className="flex flex-wrap items-center" style={{ gap: 10, marginTop: 14 }}>
+          {canSwitchToKimi && (
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={state === "loading"}
+              onClick={() => apply("kimi-k3")}
+              style={{ fontSize: 12.5, padding: "8px 16px" }}
+            >
+              حوّل إلى kimi-k3
+            </button>
+          )}
+          {data.modelSource === "db" && (
+            <button
+              type="button"
+              className="btn-ghost"
+              disabled={state === "loading"}
+              onClick={() => apply(null)}
+              style={{ fontSize: 12.5, padding: "8px 16px" }}
+            >
+              احذف الضبط وعُد إلى البيئة
+            </button>
+          )}
+          {msg && (
+            <span
+              style={{
+                fontSize: 12,
+                fontFamily: "Tajawal, sans-serif",
+                color: state === "error" ? "var(--rose)" : "var(--success)",
+              }}
+            >
+              {msg}
+            </span>
+          )}
+        </div>
+      )}
 
       {data.fits === false && (
         <Note tone="warn">
