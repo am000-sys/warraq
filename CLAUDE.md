@@ -434,8 +434,12 @@ npm run dev
   - **النموذج الافتراضي** عند غياب `STUDY_DEFAULT_MODEL`: `kimi-k3` متى كان مفتاح
     Moonshot مضبوطاً (`fallbackModel` في `study.ts`)، وإلّا `qwen-plus-latest`.
   - **تشخيص المزوّد** في `/admin/system` عبر `getStudyDiagnostics` +
-    `study-diagnostics.tsx`: النموذج العامل، وحال مفتاحه، والنافذة، وهل يسع
-    `study_max_chars` نافذةَ النموذج. قراءة خالصة بلا نداء شبكة.
+    `study-diagnostics.tsx`: النموذج العامل، و**مصدر ضبطه**، وحال مفتاحه، والنافذة،
+    وهل يسع `study_max_chars` نافذةَ النموذج.
+  - **أسبقيّة الضبط**: صفّ `SystemSetting` ⇐ متغيّر البيئة ⇐ الافتراضيّ. فصفٌّ قديم
+    من تجربة مزوّد سابق **يُبطل** كلّ ضبطٍ في البيئة بلا أثر ظاهر. المنفذ
+    `/api/admin/study-model` (للمالك) يكتب الصفّ أو يحذفه، وزرّاه في بطاقة التشخيص —
+    فيُحسم التبديل أيّاً كان مصدر القيمة الحاليّة. يرفض نموذجاً لا مفتاح لمزوّده.
 - **`qwen-*`** ⇒ مزوّد Qwen (`src/lib/qwen.ts`) عبر **Batch API المتوافق مع OpenAI**
   (`https://dashscope-intl.aliyuncs.com/compatible-mode/v1`): رفع JSONL → إنشاء دفعة
   → استطلاع → تنزيل الناتج. يحتاج `QWEN_API_KEY` (أو `DASHSCOPE_API_KEY`).

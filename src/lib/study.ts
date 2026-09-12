@@ -107,7 +107,7 @@ const DEFAULTS: StudyConfig = {
   premiumEnabled: true,
 };
 
-const KEYS = {
+export const STUDY_KEYS = {
   enabled: "study_enabled",
   rate: "study_rate",
   minCost: "study_min_cost",
@@ -118,6 +118,9 @@ const KEYS = {
   maxChars: "study_max_chars",
   premiumEnabled: "study_premium_enabled",
 } as const;
+
+// اسم مختصر داخل الملفّ
+const KEYS = STUDY_KEYS;
 
 export async function getStudyConfig(): Promise<StudyConfig> {
   try {
@@ -472,6 +475,11 @@ export async function buildStudyContext(rec: {
 // قراءة خالصة بلا نداء شبكة — تُفتح مع لوحة النظام فلا تُضيف كلفة ولا زمناً.
 export type StudyProvider = "claude" | "qwen" | "kimi";
 
+// من أين جاء النموذج العامل؟ الترتيب: صفّ SystemSetting ⇐ متغيّر البيئة ⇐ الافتراضيّ.
+// بيانه في اللوحة يختصر تشخيصاً طويلاً: «ضبطتُ البيئة ولم يتغيّر شيء» سببه صفٌّ
+// قديم في القاعدة يتقدّم عليها.
+export type StudyModelSource = "db" | "env" | "auto";
+
 export type StudyDiagnostic = {
   enabled: boolean; // STUDY_ENABLED — الميزة معروضة للمستخدمين؟
   configuredEnabled: boolean; // study_enabled في الإعداد
@@ -481,6 +489,7 @@ export type StudyDiagnostic = {
   modelPremium: string;
   premiumEnabled: boolean;
   maxChars: number;
+  modelSource: StudyModelSource;
   contextWindow: number | null; // للنماذج التي نعرف نافذتها (Kimi)
   estimatedPromptTokens: number | null; // تقدير المُدخَل عند بلوغ maxChars
   fits: boolean | null; // هل يسع المُدخَل الأقصى نافذةَ النموذج؟
@@ -505,6 +514,14 @@ export function studyProviderReady(model: string): boolean {
 
 export async function getStudyDiagnostics(): Promise<StudyDiagnostic> {
   const cfg = await getStudyConfig();
+  const dbRow = await db.systemSetting
+    .findUnique({ where: { key: KEYS.model } })
+    .catch(() => null);
+  const modelSource: StudyModelSource = isSupportedStudyModel(dbRow?.value)
+    ? "db"
+    : envModel("STUDY_DEFAULT_MODEL")
+      ? "env"
+      : "auto";
   const provider = studyProviderOf(cfg.model);
   const ready = studyProviderReady(cfg.model);
 
@@ -521,6 +538,7 @@ export async function getStudyDiagnostics(): Promise<StudyDiagnostic> {
     providerReady: ready,
     model: cfg.model,
     modelPremium: cfg.modelPremium,
+    modelSource,
     premiumEnabled: cfg.premiumEnabled,
     maxChars: cfg.maxChars,
     contextWindow,
