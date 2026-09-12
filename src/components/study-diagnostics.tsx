@@ -51,6 +51,29 @@ function Note({ tone, children }: { tone: "warn" | "info"; children: React.React
   );
 }
 
+const ENV_LABEL: Record<StudyDiagnostic["envKeys"]["kimi"], string> = {
+  set: "موجود",
+  short: "موجود لكنّه قصير — تحقّق من اللصق",
+  missing: "مفقود",
+};
+
+const ENV_COLOR: Record<StudyDiagnostic["envKeys"]["kimi"], string> = {
+  set: "var(--success)",
+  short: "var(--rose)",
+  missing: "var(--pebble)",
+};
+
+function EnvRow({ name, state }: { name: string; state: StudyDiagnostic["envKeys"]["kimi"] }) {
+  return (
+    <div className="flex justify-between items-center flex-wrap" style={{ gap: 8 }}>
+      <code style={{ fontFamily: "Inter, monospace", fontSize: 11.5, color: "var(--stone)" }}>
+        {name}
+      </code>
+      <span style={{ fontSize: 12, color: ENV_COLOR[state] }}>{ENV_LABEL[state]}</span>
+    </div>
+  );
+}
+
 const SOURCE_LABEL: Record<StudyDiagnostic["modelSource"], string> = {
   db: "صفّ في قاعدة البيانات (يتقدّم على البيئة)",
   env: "متغيّر البيئة STUDY_DEFAULT_MODEL",
@@ -162,6 +185,13 @@ export function StudyDiagnostics({ data }: { data: StudyDiagnostic }) {
           </Row>
         )}
 
+        <Row label="بيئة النشر">
+          <span style={{ color: "var(--stone)", fontWeight: 400 }}>
+            {data.deployEnv ?? "محلّيّة"}
+            {data.commit ? ` — ${data.commit}` : ""}
+          </span>
+        </Row>
+
         <Row label="المفاتيح المضبوطة">
           <span style={{ color: "var(--stone)", fontWeight: 400 }}>
             {[
@@ -174,6 +204,36 @@ export function StudyDiagnostics({ data }: { data: StudyDiagnostic }) {
           </span>
         </Row>
       </dl>
+
+      <div
+        style={{
+          marginTop: 14,
+          padding: 14,
+          borderRadius: 12,
+          background: "var(--fog)",
+          border: "1px solid var(--border)",
+          fontFamily: "Tajawal, sans-serif",
+        }}
+      >
+        <div style={{ fontSize: 12, color: "var(--pebble)", marginBottom: 10 }}>
+          متغيّرات البيئة في هذا النشر (تُعرض حالتها فقط، لا قيمها)
+        </div>
+        <div className="flex flex-col" style={{ gap: 8 }}>
+          <EnvRow name="MOONSHOT_API_KEY" state={data.envKeys.moonshot} />
+          <EnvRow name="KIMI_API_KEY" state={data.envKeys.kimi} />
+          <EnvRow name="QWEN_API_KEY / DASHSCOPE_API_KEY" state={data.envKeys.qwen} />
+          <EnvRow name="ANTHROPIC_API_KEY" state={data.envKeys.claude} />
+        </div>
+      </div>
+
+      {!data.keys.kimi && (
+        <Note tone="info">
+          لا مفتاح Moonshot في هذا النشر. أضِف <code>MOONSHOT_API_KEY</code> في Vercel ‏(Settings
+          → Environment Variables) واختر بيئة <strong>Production</strong>، ثمّ <strong>أعِد
+          النشر</strong> — المتغيّر الجديد لا يسري على نشرٍ قائم. وإن كان مضافاً فعلاً، فتحقّق
+          أنّه في بيئة الإنتاج لا في Preview وحدها.
+        </Note>
+      )}
 
       {(canSwitchToKimi || data.modelSource === "db") && (
         <div className="flex flex-wrap items-center" style={{ gap: 10, marginTop: 14 }}>

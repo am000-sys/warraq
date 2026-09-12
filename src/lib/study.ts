@@ -480,6 +480,19 @@ export type StudyProvider = "claude" | "qwen" | "kimi";
 // قديم في القاعدة يتقدّم عليها.
 export type StudyModelSource = "db" | "env" | "auto";
 
+// حال متغيّر بيئة بلا كشف قيمته: موجود / موجود لكنّه قصير على نحوٍ مريب / مفقود.
+// «قصير» مهمّ: isKimiConfigured يشترط طولاً معقولاً، فمفتاح ملصوق ناقصاً يُقرأ
+// كأنّه غير مضبوط — وهذا يبدو في اللوحة كأنّ المفتاح لم يُضَف أصلاً.
+export type EnvKeyState = "set" | "short" | "missing";
+
+export function envKeyState(...names: string[]): EnvKeyState {
+  for (const n of names) {
+    const v = process.env[n]?.trim();
+    if (v) return v.length > 10 ? "set" : "short";
+  }
+  return "missing";
+}
+
 export type StudyDiagnostic = {
   enabled: boolean; // STUDY_ENABLED — الميزة معروضة للمستخدمين؟
   configuredEnabled: boolean; // study_enabled في الإعداد
@@ -494,6 +507,11 @@ export type StudyDiagnostic = {
   estimatedPromptTokens: number | null; // تقدير المُدخَل عند بلوغ maxChars
   fits: boolean | null; // هل يسع المُدخَل الأقصى نافذةَ النموذج؟
   keys: { claude: boolean; qwen: boolean; kimi: boolean };
+  // حال متغيّرات البيئة بالاسم — للإجابة عن «أضفت المفتاح ولا أثر له»:
+  // إمّا أنّه في بيئة نشر أخرى، أو لم يُعَد النشر بعد إضافته.
+  envKeys: { moonshot: EnvKeyState; kimi: EnvKeyState; qwen: EnvKeyState; claude: EnvKeyState };
+  deployEnv: string | null;
+  commit: string | null; // أوّل ٧ خانات — للتأكّد أنّ النشر الجاري يحمل هذا الكود
 };
 
 export function studyProviderOf(model: string): StudyProvider {
@@ -548,5 +566,13 @@ export async function getStudyDiagnostics(): Promise<StudyDiagnostic> {
         ? estimatedPromptTokens + 8192 <= contextWindow
         : null,
     keys: { claude: isAnthropicConfigured, qwen: isQwenConfigured, kimi: isKimiConfigured },
+    envKeys: {
+      moonshot: envKeyState("MOONSHOT_API_KEY"),
+      kimi: envKeyState("KIMI_API_KEY"),
+      qwen: envKeyState("QWEN_API_KEY", "DASHSCOPE_API_KEY"),
+      claude: envKeyState("ANTHROPIC_API_KEY"),
+    },
+    deployEnv: process.env.VERCEL_ENV ?? null,
+    commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? null,
   };
 }
