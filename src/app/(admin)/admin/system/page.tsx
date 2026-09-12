@@ -9,6 +9,8 @@ import {
 } from "@/components/payment-diagnostics";
 import { isTapConfigured, tapKeyMode, retrieveTapCharge } from "@/lib/tap";
 import { isStripeConfigured } from "@/lib/stripe";
+import { isGoogleAuthConfigured } from "@/lib/auth";
+import { AuthDiagnostics, type AuthDiagnostic } from "@/components/auth-diagnostics";
 import { Activity } from "lucide-react";
 
 // قياس زمن الذهاب والإياب لقاعدة البيانات من داخل دالّة الخادم نفسها.
@@ -182,11 +184,35 @@ async function paymentDiagnostics(): Promise<GatewayDiagnostic[]> {
   ];
 }
 
+// تشخيص المصادقة: إتاحة Google (مع رابط الإرجاع المطلوب لهذا النطاق)، وعدد
+// الحسابات السابقة المحجوبة بعد تفعيل تحقّق البريد.
+function verifyCutoff(): Date {
+  const raw = process.env.EMAIL_VERIFY_CUTOFF;
+  const parsed = raw ? new Date(raw) : null;
+  return parsed && !Number.isNaN(parsed.getTime()) ? parsed : new Date("2026-09-12T14:00:00Z");
+}
+
+async function authDiagnostics(): Promise<AuthDiagnostic> {
+  const base = (process.env.NEXTAUTH_URL || "").replace(/\/$/, "");
+  const cutoffAt = verifyCutoff();
+  const legacyPending = await db.user
+    .count({ where: { emailVerified: null, createdAt: { lt: cutoffAt } } })
+    .catch(() => null);
+
+  return {
+    googleConfigured: isGoogleAuthConfigured,
+    redirectUri: base ? `${base}/api/auth/callback/google` : null,
+    deployEnv: process.env.VERCEL_ENV ?? null,
+    legacyPending,
+    legacyCutoff: cutoffAt.toISOString(),
+  };
+}
+
 export default async function AdminSystemPage() {
   // القياس أوّلاً وبتسلسل — كي لا تُزاحمه استعلامات الصفحة فتتشوّه الأرقام
   const dbLatency = await measureDbLatency();
 
-  const [recentLogs, settings, gateways] = await Promise.all([
+  const [recentLogs, settings, gateways, authDiag] = await Promise.all([
     db.auditLog
       .findMany({
         orderBy: { createdAt: "desc" },
@@ -195,6 +221,7 @@ export default async function AdminSystemPage() {
       .catch(() => []),
     db.systemSetting.findMany().catch(() => []),
     paymentDiagnostics().catch((): GatewayDiagnostic[] => []),
+    authDiagnostics(),
   ]);
 
   const region = process.env.VERCEL_REGION || null;
@@ -208,6 +235,8 @@ export default async function AdminSystemPage() {
   return (
     <div>
       <PageHeader title="النظام" subtitle="إعدادات وسجلّ نشاط المنصّة." />
+
+      <AuthDiagnostics data={authDiag} />
 
       {gateways.length > 0 && (
         <PaymentDiagnostics
