@@ -8,6 +8,8 @@ import { KeyRound, Check, Copy } from "lucide-react";
 
 export type AuthDiagnostic = {
   googleConfigured: boolean;
+  googleIdLooksValid: boolean; // شكل المعرّف صحيح؟ (يكشف اللصق الناقص/التبديل)
+  googleSecretLooksValid: boolean;
   redirectUri: string | null; // رابط الإرجاع المتوقّع لهذا النطاق
   deployEnv: string | null;
   legacyPending: number | null; // حسابات سابقة غير مفعَّلة (null = تعذّر العدّ)
@@ -81,11 +83,54 @@ export function AuthDiagnostics({ data }: { data: AuthDiagnostic }) {
 
       <dl className="flex flex-col" style={{ gap: 12, fontFamily: "Tajawal, sans-serif" }}>
         <Row label="الدخول بحساب Google">
-          <span style={{ color: data.googleConfigured ? "var(--success)" : "var(--pebble)" }}>
-            {data.googleConfigured ? "مفعَّل — الزرّ ظاهر" : "غير مُعَدّ — الزرّ مخفيّ"}
-          </span>
+          {!data.googleConfigured ? (
+            <span style={{ color: "var(--pebble)" }}>غير مُعَدّ — الزرّ مخفيّ</span>
+          ) : data.googleIdLooksValid && data.googleSecretLooksValid ? (
+            <span style={{ color: "var(--success)" }}>مفعَّل — الزرّ ظاهر</span>
+          ) : (
+            <span style={{ color: "var(--rose)" }}>مضبوط بقيمة خاطئة</span>
+          )}
         </Row>
       </dl>
+
+      {data.googleConfigured && !(data.googleIdLooksValid && data.googleSecretLooksValid) && (
+        <div
+          style={{
+            background: "rgba(201,123,132,0.08)",
+            border: "1px solid rgba(201,123,132,0.25)",
+            borderRadius: 12,
+            padding: 14,
+            marginTop: 14,
+            fontFamily: "Tajawal, sans-serif",
+            fontSize: 12.5,
+            lineHeight: 2,
+            color: "var(--carbon)",
+          }}
+        >
+          <strong style={{ color: "var(--rose)" }}>
+            قيمة غير صالحة — الضغط على الزرّ سيعطي خطأ 401 invalid_client.
+          </strong>
+          <ul style={{ margin: "6px 0 0", paddingInlineStart: 18 }}>
+            {!data.googleIdLooksValid && (
+              <li>
+                <code>AUTH_GOOGLE_ID</code> لا يطابق شكل معرّف Google. يجب أن ينتهي بـ{" "}
+                <code style={{ direction: "ltr", display: "inline-block" }}>
+                  .apps.googleusercontent.com
+                </code>{" "}
+                — غالباً لَصْقٌ ناقص، أو وُضِع فيه السرّ بالخطأ.
+              </li>
+            )}
+            {!data.googleSecretLooksValid && (
+              <li>
+                <code>AUTH_GOOGLE_SECRET</code> لا يبدأ بـ{" "}
+                <code style={{ direction: "ltr", display: "inline-block" }}>GOCSPX-</code> —
+                غالباً وُضِع فيه المعرّف بالخطأ.
+              </li>
+            )}
+          </ul>
+          صحّح القيمة في Vercel ثمّ أعد النشر.
+        </div>
+      )}
 
       {!data.googleConfigured && (
         <div

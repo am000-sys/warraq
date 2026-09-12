@@ -20,9 +20,27 @@ declare module "next-auth" {
 
 // Google OAuth — يُفعَّل فقط إن ضُبط المفتاحان، فلا يظهر زرّ معطّل للمستخدم.
 // يُقبل اسما Auth.js v5 (AUTH_GOOGLE_*) والاسمان الشائعان (GOOGLE_CLIENT_*).
-const googleId = process.env.AUTH_GOOGLE_ID || process.env.GOOGLE_CLIENT_ID || "";
-const googleSecret = process.env.AUTH_GOOGLE_SECRET || process.env.GOOGLE_CLIENT_SECRET || "";
+// التنظيف ضروريّ لا تجميليّ: اللصق من ملفّ JSON أو من الجوال يجرّ معه مسافات
+// أو سطراً جديداً أو علامتَي تنصيص، فترفض Google المعرّف بـ invalid_client
+// («OAuth client was not found») ويصعب تشخيصه لأنّ القيمة تبدو صحيحة بالعين.
+function cleanEnv(...names: string[]): string {
+  for (const n of names) {
+    const v = process.env[n]?.trim().replace(/^["']|["']$/g, "").trim();
+    if (v) return v;
+  }
+  return "";
+}
+
+const googleId = cleanEnv("AUTH_GOOGLE_ID", "GOOGLE_CLIENT_ID");
+const googleSecret = cleanEnv("AUTH_GOOGLE_SECRET", "GOOGLE_CLIENT_SECRET");
 export const isGoogleAuthConfigured = Boolean(googleId && googleSecret);
+
+// شكل المعرّف الصحيح لدى Google: <أرقام>-<سلسلة>.apps.googleusercontent.com
+// قيمة لا تطابقه = لصقٌ ناقص أو تبديل بين المعرّف والسرّ — نكشفه في لوحة التشخيص
+// بدل أن يظهر للمستخدم خطأ 401 غامض عند الضغط على الزرّ.
+export const googleIdLooksValid =
+  !googleId || /^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/i.test(googleId);
+export const googleSecretLooksValid = !googleSecret || googleSecret.startsWith("GOCSPX-");
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(db),
