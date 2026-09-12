@@ -27,9 +27,15 @@ const BASE_URL = (
   process.env.MOONSHOT_BASE_URL || "https://api.moonshot.ai/v1"
 ).replace(/\/$/, "");
 
-// سقف الإخراج — يُضبط من البيئة عند الحاجة. منطق المتابعة في study-poll.ts يُكمل
-// تلقائيّاً إن بُلغ الحدّ (نفس مظلّة الأمان القائمة).
-const MAX_OUTPUT = Math.max(512, Number(process.env.KIMI_MAX_OUTPUT) || 8192);
+// سقف الإخراج — يُضبط من البيئة عند الحاجة. القيمة الافتراضيّة هي افتراضيّ Moonshot
+// نفسه (131072). والسقف الفعليّ لدى المزوّد = نافذة النموذج ناقص توكنات المُدخَل، فنموذج
+// بنافذة ٢٥٦ ألفاً مع كتاب كبير يبقى له أقلّ من ذلك — لذا يُخفَّض من البيئة عند استعمال
+// نموذج ذي نافذة أضيق. منطق المتابعة في study-poll.ts يُكمل تلقائيّاً إن بُلغ الحدّ.
+const MAX_OUTPUT = Math.max(512, Number(process.env.KIMI_MAX_OUTPUT) || 131072);
+
+// مستوى التفكير (نماذج kimi-k3 تفكّر دوماً): يُرسل فقط عند ضبطه صراحةً، فلا نُمرّر
+// حقلاً قد يرفضه نموذج لا يدعمه. تبديله في منتصف العمل يُبطل إصابة الكاش البادئ.
+const REASONING_EFFORT = (process.env.KIMI_REASONING_EFFORT || "").trim();
 
 export type KimiMessage = ChatMessage;
 
@@ -42,6 +48,10 @@ export function isKimiModel(model: string): boolean {
 
 // يُجري النداء المتزامن ويعيد معرّفاً وهميّاً يحمل الناتج المُرمَّز.
 // أخطاء النقل الصلبة تُرمى ليتولّاها المسار (استرداد الرصيد + FAILED).
+//
+// ⚠️ لا تُضِف معاملات العيّنة (temperature وtop_p وn وpresence/frequency_penalty):
+// Moonshot يثبّتها على قيمها الافتراضيّة ويردّ 400 على أيّ قيمة تُمرَّر صراحةً.
+// أمانة النقل الحرفيّ تُضمن بالتعليمات والتحقّق البرمجيّ، لا بخفض temperature.
 export async function submitKimiBatch(opts: {
   model: string;
   messages: KimiMessage[];
@@ -55,8 +65,9 @@ export async function submitKimiBatch(opts: {
     body: {
       model: opts.model,
       messages: opts.messages,
-      max_tokens: Math.min(opts.maxTokens, MAX_OUTPUT),
-      temperature: 0.2,
+      // `max_completion_tokens` هو الحقل المعتمد لدى Moonshot، و`max_tokens` مهجور.
+      max_completion_tokens: Math.min(opts.maxTokens, MAX_OUTPUT),
+      ...(REASONING_EFFORT ? { reasoning_effort: REASONING_EFFORT } : {}),
     },
   });
   // بلا قصّ لعلامة النهاية هنا؛ القصّ يتمّ عند الاستطلاع بالعلامة الفعليّة.

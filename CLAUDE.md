@@ -410,6 +410,14 @@ npm run dev
 - **`kimi-*` / `moonshot-*`** ⇒ مزوّد Kimi (`src/lib/kimi.ts`) عبر **الدردشة المتوافقة
   مع OpenAI** على `https://api.moonshot.ai/v1` (تُبدَّل بـ `MOONSHOT_BASE_URL`). نداء
   متزامن، ومعرّف الدفعة يُخزَّن مبدوءاً بـ `"kimi:"`.
+  - ⚠️ **لا تُرسل معاملات العيّنة**: Moonshot يثبّت `temperature` و`top_p` و`n`
+    و`presence_penalty`/`frequency_penalty`، ويردّ **400** على أيّ قيمة تُمرَّر صراحةً.
+    أمانة النقل الحرفيّ تُضمن بالتعليمات وبالتحقّق البرمجيّ، لا بخفض `temperature`.
+  - **`max_completion_tokens`** هو الحقل المعتمد (`max_tokens` مهجور). السقف الفعليّ
+    = نافذة النموذج **ناقص** توكنات المُدخَل، فلا يُفترض أنّ السقف الأقصى متاح دائماً.
+  - **النموذج:** `kimi-k3` (نافذة ١ مليون توكن) يسع كتاباً كاملاً في نداء واحد، وهو ما
+    تحتاجه بنية الملخّص الهرميّة. `moonshot-v1-*` و`kimi-k2.5` **متقاعدة** وتعيد 404.
+  - `KIMI_REASONING_EFFORT` (اختياريّ) يُرسل `reasoning_effort` عند ضبطه فقط.
 - **`qwen-*`** ⇒ مزوّد Qwen (`src/lib/qwen.ts`) عبر **Batch API المتوافق مع OpenAI**
   (`https://dashscope-intl.aliyuncs.com/compatible-mode/v1`): رفع JSONL → إنشاء دفعة
   → استطلاع → تنزيل الناتج. يحتاج `QWEN_API_KEY` (أو `DASHSCOPE_API_KEY`).
