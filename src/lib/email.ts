@@ -6,6 +6,7 @@
 // بعد إرجاع الاستجابة فتقتل الإرسال الجاري — فنُؤجّله عبر after() ليصمد بعد الردّ.
 
 import { after } from "next/server";
+import { FREE_INITIAL_PAGES } from "@/lib/billing";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const FROM = process.env.EMAIL_FROM || "warraq <noreply@warraq.sa>";
@@ -266,7 +267,7 @@ export function welcomeEmail(name: string) {
           شكراً لانضمامك إلى وَرَّاق — منصّتك لتحويل التراث العربي إلى نصوص قابلة للبحث.
         </p>
         <p style="color: #484758; line-height: 1.7;">
-          لديك ٥ صفحات مجانية لتجرّب المنصّة. ابدأ من الآن.
+          لديك ${FREE_INITIAL_PAGES.toLocaleString("ar-SA")} صفحة مجانية لتجرّب المنصّة. ابدأ من الآن.
         </p>
       </div>
     `,

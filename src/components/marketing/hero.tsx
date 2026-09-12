@@ -4,6 +4,7 @@
 // دخول متدرّج عبر .wq-enter (يحترم prefers-reduced-motion من globals.css)
 import Link from "next/link";
 import { BookToTextMockup } from "@/components/book-to-text-mockup";
+import { AuthCta, MemberOnlyLink } from "@/components/marketing/auth-cta";
 
 export function Hero() {
   return (
@@ -63,9 +64,14 @@ export function Hero() {
             className="wq-enter flex gap-3 flex-wrap"
             style={{ ["--enter-delay" as string]: "0.24s" }}
           >
-            <Link href="/signup" className="btn-primary no-underline" style={{ fontSize: 16, padding: "14px 32px" }}>
-              ابدأ مجاناً
-            </Link>
+            <AuthCta style={{ fontSize: 16, padding: "14px 32px" }} />
+            <MemberOnlyLink
+              href="/dashboard"
+              className="btn-ghost no-underline"
+              style={{ fontSize: 16, padding: "14px 32px" }}
+            >
+              لوحة التحكم
+            </MemberOnlyLink>
             <Link href="/try" className="btn-ghost no-underline" style={{ fontSize: 16, padding: "14px 32px" }}>
               جرّب بلا تسجيل
             </Link>

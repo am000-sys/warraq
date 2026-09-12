@@ -4,6 +4,11 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 
+// الرصيد المجانيّ عند التسجيل — **مصدر واحد**. كان الرقم مكرّراً بين مسار
+// التسجيل ونصّ رسالة الترحيب، فانحرف النصّ (٥) عن الواقع (٥٠). لا تُكرّره.
+// ملاحظة: هذا هو نفسه القيمة الافتراضيّة لـ User.pagesBalance في المخطّط.
+export const FREE_INITIAL_PAGES = 50;
+
 // يُرمى عندما لا يكفي الرصيد لإتمام الخصم — يلتقطه المسار ويعيد 402
 export class InsufficientBalanceError extends Error {
   constructor(message = "رصيد غير كافٍ") {
