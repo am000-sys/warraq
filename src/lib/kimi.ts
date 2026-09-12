@@ -27,9 +27,65 @@ const BASE_URL = (
   process.env.MOONSHOT_BASE_URL || "https://api.moonshot.ai/v1"
 ).replace(/\/$/, "");
 
-// سقف الإخراج — يُضبط من البيئة عند الحاجة. منطق المتابعة في study-poll.ts يُكمل
-// تلقائيّاً إن بُلغ الحدّ (نفس مظلّة الأمان القائمة).
-const MAX_OUTPUT = Math.max(512, Number(process.env.KIMI_MAX_OUTPUT) || 8192);
+// سقف الإخراج — يُضبط من البيئة عند الحاجة. القيمة الافتراضيّة هي افتراضيّ Moonshot
+// نفسه (131072). والسقف الفعليّ لدى المزوّد = نافذة النموذج ناقص توكنات المُدخَل، فنموذج
+// بنافذة ٢٥٦ ألفاً مع كتاب كبير يبقى له أقلّ من ذلك — لذا يُخفَّض من البيئة عند استعمال
+// نموذج ذي نافذة أضيق. منطق المتابعة في study-poll.ts يُكمل تلقائيّاً إن بُلغ الحدّ.
+const MAX_OUTPUT = Math.max(512, Number(process.env.KIMI_MAX_OUTPUT) || 131072);
+
+// مستوى التفكير (نماذج kimi-k3 تفكّر دوماً): يُرسل فقط عند ضبطه صراحةً، فلا نُمرّر
+// حقلاً قد يرفضه نموذج لا يدعمه. تبديله في منتصف العمل يُبطل إصابة الكاش البادئ.
+const REASONING_EFFORT = (process.env.KIMI_REASONING_EFFORT || "").trim();
+
+// ─── نافذة السياق وحساب ميزانيّة الإخراج ───────────────────
+// لدى Moonshot: أقصى إخراج = نافذة النموذج **ناقص** توكنات المُدخَل. فطلب سقف
+// ثابت مع كتاب كبير = 400 من المزوّد. نحسبها هنا قبل النداء.
+const KNOWN_WINDOWS: [prefix: string, window: number][] = [["kimi-k3", 1_048_576]];
+
+// الافتراضي محافظ عمداً: نماذج Moonshot الحاليّة عدا k3 بنافذة ٢٥٦ ألفاً، فلا
+// نفترض سعةً أكبر لنموذج لا نعرفه. يُضبط من البيئة عند إضافة نموذج أوسع.
+const DEFAULT_WINDOW = Math.max(8192, Number(process.env.KIMI_CONTEXT_WINDOW) || 262_144);
+
+export function kimiContextWindow(model: string): number {
+  for (const [prefix, window] of KNOWN_WINDOWS) {
+    if (model.startsWith(prefix)) return window;
+  }
+  return DEFAULT_WINDOW;
+}
+
+// تقدير محلّيّ لتوكنات المُدخَل. لا رقم رسميّ منشور لنسبة العربيّة لدى Moonshot،
+// فنُقدّر بثلاثة أحرف لكلّ توكن — **أقلّ** من النسبة الواقعيّة (٣٫٥–٤) فيأتي
+// التقدير أعلى من الحقيقة، والخطأ في جانب الأمان: نطلب إخراجاً أقلّ لا أكثر.
+export function estimateKimiPromptTokens(messages: KimiMessage[]): number {
+  const chars = messages.reduce((n, m) => n + m.content.length + 8, 0);
+  return Math.ceil(chars / 3);
+}
+
+// هامش أمان فوق التقدير، وأرضيّة لا يُرسَل تحتها طلب أصلاً (ملخّص أقصر منها بلا فائدة).
+const SAFETY_MARGIN = 4096;
+const MIN_USEFUL_OUTPUT = 8192;
+
+export class KimiContextOverflowError extends Error {
+  constructor(readonly needed: number, readonly window: number) {
+    super(
+      `KIMI_CONTEXT_OVERFLOW: المادّة أكبر من نافذة النموذج (تقدير المُدخَل ${needed} توكن من أصل ${window}). قسّم المادّة أو اختر نموذجاً بنافذة أوسع.`,
+    );
+    this.name = "KimiContextOverflowError";
+  }
+}
+
+// ميزانيّة الإخراج الفعليّة: الأصغر بين المطلوب، وسقف البيئة، والمتبقّي من النافذة.
+export function kimiOutputBudget(opts: {
+  model: string;
+  messages: KimiMessage[];
+  maxTokens: number;
+}): number {
+  const window = kimiContextWindow(opts.model);
+  const prompt = estimateKimiPromptTokens(opts.messages);
+  const available = window - prompt - SAFETY_MARGIN;
+  if (available < MIN_USEFUL_OUTPUT) throw new KimiContextOverflowError(prompt, window);
+  return Math.min(opts.maxTokens, MAX_OUTPUT, available);
+}
 
 export type KimiMessage = ChatMessage;
 
@@ -42,6 +98,10 @@ export function isKimiModel(model: string): boolean {
 
 // يُجري النداء المتزامن ويعيد معرّفاً وهميّاً يحمل الناتج المُرمَّز.
 // أخطاء النقل الصلبة تُرمى ليتولّاها المسار (استرداد الرصيد + FAILED).
+//
+// ⚠️ لا تُضِف معاملات العيّنة (temperature وtop_p وn وpresence/frequency_penalty):
+// Moonshot يثبّتها على قيمها الافتراضيّة ويردّ 400 على أيّ قيمة تُمرَّر صراحةً.
+// أمانة النقل الحرفيّ تُضمن بالتعليمات والتحقّق البرمجيّ، لا بخفض temperature.
 export async function submitKimiBatch(opts: {
   model: string;
   messages: KimiMessage[];
@@ -55,8 +115,9 @@ export async function submitKimiBatch(opts: {
     body: {
       model: opts.model,
       messages: opts.messages,
-      max_tokens: Math.min(opts.maxTokens, MAX_OUTPUT),
-      temperature: 0.2,
+      // `max_completion_tokens` هو الحقل المعتمد لدى Moonshot، و`max_tokens` مهجور.
+      max_completion_tokens: kimiOutputBudget(opts),
+      ...(REASONING_EFFORT ? { reasoning_effort: REASONING_EFFORT } : {}),
     },
   });
   // بلا قصّ لعلامة النهاية هنا؛ القصّ يتمّ عند الاستطلاع بالعلامة الفعليّة.
