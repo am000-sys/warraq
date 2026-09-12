@@ -234,6 +234,28 @@ export function topupApprovedEmail(name: string, pages: number) {
   };
 }
 
+export function verificationCodeEmail(name: string, code: string, ttlMinutes: number) {
+  // الرمز بأرقام لاتينيّة وتباعد حرفيّ واسع — أوضح للنسخ والقراءة من الهاتف
+  return {
+    subject: `رمز تفعيل حسابك: ${code} — وَرَّاق`,
+    html: `
+      <div style="font-family: 'Tajawal', sans-serif; direction: rtl; max-width: 480px; margin: 0 auto; padding: 32px;">
+        <h2 style="font-weight: 500; color: #181825;">أهلاً ${name}،</h2>
+        <p style="color: #484758; line-height: 1.8;">
+          استعمل هذا الرمز لإكمال إنشاء حسابك في وَرَّاق:
+        </p>
+        <div style="background:#f7f7f7;border-radius:16px;padding:20px;margin:16px 0;text-align:center;">
+          <span style="font-family: ui-monospace, Menlo, monospace; direction: ltr; display:inline-block; font-size:30px; font-weight:600; letter-spacing:10px; color:#181825;">${code}</span>
+        </div>
+        <p style="color: #949494; font-size: 13px; line-height: 1.8;">
+          الرمز صالح لمدّة ${ttlMinutes} دقيقة ويُستعمل مرّة واحدة.
+          إن لم تطلب إنشاء حساب فتجاهل هذه الرسالة — لن يُفعَّل شيء بدون الرمز.
+        </p>
+      </div>
+    `,
+  };
+}
+
 export function welcomeEmail(name: string) {
   return {
     subject: "أهلاً بك في وَرَّاق",

@@ -1,13 +1,15 @@
 // src/app/api/auth/signup/route.ts
 // ─────────────────────────
-// تسجيل مستخدم جديد
+// تسجيل مستخدم جديد — يُنشأ الحساب **غير مفعَّل** ويُرسَل رمز تحقّق إلى بريده.
+// لا دخول قبل التفعيل: authorize في auth.ts يرفض الحساب غير المفعَّل.
 // ─────────────────────────
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { hashPassword } from "@/lib/password";
 import { db } from "@/lib/db";
-import { queueEmail, welcomeEmail } from "@/lib/email";
+import { queueEmail, verificationCodeEmail } from "@/lib/email";
+import { issueCode, sendLimitReached, CODE_TTL_MINUTES } from "@/lib/verification";
 
 const signupSchema = z.object({
   email: z.string().email(),
@@ -20,30 +22,42 @@ const FREE_INITIAL_PAGES = 50;
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { email, password, name } = signupSchema.parse(body);
+    const parsed = signupSchema.parse(body);
+    const email = parsed.email.toLowerCase().trim();
+    const { password, name } = parsed;
 
-    // فحص عدم وجود الحساب مسبقاً
-    const existing = await db.user.findUnique({ where: { email } });
-    if (existing) {
+    const existing = await db.user.findUnique({
+      where: { email },
+      select: { id: true, emailVerified: true },
+    });
+
+    // حساب قائم ومفعَّل: لا إنشاء ولا رمز — وجّهه للدخول
+    if (existing?.emailVerified) {
+      return NextResponse.json({ error: "البريد الإلكتروني مسجّل مسبقاً" }, { status: 409 });
+    }
+
+    if (await sendLimitReached(email)) {
       return NextResponse.json(
-        { error: "البريد الإلكتروني مسجّل مسبقاً" },
-        { status: 409 }
+        { error: "أُرسلت رموز كثيرة لهذا البريد. انتظر قليلاً ثمّ أعد المحاولة." },
+        { status: 429 },
       );
     }
 
-    // إنشاء الحساب
     const passwordHash = await hashPassword(password);
-    const user = await db.user.create({
-      data: {
-        email,
-        name,
-        passwordHash,
-        pagesBalance: FREE_INITIAL_PAGES,
-      },
-      select: { id: true, email: true, name: true, pagesBalance: true },
-    });
 
-    // تسجيل في AuditLog
+    // حساب قائم لكنّه غير مفعَّل (سجّل ولم يُكمل): نُحدّث بياناته بدل رفضه —
+    // فلا يعلق البريد محجوزاً بحساب لم يُستعمل قطّ.
+    const user = existing
+      ? await db.user.update({
+          where: { id: existing.id },
+          data: { name, passwordHash },
+          select: { id: true, email: true, name: true },
+        })
+      : await db.user.create({
+          data: { email, name, passwordHash, pagesBalance: FREE_INITIAL_PAGES },
+          select: { id: true, email: true, name: true },
+        });
+
     await db.auditLog.create({
       data: {
         userId: user.id,
@@ -54,15 +68,19 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // رسالة ترحيب (تُتجاهَل بصمت إن لم يُضبط Resend)
-    queueEmail({ to: user.email, ...welcomeEmail(user.name ?? "") }, "welcome");
+    // رمز التفعيل (رسالة الترحيب تُرسَل بعد التفعيل، لا قبله)
+    const code = await issueCode(email, user.id);
+    queueEmail(
+      { to: email, ...verificationCodeEmail(user.name ?? "", code, CODE_TTL_MINUTES) },
+      "verify-code",
+    );
 
-    return NextResponse.json({ user });
-  } catch (err: any) {
-    if (err.name === "ZodError") {
+    return NextResponse.json({ verificationRequired: true, email });
+  } catch (err: unknown) {
+    if (err instanceof z.ZodError) {
       return NextResponse.json(
         { error: "بيانات غير صالحة", details: err.errors },
-        { status: 400 }
+        { status: 400 },
       );
     }
     console.error("[signup]", err);

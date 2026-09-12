@@ -2,10 +2,12 @@
 import { cache } from "react";
 import NextAuth, { type DefaultSession } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
+import Google from "next-auth/providers/google";
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { redirect } from "next/navigation";
 import { verifyPassword, hashPassword, needsRehash } from "@/lib/password";
 import { db } from "@/lib/db";
+import { queueEmail, welcomeEmail } from "@/lib/email";
 
 declare module "next-auth" {
   interface Session {
@@ -16,11 +18,30 @@ declare module "next-auth" {
   }
 }
 
+// Google OAuth — يُفعَّل فقط إن ضُبط المفتاحان، فلا يظهر زرّ معطّل للمستخدم.
+// يُقبل اسما Auth.js v5 (AUTH_GOOGLE_*) والاسمان الشائعان (GOOGLE_CLIENT_*).
+const googleId = process.env.AUTH_GOOGLE_ID || process.env.GOOGLE_CLIENT_ID || "";
+const googleSecret = process.env.AUTH_GOOGLE_SECRET || process.env.GOOGLE_CLIENT_SECRET || "";
+export const isGoogleAuthConfigured = Boolean(googleId && googleSecret);
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(db),
   session: { strategy: "jwt" },
   pages: { signIn: "/login" },
   providers: [
+    ...(isGoogleAuthConfigured
+      ? [
+          Google({
+            clientId: googleId,
+            clientSecret: googleSecret,
+            // ربط حساب Google ببريد مسجَّل مسبقاً بكلمة مرور.
+            // آمن هنا تحديداً لأنّ Google تتحقّق من ملكيّة البريد، ونرفض في
+            // signIn أدناه أيّ ملفّ Google بـ email_verified غير صحيح — فلا
+            // يستطيع أحد ادّعاء بريد غيره ليستولي على حسابه.
+            allowDangerousEmailAccountLinking: true,
+          }),
+        ]
+      : []),
     Credentials({
       credentials: {
         email: {},
@@ -37,6 +58,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const ok = await verifyPassword(password, user.passwordHash);
         if (!ok) return null;
 
+        // لا دخول قبل تفعيل البريد — الرمز أُرسل عند التسجيل، وصفحة /verify-email
+        // تتيح طلب رمز جديد. (نعيد null لئلّا نكشف حال الحساب لمن يجرّب العناوين.)
+        if (!user.emailVerified) return null;
+
         // ترحيل شفّاف للتجزئات القديمة الأثقل (كلفة 12) إلى الكلفة الحاليّة —
         // مرّة واحدة لكلّ مستخدم، فيصير كلّ دخول لاحق أسرع بوضوح
         if (needsRehash(user.passwordHash)) {
@@ -50,7 +75,30 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       },
     }),
   ],
+  events: {
+    // يقع لمستخدمي OAuth فقط (حسابات كلمة المرور يُنشئها مسار signup لدينا).
+    // بريد Google متحقَّق منه أصلاً، فالحساب مفعَّل منذ لحظته.
+    async createUser({ user }) {
+      if (!user.id) return;
+      await db.auditLog
+        .create({
+          data: { userId: user.id, action: "user.signup_google", entity: "user", entityId: user.id },
+        })
+        .catch(() => {});
+      if (user.email) {
+        queueEmail({ to: user.email, ...welcomeEmail(user.name ?? "") }, "welcome-google");
+      }
+    },
+  },
   callbacks: {
+    // حارس Google: لا نقبل ملفّاً بلا بريد متحقَّق منه — هو شرط سلامة ربط
+    // الحسابات أعلاه. الدخول بكلمة المرور يُفحص في authorize.
+    async signIn({ account, profile }) {
+      if (account?.provider === "google") {
+        return profile?.email_verified === true && Boolean(profile.email);
+      }
+      return true;
+    },
     async jwt({ token, user }) {
       // عند تسجيل الدخول فقط: نخزّن المعرّف والدور في الـ token (مرّة واحدة)
       if (user?.id) {
