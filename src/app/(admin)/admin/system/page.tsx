@@ -9,7 +9,11 @@ import {
 } from "@/components/payment-diagnostics";
 import { isTapConfigured, tapKeyMode, retrieveTapCharge } from "@/lib/tap";
 import { isStripeConfigured } from "@/lib/stripe";
-import { isGoogleAuthConfigured } from "@/lib/auth";
+import {
+  isGoogleAuthConfigured,
+  googleIdLooksValid,
+  googleSecretLooksValid,
+} from "@/lib/auth";
 import { AuthDiagnostics, type AuthDiagnostic } from "@/components/auth-diagnostics";
 import { Activity } from "lucide-react";
 
@@ -201,6 +205,8 @@ async function authDiagnostics(): Promise<AuthDiagnostic> {
 
   return {
     googleConfigured: isGoogleAuthConfigured,
+    googleIdLooksValid,
+    googleSecretLooksValid,
     redirectUri: base ? `${base}/api/auth/callback/google` : null,
     deployEnv: process.env.VERCEL_ENV ?? null,
     legacyPending,
