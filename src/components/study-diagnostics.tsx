@@ -106,6 +106,24 @@ export function StudyDiagnostics({ data }: { data: StudyDiagnostic }) {
   // التبديل معروض فقط حين يكون مفيداً: مفتاح Kimi موجود والنموذج العامل ليس منه.
   const canSwitchToKimi = data.keys.kimi && data.provider !== "kimi";
 
+  const [ownerOnly, setOwnerOnly] = useState(data.ownerOnly);
+  const [accessState, setAccessState] = useState<"idle" | "loading" | "error">("idle");
+
+  async function setAccess(next: boolean) {
+    setAccessState("loading");
+    const res = await fetch("/api/admin/study-access", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ownerOnly: next }),
+    });
+    if (res.ok) {
+      setOwnerOnly(next);
+      setAccessState("idle");
+    } else {
+      setAccessState("error");
+    }
+  }
+
   return (
     <div className="card mb-7" style={{ borderRadius: 16 }}>
       <div className="flex items-center" style={{ gap: 10, marginBottom: 16 }}>
@@ -185,6 +203,12 @@ export function StudyDiagnostics({ data }: { data: StudyDiagnostic }) {
           </Row>
         )}
 
+        <Row label="من يراها">
+          <span style={{ color: ownerOnly ? "var(--orange)" : "var(--success)" }}>
+            {ownerOnly ? "المالك وحده (تجربة داخليّة)" : "كلّ المستخدمين"}
+          </span>
+        </Row>
+
         <Row label="بيئة النشر">
           <span style={{ color: "var(--stone)", fontWeight: 400 }}>
             {data.deployEnv ?? "محلّيّة"}
@@ -204,6 +228,23 @@ export function StudyDiagnostics({ data }: { data: StudyDiagnostic }) {
           </span>
         </Row>
       </dl>
+
+      <div className="flex flex-wrap items-center" style={{ gap: 10, marginTop: 14 }}>
+        <button
+          type="button"
+          className={ownerOnly ? "btn-primary" : "btn-ghost"}
+          disabled={accessState === "loading"}
+          onClick={() => setAccess(!ownerOnly)}
+          style={{ fontSize: 12.5, padding: "8px 16px" }}
+        >
+          {ownerOnly ? "افتحها لكلّ المستخدمين" : "أعِدها للمالك وحده"}
+        </button>
+        {accessState === "error" && (
+          <span style={{ fontSize: 12, fontFamily: "Tajawal, sans-serif", color: "var(--rose)" }}>
+            تعذّر التنفيذ
+          </span>
+        )}
+      </div>
 
       <div
         style={{

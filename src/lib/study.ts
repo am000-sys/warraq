@@ -53,6 +53,8 @@ export const isStudyConfigured = isAnthropicConfigured || isQwenConfigured || is
 // الجارية في study-poll حتى لا تبقى معلّقة بلا نهاية).
 // كان المنطق مقلوباً (مغلقة ما لم تُفتح بـ "1") أيّام تعطّل مزوّد Qwen.
 export const STUDY_ENABLED = process.env.STUDY_ENABLED !== "0";
+export const STUDY_TRIAL_MESSAGE =
+  "الملخّص الدراسي قيد التجربة الداخليّة الآن، وسيُفتح للجميع بعد اكتمالها.";
 export const STUDY_OFF_MESSAGE =
   "الملخّص الدراسي قيد التطوير وسيتاح قريباً. بقيّة خدمات المنصّة تعمل كالمعتاد.";
 const client = isAnthropicConfigured ? new Anthropic({ apiKey }) : null;
@@ -68,6 +70,7 @@ export type StudyConfig = {
   modelPremium: string; // معرّف نموذج الدقّة القصوى
   maxChars: number; // أقصى حجم للمدخل (حروف) — لا اقتطاع صامتاً أبداً
   premiumEnabled: boolean; // إتاحة «الدقّة القصوى» للمستخدمين (سلاح تحكّم بالتكلفة)
+  ownerOnly: boolean; // تجربة داخليّة: الميزة للمالك وحده، وللبقيّة «قريباً»
 };
 
 // معرّف نموذج مقبول: claude-* أو qwen-* أو kimi-*/moonshot-* — التوجيه حسب البادئة.
@@ -105,6 +108,9 @@ const DEFAULTS: StudyConfig = {
   modelPremium: envModel("STUDY_DEFAULT_MODEL_PREMIUM") ?? fallbackModel(),
   maxChars: 800_000,
   premiumEnabled: true,
+  // مغلقة على المالك افتراضاً حتى تُجرَّب جودة المزوّد على مستندات حقيقيّة.
+  // تُفتح للجميع من زرّ في لوحة المالك (أو بـ STUDY_OWNER_ONLY="0").
+  ownerOnly: process.env.STUDY_OWNER_ONLY !== "0",
 };
 
 export const STUDY_KEYS = {
@@ -117,6 +123,7 @@ export const STUDY_KEYS = {
   modelPremium: "study_model_premium",
   maxChars: "study_max_chars",
   premiumEnabled: "study_premium_enabled",
+  ownerOnly: "study_owner_only",
 } as const;
 
 // اسم مختصر داخل الملفّ
@@ -146,6 +153,7 @@ export async function getStudyConfig(): Promise<StudyConfig> {
     if (okModel(mp)) cfg.modelPremium = mp;
     cfg.maxChars = num(KEYS.maxChars, 10_000) ?? cfg.maxChars;
     if (map.has(KEYS.premiumEnabled)) cfg.premiumEnabled = Boolean(map.get(KEYS.premiumEnabled));
+    if (map.has(KEYS.ownerOnly)) cfg.ownerOnly = Boolean(map.get(KEYS.ownerOnly));
 
     return cfg;
   } catch {
@@ -501,6 +509,7 @@ export type StudyDiagnostic = {
   model: string;
   modelPremium: string;
   premiumEnabled: boolean;
+  ownerOnly: boolean;
   maxChars: number;
   modelSource: StudyModelSource;
   contextWindow: number | null; // للنماذج التي نعرف نافذتها (Kimi)
@@ -558,6 +567,7 @@ export async function getStudyDiagnostics(): Promise<StudyDiagnostic> {
     modelPremium: cfg.modelPremium,
     modelSource,
     premiumEnabled: cfg.premiumEnabled,
+    ownerOnly: cfg.ownerOnly,
     maxChars: cfg.maxChars,
     contextWindow,
     estimatedPromptTokens,

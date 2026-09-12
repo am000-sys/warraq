@@ -26,6 +26,7 @@ import {
   studyProviderReady,
   STUDY_ENABLED,
   STUDY_OFF_MESSAGE,
+  STUDY_TRIAL_MESSAGE,
   maxTokensForBatch,
   submitStudyBatch,
   type StudyDepth,
@@ -58,6 +59,10 @@ export async function POST(
   const userId = session.user.id;
   const isAdmin = session.user.systemRole === "SYSTEM_ADMIN";
   const cfg = await getStudyConfig();
+  // تجربة داخليّة: لا تُقبل طلبات من غير المالك.
+  if (cfg.ownerOnly && !isAdmin) {
+    return NextResponse.json({ error: STUDY_TRIAL_MESSAGE, comingSoon: true }, { status: 403 });
+  }
   // مزوّد النموذج المضبوط نفسه — لا «أيّ مزوّد» (انظر studyProviderReady).
   if (!studyProviderReady(cfg.model)) {
     return NextResponse.json({ error: "خدمة الملخّص الدراسي غير مهيّأة" }, { status: 503 });
