@@ -94,6 +94,11 @@ export async function POST(
   }
 
   const premium = rec.model === cfg.modelPremium;
+  // نموذج السجلّ يُحفظ لحظةَ إنشائه، فسجلٌّ أُنشئ قبل تبديل المزوّد يبقى حاملاً
+  // معرّف النموذج المهجور — وإعادة المحاولة كانت تعيده إلى المزوّد نفسه أبداً.
+  // فإن لم يعد نموذج السجلّ أحد نموذجَي الإعداد الحاليّ، نُحوّله إلى المضبوط الآن
+  // (إلى الفئة العاديّة: أرخص للمستخدم، والمخصوم سلفاً محفوظ في pagesCharged).
+  const effectiveModel = rec.model === cfg.model || premium ? rec.model : cfg.model;
   const cost = isAdmin ? 0 : calcStudyCost(rec.sourcePages, premium, cfg);
 
   // ─── المطالبة بالإرسال + الخصم (أوّل مرّة فقط) — معاملة ذرّية ──
@@ -153,16 +158,17 @@ export async function POST(
   try {
     const system = buildStudySystemPrompt(rec.focus as StudyFocus[], rec.depth as StudyDepth);
     const batchId = await submitStudyBatch({
-      model: rec.model,
+      model: effectiveModel,
       system,
       context,
       maxTokens: maxTokensForBatch(rec.depth as StudyDepth, premium),
     });
     // معرّف الدفعة يُحفظ في حقل verification مؤقّتاً حتى الاكتمال
     // (يستبدله فحص النقول النهائي) — بلا أيّ تغيير على المخطّط.
+    // ويُثبَّت النموذج المستعمَل فعلاً ليتبعه الاستطلاع والمتابعة.
     await db.studySummary.update({
       where: { id },
-      data: { verification: { batchId } },
+      data: { verification: { batchId }, ...(effectiveModel !== rec.model ? { model: effectiveModel } : {}) },
     });
     return NextResponse.json({ queued: true, cost: charged });
   } catch (err) {
@@ -190,7 +196,9 @@ export async function POST(
     // المادّة أكبر من نافذة النموذج — فُحصت قبل النداء فلم تُستهلك كلفة. إعادة
     // المحاولة بنفس المادّة لن تنجح، فالرسالة تدلّ على الحلّ لا على «أعد المحاولة».
     const isOverflow = /KIMI_CONTEXT_OVERFLOW/.test(raw);
-    const detail = raw ? ` (${raw.slice(0, 200)})` : "";
+    // اسم النموذج في الرسالة: يكشف فوراً أيّ مزوّد نُودي فعلاً — وهو أوّل سؤال
+    // عند كلّ فشل، وكان يستلزم تتبّعاً في اللوحة والسجلّات.
+    const detail = ` [النموذج: ${effectiveModel}]${raw ? ` (${raw.slice(0, 200)})` : ""}`;
     const message = isOverflow
       ? "المادّة أكبر من نافذة النموذج المستعمَل، فتعذّر إرسالها دفعةً واحدة. قسّم المادّة ولخّص كلّ جزء على حدة، أو اطلب من المالك ضبط نموذج بنافذة أوسع. لم يُخصم من رصيدك شيء."
       : isContentFlag
