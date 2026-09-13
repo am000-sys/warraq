@@ -35,11 +35,23 @@ import {
   FOCUS_OPTIONS,
   DEPTH_OPTIONS,
   maxCoveredPages,
+  DEPTH_RATE_MULTIPLIER,
   calcStudyCost,
   estimateSourcePages,
   type StudyPricing,
   type StudyDepth,
 } from "@/lib/study-options";
+
+function BillRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, lineHeight: 2 }}
+    >
+      <span style={{ color: "var(--stone)" }}>{label}</span>
+      <span style={{ color: "var(--carbon)" }}>{value}</span>
+    </div>
+  );
+}
 
 const font = "Tajawal, sans-serif";
 const POLL_MS = 12_000;
@@ -560,25 +572,72 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
           <div style={{ fontFamily: font, fontSize: 13, color: "var(--stone)" }}>
             {sourcePages > 0 ? (
               <>
-                التكلفة:{" "}
-                <span style={{ color: "var(--carbon)", fontWeight: 700 }}>
-                  {isAdmin ? "مجاناً (مالك)" : `${ar(cost)} صفحة`}
-                </span>
-                {!isAdmin && (
-                  <>
-                    {" "}
-                    من رصيدك ({ar(bal)} متاح)
-                    {insufficient && (
-                      <span style={{ color: "#c97b84" }}>
-                        {" "}
-                        — الرصيد لا يكفي،{" "}
-                        <Link href="/billing" style={{ color: "var(--orange)" }}>
-                          اشحن رصيدك
-                        </Link>
-                      </span>
-                    )}
-                  </>
-                )}
+                {/* بيان التكلفة قبل البدء: كلّ سطرٍ يُظهر من أين جاء الرقم،
+                    فلا يُفاجأ المستخدم بخصمٍ لا يعرف سببه. */}
+                <div
+                  style={{
+                    border: "1px solid var(--border-sub)",
+                    borderRadius: 12,
+                    padding: "12px 14px",
+                    marginBottom: 10,
+                    background: "var(--snow)",
+                  }}
+                >
+                  <BillRow label="صفحات المادّة" value={`${ar(sourcePages)} صفحة`} />
+                  {overCoverage && (
+                    <BillRow
+                      label="المحتسَب (سقف التغطية بهذا العمق)"
+                      value={`${ar(covered)} صفحة`}
+                    />
+                  )}
+                  <BillRow
+                    label={`معامل العمق (${DEPTH_OPTIONS.find((d) => d.id === depth)?.label ?? ""})`}
+                    value={`× ${DEPTH_RATE_MULTIPLIER[depth as StudyDepth]}`}
+                  />
+                  <BillRow
+                    label="سعر الصفحة"
+                    value={`${pricing.rate} من الرصيد`}
+                  />
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      gap: 8,
+                      marginTop: 8,
+                      paddingTop: 8,
+                      borderTop: "1px solid var(--border-sub)",
+                      fontSize: 14,
+                    }}
+                  >
+                    <span style={{ color: "var(--carbon)", fontWeight: 500 }}>الإجمالي</span>
+                    <span style={{ color: "var(--carbon)", fontWeight: 700 }}>
+                      {isAdmin ? "مجاناً (مالك)" : `${ar(cost)} صفحة من الرصيد`}
+                    </span>
+                  </div>
+                  {!isAdmin && (
+                    <div
+                      style={{
+                        marginTop: 6,
+                        fontSize: 12.5,
+                        color: insufficient ? "#c97b84" : "var(--stone)",
+                      }}
+                    >
+                      {insufficient ? (
+                        <>
+                          رصيدك {ar(bal)} — ينقصك {ar(cost - bal)} صفحة.{" "}
+                          <Link href="/billing" style={{ color: "var(--orange)" }}>
+                            اشحن رصيدك
+                          </Link>{" "}
+                          ليبدأ التوليد.
+                        </>
+                      ) : (
+                        <>
+                          رصيدك {ar(bal)} صفحة، ويتبقّى بعد الخصم {ar(bal - cost)}.
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
                 {overCoverage && (
                   <div
                     style={{
