@@ -115,9 +115,9 @@ const DEFAULTS: StudyConfig = {
   modelPremium: envModel("STUDY_DEFAULT_MODEL_PREMIUM") ?? fallbackModel(),
   maxChars: 800_000,
   premiumEnabled: true,
-  // مغلقة على المالك افتراضاً حتى تُجرَّب جودة المزوّد على مستندات حقيقيّة.
-  // تُفتح للجميع من زرّ في لوحة المالك (أو بـ STUDY_OWNER_ONLY="0").
-  ownerOnly: process.env.STUDY_OWNER_ONLY !== "0",
+  // مفتوحة للجميع بعد أن جُرّبت على مستندات حقيقيّة (٧٠ و٣٥٦ صفحة).
+  // تُغلق على المالك من زرّ في لوحة المالك، أو بـ STUDY_OWNER_ONLY="1".
+  ownerOnly: process.env.STUDY_OWNER_ONLY === "1",
 };
 
 export const STUDY_KEYS = {
