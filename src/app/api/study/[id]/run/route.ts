@@ -39,6 +39,8 @@ export const runtime = "nodejs";
 // Qwen يولّد بنداء متزامن داخل الطلب؛ نمنح مهلة أوسع (يُقصَّ تلقائيّاً على الخطط
 // المحدودة). مسار Claude يبقى سريعاً (إنشاء دفعة فقط).
 export const maxDuration = 300;
+// ما نتركه للدالّة بعد انقطاع النداء: تسجيل الفشل واسترداد الرصيد ثمّ الردّ.
+const RESERVE_MS = 25_000;
 
 // سجلّ «قيد المعالجة» بلا معرّف دفعة (انهار الإرسال قبل الحفظ) يُسترجع بعدها
 const SUBMIT_STALE_MS = 90 * 1000;
@@ -47,6 +49,7 @@ export async function POST(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const startedAt = Date.now();
   const { id } = await params;
   const session = await auth();
   if (!session?.user?.id) {
@@ -163,6 +166,7 @@ export async function POST(
       system,
       context,
       maxTokens: maxTokensForBatch(rec.depth as StudyDepth, premium),
+      budgetMs: maxDuration * 1000 - (Date.now() - startedAt) - RESERVE_MS,
     });
     // معرّف الدفعة يُحفظ في حقل verification مؤقّتاً حتى الاكتمال
     // (يستبدله فحص النقول النهائي) — بلا أيّ تغيير على المخطّط.

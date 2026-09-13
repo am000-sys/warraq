@@ -46,10 +46,11 @@ function reasoningEffortFor(model: string): string {
   return model.startsWith("kimi-k3") ? "low" : "";
 }
 
-// ميزانيّة النداء المتزامن. مسارات Study عند maxDuration=300ث، ومع تقسيم الإخراج
-// إلى مقاطع (أدناه) يكتمل المقطع الواحد في دقيقتين عادةً — فسقف ١٢٠ ثانية يكفي
-// ويترك للاستطلاع مجالاً لتسلسل عدّة مقاطع في النداء الواحد.
-const BUDGET_MS = Math.max(30_000, Number(process.env.KIMI_TIMEOUT_MS) || 120_000);
+// سقف أعلى مطلق لزمن النداء المتزامن. والميزانيّة الفعليّة **تُحسب لحظيّاً** من
+// الوقت المتبقّي في الدالّة ويُمرّرها المسار (`budgetMs`)، فنستهلك ما تبقّى فعلاً
+// بدل سقفٍ ثابتٍ يُهدر نصف المهلة أو يتجاوزها. التقدير الثابت أخطأ مرّتين:
+// المقطع الواحد على نموذجٍ يفكّر أطول ممّا قُدّر.
+const BUDGET_MS = Math.max(30_000, Number(process.env.KIMI_TIMEOUT_MS) || 240_000);
 
 // ─── تقسيم الإخراج إلى مقاطع ───────────────────────────────
 // النداء متزامن ومحكوم بمهلة الدالّة، فملخّص كتابٍ كامل في نداء واحد يتجاوزها
@@ -57,7 +58,11 @@ const BUDGET_MS = Math.max(30_000, Number(process.env.KIMI_TIMEOUT_MS) || 120_00
 // وتتولّى آليّة المتابعة القائمة في study-poll.ts وصلَ المقاطع من نقطة التوقّف.
 // وبادئة الرسائل ثابتة (انظر buildKimiMessages) فيُصيب كلّ مقطعٍ كاشَ Moonshot
 // ولا تتضاعف كلفة إعادة إرسال الكتاب.
-const CHUNK_TOKENS = Math.max(2048, Number(process.env.KIMI_CHUNK_TOKENS) || 16_384);
+//
+// الحجم مضبوط على التجربة لا على التقدير: ١٦ ألف توكن لم تخرج داخل المهلة على
+// مستندٍ من سبعين صفحة، فخُفّض إلى ٨ آلاف. زيادته تُقلّل عدد النداءات وتُطيل كلّاً
+// منها — وهذه مقايضة تُضبط من البيئة عند تبديل النموذج أو مستوى تفكيره.
+const CHUNK_TOKENS = Math.max(1024, Number(process.env.KIMI_CHUNK_TOKENS) || 8_192);
 
 // ─── نافذة السياق وحساب ميزانيّة الإخراج ───────────────────
 // لدى Moonshot: أقصى إخراج = نافذة النموذج **ناقص** توكنات المُدخَل. فطلب سقف
@@ -128,6 +133,7 @@ export async function submitKimiBatch(opts: {
   model: string;
   messages: KimiMessage[];
   maxTokens: number;
+  budgetMs?: number; // ما تبقّى فعلاً من مهلة الدالّة
 }): Promise<string> {
   if (!isKimiConfigured) throw new Error("KIMI_NOT_CONFIGURED");
   const effort = reasoningEffortFor(opts.model);
@@ -142,7 +148,7 @@ export async function submitKimiBatch(opts: {
       max_completion_tokens: kimiOutputBudget(opts),
       ...(effort ? { reasoning_effort: effort } : {}),
     },
-    totalBudgetMs: BUDGET_MS,
+    totalBudgetMs: Math.min(BUDGET_MS, opts.budgetMs ?? BUDGET_MS),
   });
   // بلا قصّ لعلامة النهاية هنا؛ القصّ يتمّ عند الاستطلاع بالعلامة الفعليّة.
   return encodeInline(parseChatResponse(await res.text(), ""));

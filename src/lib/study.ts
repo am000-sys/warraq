@@ -330,11 +330,17 @@ export async function submitStudyBatch(opts: {
   context: string;
   maxTokens: number;
   checkpoint?: string;
+  budgetMs?: number; // ما تبقّى من مهلة الدالّة (للمزوّد المتزامن وحده)
 }): Promise<string> {
   // فرع Kimi يبني رسائله بترتيبه الخاصّ، فلا يُركَّب له سياق الحوار المشترك.
   if (isKimiModel(opts.model)) {
     const messages = buildKimiMessages(opts.system, opts.context, opts.checkpoint);
-    const id = await submitKimiBatch({ model: opts.model, messages, maxTokens: opts.maxTokens });
+    const id = await submitKimiBatch({
+      model: opts.model,
+      messages,
+      maxTokens: opts.maxTokens,
+      budgetMs: opts.budgetMs,
+    });
     return `kimi:${id}`;
   }
 
