@@ -36,6 +36,10 @@ export {
   FOCUS_IDS,
   DEPTH_IDS,
   CHARS_PER_PAGE,
+  STUDY_MAX_SUMMARY_CHARS,
+  DEPTH_OUTPUT_RATIO,
+  maxCoveredPages,
+  billedPages,
   estimateSourcePages,
   calcStudyCost,
 } from "@/lib/study-options";

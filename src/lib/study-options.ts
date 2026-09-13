@@ -60,6 +60,35 @@ export function estimateSourcePages(chars: number): number {
   return Math.max(1, Math.ceil(chars / CHARS_PER_PAGE));
 }
 
+// ─── سقف تغطية الملخّص الواحد ───────────────────────────────
+// الملخّص يُبنى مقاطع متتابعة، وله سقف طولٍ نهائيّ (HARD_TOTAL_CHARS في
+// study-poll.ts). فمادّةٌ كبيرة يُغطّى أوّلها ويُنبَّه على الباقي — ولا يُحتسب
+// الباقي في السعر.
+export const STUDY_MAX_SUMMARY_CHARS = 300_000;
+
+// نسبة طول الملخّص إلى المادّة حسب العمق. **مُعايَرة على التجربة**: مستندٌ من
+// ١٦٥ صفحة (≈٣٠٠ ألف حرف) بلغ السقف فعلاً — أي أنّ النسبة عند ذلك العمق ١ فأكثر.
+// والقيم أدناه محافظة عمداً: تُقلّل التغطية المُعلَنة والمحتسَبة، فيقع الخطأ في
+// جانب المستخدم لا علينا. تُرفع متى صارت لدينا قياسات لكلّ عمق على حدة.
+export const DEPTH_OUTPUT_RATIO: Record<StudyDepth, number> = {
+  concise: 0.5,
+  balanced: 1.0,
+  deep: 1.4,
+};
+
+// أقصى عدد صفحات من المادّة يغطّيها ملخّص واحد بهذا العمق.
+export function maxCoveredPages(depth: StudyDepth): number {
+  return Math.max(
+    1,
+    Math.floor(STUDY_MAX_SUMMARY_CHARS / DEPTH_OUTPUT_RATIO[depth] / CHARS_PER_PAGE),
+  );
+}
+
+// الصفحات المحتسَبة في السعر: ما يُغطّيه الملخّص فعلاً لا حجم المادّة كلّه.
+export function billedPages(sourcePages: number, depth: StudyDepth): number {
+  return Math.min(sourcePages, maxCoveredPages(depth));
+}
+
 // أسعار الخدمة (صفحات رصيد) — الخادم يقرؤها من SystemSetting ويمرّرها للواجهة
 export type StudyPricing = {
   rate: number; // صفحات رصيد لكلّ صفحة مصدر — الدقّة العالية
@@ -73,8 +102,10 @@ export function calcStudyCost(
   sourcePages: number,
   premium: boolean,
   p: StudyPricing,
+  depth?: StudyDepth, // عند تمريره: لا يُحتسب ما يتجاوز سقف التغطية
 ): number {
+  const pages = depth ? billedPages(sourcePages, depth) : sourcePages;
   const rate = premium ? p.ratePremium : p.rate;
   const min = premium ? p.minCostPremium : p.minCost;
-  return Math.max(min, Math.ceil(sourcePages * rate));
+  return Math.max(min, Math.ceil(pages * rate));
 }

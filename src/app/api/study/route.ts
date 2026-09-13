@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
     if (!title) title = text.slice(0, 60).split("\n")[0].trim() || "ملخّص دراسي";
   }
 
-  const cost = isAdmin ? 0 : calcStudyCost(sourcePages, body.premium, cfg);
+  const cost = isAdmin ? 0 : calcStudyCost(sourcePages, body.premium, cfg, body.depth);
 
   // فحص مسبق للرصيد برسالة واضحة — الخصم الحقيقي عند التشغيل
   if (cost > 0) {

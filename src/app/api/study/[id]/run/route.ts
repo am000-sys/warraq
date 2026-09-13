@@ -103,7 +103,7 @@ export async function POST(
   // فإن لم يعد نموذج السجلّ أحد نموذجَي الإعداد الحاليّ، نُحوّله إلى المضبوط الآن
   // (إلى الفئة العاديّة: أرخص للمستخدم، والمخصوم سلفاً محفوظ في pagesCharged).
   const effectiveModel = rec.model === cfg.model || premium ? rec.model : cfg.model;
-  const cost = isAdmin ? 0 : calcStudyCost(rec.sourcePages, premium, cfg);
+  const cost = isAdmin ? 0 : calcStudyCost(rec.sourcePages, premium, cfg, rec.depth as StudyDepth);
 
   // ─── المطالبة بالإرسال + الخصم (أوّل مرّة فقط) — معاملة ذرّية ──
   const staleBefore = new Date(Date.now() - SUBMIT_STALE_MS);

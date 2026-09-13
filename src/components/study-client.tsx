@@ -34,9 +34,11 @@ import {
 import {
   FOCUS_OPTIONS,
   DEPTH_OPTIONS,
+  maxCoveredPages,
   calcStudyCost,
   estimateSourcePages,
   type StudyPricing,
+  type StudyDepth,
 } from "@/lib/study-options";
 
 const font = "Tajawal, sans-serif";
@@ -104,7 +106,14 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
   const selectedJob = jobs.find((j) => j.id === jobId);
   const sourcePages =
     source === "doc" ? selectedJob?.totalPages ?? 0 : estimateSourcePages(text.trim().length);
-  const cost = isAdmin ? 0 : sourcePages > 0 ? calcStudyCost(sourcePages, premium, pricing) : 0;
+  // سقف تغطية الملخّص الواحد حسب العمق: ما يتجاوزه لا يُلخَّص ولا يُحتسب في السعر.
+  const covered = maxCoveredPages(depth as StudyDepth);
+  const overCoverage = sourcePages > covered;
+  const cost = isAdmin
+    ? 0
+    : sourcePages > 0
+      ? calcStudyCost(sourcePages, premium, pricing, depth as StudyDepth)
+      : 0;
   const insufficient = !isAdmin && cost > bal;
   const tooLong = source === "text" && text.length > pricing.maxChars;
   const canGenerate =
@@ -569,6 +578,25 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
                       </span>
                     )}
                   </>
+                )}
+                {overCoverage && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      fontSize: 12.5,
+                      lineHeight: 1.9,
+                      color: "var(--carbon)",
+                      background: "var(--orange-soft)",
+                      border: "1px solid var(--border)",
+                      borderRadius: 12,
+                      padding: "10px 12px",
+                    }}
+                  >
+                    مادّتك {ar(sourcePages)} صفحة، ويغطّي الملخّص الواحد بهذا العمق نحو{" "}
+                    <strong>{ar(covered)} صفحة</strong> — فيُلخَّص أوّلها ويُنبَّه على الباقي.
+                    <strong> ولا يُحتسب الباقي في السعر.</strong> ولتغطية المادّة كاملةً:
+                    اختر عمقاً أقلّ، أو قسّمها ولخّص كلّ جزء على حدة.
+                  </div>
                 )}
                 <span style={{ color: "var(--pebble)", fontSize: 12 }}>
                   {" "}
