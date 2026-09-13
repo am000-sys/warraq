@@ -46,9 +46,18 @@ function reasoningEffortFor(model: string): string {
   return model.startsWith("kimi-k3") ? "low" : "";
 }
 
-// ميزانيّة النداء المتزامن. مسارات Study عند maxDuration=300ث، فنقطع نحن عند
-// ٢٧٠ لتبقى ثوانٍ لتسجيل الفشل واسترداد الرصيد بدل أن تُقتل الدالّة صامتةً.
-const BUDGET_MS = Math.max(30_000, Number(process.env.KIMI_TIMEOUT_MS) || 270_000);
+// ميزانيّة النداء المتزامن. مسارات Study عند maxDuration=300ث، ومع تقسيم الإخراج
+// إلى مقاطع (أدناه) يكتمل المقطع الواحد في دقيقتين عادةً — فسقف ١٢٠ ثانية يكفي
+// ويترك للاستطلاع مجالاً لتسلسل عدّة مقاطع في النداء الواحد.
+const BUDGET_MS = Math.max(30_000, Number(process.env.KIMI_TIMEOUT_MS) || 120_000);
+
+// ─── تقسيم الإخراج إلى مقاطع ───────────────────────────────
+// النداء متزامن ومحكوم بمهلة الدالّة، فملخّص كتابٍ كامل في نداء واحد يتجاوزها
+// مهما ضُبطت المعاملات. الحلّ: يُخرج كلّ نداء مقطعاً محدوداً فيبلغ سقفه سريعاً،
+// وتتولّى آليّة المتابعة القائمة في study-poll.ts وصلَ المقاطع من نقطة التوقّف.
+// وبادئة الرسائل ثابتة (انظر buildKimiMessages) فيُصيب كلّ مقطعٍ كاشَ Moonshot
+// ولا تتضاعف كلفة إعادة إرسال الكتاب.
+const CHUNK_TOKENS = Math.max(2048, Number(process.env.KIMI_CHUNK_TOKENS) || 16_384);
 
 // ─── نافذة السياق وحساب ميزانيّة الإخراج ───────────────────
 // لدى Moonshot: أقصى إخراج = نافذة النموذج **ناقص** توكنات المُدخَل. فطلب سقف
@@ -97,7 +106,7 @@ export function kimiOutputBudget(opts: {
   const prompt = estimateKimiPromptTokens(opts.messages);
   const available = window - prompt - SAFETY_MARGIN;
   if (available < MIN_USEFUL_OUTPUT) throw new KimiContextOverflowError(prompt, window);
-  return Math.min(opts.maxTokens, MAX_OUTPUT, available);
+  return Math.min(opts.maxTokens, MAX_OUTPUT, CHUNK_TOKENS, available);
 }
 
 export type KimiMessage = ChatMessage;
