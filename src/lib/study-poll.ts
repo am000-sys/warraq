@@ -10,6 +10,7 @@ import { queueEmail, APP_URL } from "@/lib/email";
 import {
   buildStudyContext,
   calcStudyCost,
+  STUDY_MAX_SUMMARY_CHARS,
   cancelStudyBatch,
   checkStudyBatch,
   getStudyConfig,
@@ -29,7 +30,9 @@ const SUBMIT_STALE_MS = 10 * 60 * 1000;
 // مقطعاً محدوداً في كلّ نداء (ليبقى داخل مهلة الدالّة)، فملخّص وافٍ يلزمه مقاطع
 // كثيرة — وحصرُها في ثلاثة كان يقطعه في أوّله.
 const MAX_CONTINUATIONS = Math.max(1, Number(process.env.STUDY_MAX_CONTINUATIONS) || 14);
-const HARD_TOTAL_CHARS = 300_000; // سقف نهائيّ لحجم الملخّص المتراكم
+// سقف حجم الملخّص المتراكم — مشترك مع الواجهة (يُبنى عليه سقف التغطية المعروض
+// قبل التوليد والمحتسَب في السعر). فلا يُغيَّر في موضع دون الآخر.
+const HARD_TOTAL_CHARS = STUDY_MAX_SUMMARY_CHARS;
 
 // مهلة دالّة الاستطلاع (maxDuration=300) وما نحجزه منها للتسوية بعد آخر مقطع.
 const POLL_MAX_MS = 300_000;
@@ -214,7 +217,7 @@ export async function settleStudyBatches(userId?: string): Promise<SettleResult>
           let markdown = accumulated;
           if (status.truncated) {
             markdown +=
-              "\n\n> ⚠ **تنبيه:** بلغ الملخّص الحدّ الأقصى للطول فاعتُمد عند هذا الحدّ. يمكنك تلخيص الجزء المتبقّي من المادّة على حدة.";
+              "\n\n> ⚠ **تنبيه:** بلغ الملخّص الحدّ الأقصى للطول فاعتُمد عند هذا الحدّ، **ولم تُحتسب في السعر إلّا الصفحات المغطّاة**. لتغطية الباقي: لخّص الجزء المتبقّي على حدة، أو أعِد التلخيص بعمقٍ أقلّ ليتّسع للمادّة كلّها.";
           }
           const context = await buildStudyContext(rec);
           const verification = context
@@ -290,7 +293,7 @@ export async function settleStudyBatches(userId?: string): Promise<SettleResult>
             await cancelStudyBatch(newBatchId);
             break;
           }
-          const standardCost = calcStudyCost(rec.sourcePages, false, cfg);
+          const standardCost = calcStudyCost(rec.sourcePages, false, cfg, rec.depth as StudyDepth);
           const diff = rec.pagesCharged - standardCost;
           if (diff > 0) await refund(rec.id, rec.userId, diff);
           break;
