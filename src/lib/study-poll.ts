@@ -31,9 +31,12 @@ const SUBMIT_STALE_MS = 10 * 60 * 1000;
 const MAX_CONTINUATIONS = Math.max(1, Number(process.env.STUDY_MAX_CONTINUATIONS) || 14);
 const HARD_TOTAL_CHARS = 300_000; // سقف نهائيّ لحجم الملخّص المتراكم
 
-// ميزانيّة النداء الواحد للاستطلاع (maxDuration=300): لا نبدأ مقطعاً جديداً بعدها،
-// فيبقى للمقطع الجاري متّسع قبل أن تُقتل الدالّة. وما لم يكتمل تستأنفه الجولة التالية.
-const POLL_BUDGET_MS = Math.max(30_000, Number(process.env.STUDY_POLL_BUDGET_MS) || 150_000);
+// مهلة دالّة الاستطلاع (maxDuration=300) وما نحجزه منها للتسوية بعد آخر مقطع.
+const POLL_MAX_MS = 300_000;
+const RESERVE_MS = 25_000;
+// أقلّ زمنٍ يستحقّ بدء مقطع جديد: أقصر منه لا يُنتج شيئاً ويُهدر نداءً. وما لم
+// يُبدأ هنا تلتقطه القفزة التالية من السلسلة — لا شيء يضيع.
+const MIN_ROUND_MS = Math.max(20_000, Number(process.env.STUDY_MIN_ROUND_MS) || 60_000);
 // حدّ أعلى لعدد المقاطع في النداء الواحد — حارسٌ ثانٍ لا يعتمد على الساعة وحدها.
 const MAX_ROUNDS = 8;
 
@@ -171,6 +174,8 @@ export async function settleStudyBatches(userId?: string): Promise<SettleResult>
                     rec.model === cfg.modelPremium,
                   ),
                   checkpoint: accumulated,
+                  // ما تبقّى فعلاً من مهلة هذه الدالّة — لا سقفاً ثابتاً.
+                  budgetMs: POLL_MAX_MS - (Date.now() - startedAt) - RESERVE_MS,
                 });
                 const claimed = await db.studySummary.updateMany({
                   where: { id: rec.id, status: "PROCESSING" },
@@ -190,7 +195,8 @@ export async function settleStudyBatches(userId?: string): Promise<SettleResult>
                 // جديدة لكلّ مقطع: نُكمل هنا ما دام الوقت يسمح. وإلّا فالجولة
                 // التالية تستأنف من نقطة الحفظ — لا شيء يضيع.
                 const refreshed =
-                  Date.now() - startedAt < POLL_BUDGET_MS && rounds < MAX_ROUNDS
+                  POLL_MAX_MS - (Date.now() - startedAt) - RESERVE_MS >= MIN_ROUND_MS &&
+                  rounds < MAX_ROUNDS
                     ? await db.studySummary.findUnique({
                         where: { id: rec.id },
                         include: { user: { select: { email: true, name: true } } },
