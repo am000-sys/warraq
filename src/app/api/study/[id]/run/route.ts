@@ -33,6 +33,7 @@ import {
   type StudyFocus,
 } from "@/lib/study";
 import { settleStudyBatches } from "@/lib/study-poll";
+import { kickStudyChain } from "@/lib/study-chain";
 
 export const runtime = "nodejs";
 // Qwen يولّد بنداء متزامن داخل الطلب؛ نمنح مهلة أوسع (يُقصَّ تلقائيّاً على الخطط
@@ -170,6 +171,8 @@ export async function POST(
       where: { id },
       data: { verification: { batchId }, ...(effectiveModel !== rec.model ? { model: effectiveModel } : {}) },
     });
+    // تُكمل المقاطعَ سلسلةُ استدعاءٍ على الخادم، فلا يتوقّف التقدّم بإغلاق الصفحة.
+    await kickStudyChain(0);
     return NextResponse.json({ queued: true, cost: charged });
   } catch (err) {
     console.error("[study.submit]", err);

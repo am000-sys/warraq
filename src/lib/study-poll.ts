@@ -85,11 +85,13 @@ async function refund(recId: string, userId: string, amount: number) {
   ]);
 }
 
-export type SettleResult = { checked: number; settled: number };
+// advanced: أُرسل مقطع متابعة فعلاً في هذه الجولة — إشارة «ما زال ثمّة عمل
+// يتقدّم»، تُقرّر بها سلسلة الاستدعاء الذاتيّة هل تُطلق قفزةً أخرى.
+export type SettleResult = { checked: number; settled: number; advanced: number };
 
 // يفحص الدفعات المعلّقة (لمستخدم بعينه أو للجميع) ويُقفل ما انتهى
 export async function settleStudyBatches(userId?: string): Promise<SettleResult> {
-  if (!isStudyConfigured) return { checked: 0, settled: 0 };
+  if (!isStudyConfigured) return { checked: 0, settled: 0, advanced: 0 };
 
   const pendings = await db.studySummary.findMany({
     where: { status: "PROCESSING", ...(userId ? { userId } : {}) },
@@ -97,11 +99,12 @@ export async function settleStudyBatches(userId?: string): Promise<SettleResult>
     take: 10,
     include: { user: { select: { email: true, name: true } } },
   });
-  if (pendings.length === 0) return { checked: 0, settled: 0 };
+  if (pendings.length === 0) return { checked: 0, settled: 0, advanced: 0 };
 
   const cfg = await getStudyConfig();
   const startedAt = Date.now();
   let settled = 0;
+  let advanced = 0;
 
   for (const first of pendings) {
     let rec = first;
@@ -182,6 +185,7 @@ export async function settleStudyBatches(userId?: string): Promise<SettleResult>
                   await cancelStudyBatch(newBatchId);
                   break;
                 }
+                advanced++;
                 // المزوّد المتزامن يعيد المقطع فوراً، فلا ننتظر جولة استطلاع
                 // جديدة لكلّ مقطع: نُكمل هنا ما دام الوقت يسمح. وإلّا فالجولة
                 // التالية تستأنف من نقطة الحفظ — لا شيء يضيع.
@@ -318,7 +322,7 @@ export async function settleStudyBatches(userId?: string): Promise<SettleResult>
     }
   }
 
-  return { checked: pendings.length, settled };
+  return { checked: pendings.length, settled, advanced };
 }
 
 async function failRecord(id: string, userId: string, charged: number, message: string) {
