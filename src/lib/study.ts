@@ -102,7 +102,10 @@ function fallbackModel(): string {
 
 const DEFAULTS: StudyConfig = {
   enabled: true,
-  rate: 1.5,
+  // الأساس = سعر العمق «المتوازن» لكلّ صفحة مصدر مغطّاة؛ والعمقان الآخران
+  // يُشتقّان منه بـ DEPTH_RATE_MULTIPLIER. رُفع من ١٫٥ لأنّ كلفة المزوّد
+  // الفعليّة (إعادة إرسال المادّة مع كلّ مقطع + توكنات التفكير) كانت تلتهم الهامش.
+  rate: 2.5,
   minCost: 15,
   ratePremium: 4.5,
   minCostPremium: 45,
@@ -157,6 +160,10 @@ export async function getStudyConfig(): Promise<StudyConfig> {
     if (okModel(mp)) cfg.modelPremium = mp;
     cfg.maxChars = num(KEYS.maxChars, 10_000) ?? cfg.maxChars;
     if (map.has(KEYS.premiumEnabled)) cfg.premiumEnabled = Boolean(map.get(KEYS.premiumEnabled));
+    // «الدقّة القصوى» لا تُعرض إلّا إذا كانت نموذجاً مختلفاً فعلاً. فمع مزوّدٍ
+    // واحد ونموذجٍ واحد، الفئتان متطابقتان — وأخذُ سعرٍ أعلى مقابل لا شيء يضرّ
+    // الثقة. تعود تلقائيّاً متى ضُبط study_model_premium على نموذج آخر.
+    if (cfg.modelPremium === cfg.model) cfg.premiumEnabled = false;
     if (map.has(KEYS.ownerOnly)) cfg.ownerOnly = Boolean(map.get(KEYS.ownerOnly));
 
     return cfg;

@@ -99,6 +99,15 @@ export type StudyPricing = {
   minCostPremium: number;
 };
 
+// معامل السعر حسب العمق. الكلفة الفعليّة يحكمها **الإخراج**، والإخراج يتبع العمق
+// (انظر DEPTH_OUTPUT_RATIO). فالسعر يتبعه كذلك بدل معاملٍ واحد يظلم عمقاً ويُحابي
+// آخر. الأساس هو «المتوازن» (١)، و`study_rate` في SystemSetting سعرُه.
+export const DEPTH_RATE_MULTIPLIER: Record<StudyDepth, number> = {
+  concise: 0.6,
+  balanced: 1,
+  deep: 1.4,
+};
+
 // تكلفة الملخّص بصفحات الرصيد — تتناسب مع حجم المصدر (الكلفة الفعليّة تتبع المدخل)
 export function calcStudyCost(
   sourcePages: number,
@@ -107,7 +116,8 @@ export function calcStudyCost(
   depth?: StudyDepth, // عند تمريره: لا يُحتسب ما يتجاوز سقف التغطية
 ): number {
   const pages = depth ? billedPages(sourcePages, depth) : sourcePages;
-  const rate = premium ? p.ratePremium : p.rate;
+  const base = premium ? p.ratePremium : p.rate;
+  const rate = depth ? base * DEPTH_RATE_MULTIPLIER[depth] : base;
   const min = premium ? p.minCostPremium : p.minCost;
   return Math.max(min, Math.ceil(pages * rate));
 }
