@@ -24,9 +24,18 @@ import {
 
 // أقصى عمر لسجلّ PROCESSING بلا معرّف دفعة (انهار الإرسال قبل الحفظ)
 const SUBMIT_STALE_MS = 10 * 60 * 1000;
-// حدود أمان لدفعات المتابعة (عند بلوغ سقف الإخراج) — تمنع انفلات التكلفة
-const MAX_CONTINUATIONS = 3; // أقصى عدد دفعات متابعة (إجماليّاً ٤ مقاطع)
+// حدود أمان لدفعات المتابعة (عند بلوغ سقف الإخراج) — تمنع انفلات التكلفة.
+// السقف الحاكم هو حجم الملخّص المتراكم لا عدد المقاطع: المزوّد المتزامن يُخرج
+// مقطعاً محدوداً في كلّ نداء (ليبقى داخل مهلة الدالّة)، فملخّص وافٍ يلزمه مقاطع
+// كثيرة — وحصرُها في ثلاثة كان يقطعه في أوّله.
+const MAX_CONTINUATIONS = Math.max(1, Number(process.env.STUDY_MAX_CONTINUATIONS) || 14);
 const HARD_TOTAL_CHARS = 300_000; // سقف نهائيّ لحجم الملخّص المتراكم
+
+// ميزانيّة النداء الواحد للاستطلاع (maxDuration=300): لا نبدأ مقطعاً جديداً بعدها،
+// فيبقى للمقطع الجاري متّسع قبل أن تُقتل الدالّة. وما لم يكتمل تستأنفه الجولة التالية.
+const POLL_BUDGET_MS = Math.max(30_000, Number(process.env.STUDY_POLL_BUDGET_MS) || 150_000);
+// حدّ أعلى لعدد المقاطع في النداء الواحد — حارسٌ ثانٍ لا يعتمد على الساعة وحدها.
+const MAX_ROUNDS = 8;
 
 type PendingMeta = { batchId?: string } | null;
 
@@ -91,192 +100,217 @@ export async function settleStudyBatches(userId?: string): Promise<SettleResult>
   if (pendings.length === 0) return { checked: 0, settled: 0 };
 
   const cfg = await getStudyConfig();
+  const startedAt = Date.now();
   let settled = 0;
 
-  for (const rec of pendings) {
+  for (const first of pendings) {
+    let rec = first;
     try {
-      const batchId = batchIdOf(rec.verification);
+      // سلسلة المقاطع: المزوّد المتزامن يُخرج مقطعاً محدوداً في كلّ نداء
+      // (انظر CHUNK_TOKENS في kimi.ts)، فنَصِل المقاطع هنا ما دام الوقت يسمح.
+      let rounds = 0;
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        rounds++;
+        const batchId = batchIdOf(rec.verification);
 
-      // سجلّ بلا معرّف دفعة: انهار الإرسال قبل حفظه — بعد مهلة كافية
-      // يُعاد للمستخدم ماله وحالته ليُعيد المحاولة بضغطة واحدة.
-      if (!batchId) {
-        if (Date.now() - rec.updatedAt.getTime() < SUBMIT_STALE_MS) continue;
+        // سجلّ بلا معرّف دفعة: انهار الإرسال قبل حفظه — بعد مهلة كافية
+        // يُعاد للمستخدم ماله وحالته ليُعيد المحاولة بضغطة واحدة.
+        if (!batchId) {
+          if (Date.now() - rec.updatedAt.getTime() < SUBMIT_STALE_MS) break;
+          const claimed = await db.studySummary.updateMany({
+            where: { id: rec.id, status: "PROCESSING" },
+            data: {
+              status: "FAILED",
+              errorMessage: "انقطع إرسال المهمة — أعد المحاولة، لم يُخصم من رصيدك شيء.",
+            },
+          });
+          if (claimed.count > 0) {
+            await refund(rec.id, rec.userId, rec.pagesCharged);
+            settled++;
+          }
+          break;
+        }
+
+        const status = await checkStudyBatch(batchId);
+        if (status.state === "processing") break;
+
+        if (status.state === "succeeded") {
+          // المنجَز المتراكم = ما حُفظ من مقاطع سابقة + ناتج هذه الدفعة
+          const prior = rec.markdown ?? "";
+          const accumulated = prior + status.markdown;
+          const cont = continuationsOf(rec.verification);
+
+          // بلغ سقف الإخراج ولم يُنهِ → دفعة متابعة تُكمل من المنجَز،
+          // ضمن حدود أمان صارمة (عدد المتابعات + سقف الحجم الكلّي).
+          if (
+            status.truncated &&
+            cont < MAX_CONTINUATIONS &&
+            accumulated.length < HARD_TOTAL_CHARS
+          ) {
+            const context = await buildStudyContext(rec);
+            if (context) {
+              const system = buildStudySystemPrompt(
+                rec.focus as StudyFocus[],
+                rec.depth as StudyDepth,
+              );
+              // تعذُّر إرسال المتابعة لا يُعلّق السجلّ في PROCESSING إلى الأبد:
+              // نسقط إلى التسوية أدناه فيُسلَّم المنجَز مع تنبيه الاقتطاع — وهو
+              // عين ما يحدث عند بلوغ سقف المتابعات. (مثاله: نفاد نافذة النموذج
+              // بعد تراكم المنجَز، فإعادة المحاولة بنفس المُدخَل لن تنجح أبداً.)
+              try {
+                const newBatchId = await submitStudyBatch({
+                  model: rec.model,
+                  system,
+                  context,
+                  maxTokens: maxTokensForBatch(
+                    rec.depth as StudyDepth,
+                    rec.model === cfg.modelPremium,
+                  ),
+                  checkpoint: accumulated,
+                });
+                const claimed = await db.studySummary.updateMany({
+                  where: { id: rec.id, status: "PROCESSING" },
+                  data: {
+                    markdown: accumulated, // نقطة حفظ للمقطع التالي
+                    verification: { batchId: newBatchId, cont: cont + 1 },
+                    inputTokens: { increment: status.inputTokens },
+                    outputTokens: { increment: status.outputTokens },
+                  },
+                });
+                if (claimed.count === 0) {
+                  await cancelStudyBatch(newBatchId);
+                  break;
+                }
+                // المزوّد المتزامن يعيد المقطع فوراً، فلا ننتظر جولة استطلاع
+                // جديدة لكلّ مقطع: نُكمل هنا ما دام الوقت يسمح. وإلّا فالجولة
+                // التالية تستأنف من نقطة الحفظ — لا شيء يضيع.
+                const refreshed =
+                  Date.now() - startedAt < POLL_BUDGET_MS && rounds < MAX_ROUNDS
+                    ? await db.studySummary.findUnique({
+                        where: { id: rec.id },
+                        include: { user: { select: { email: true, name: true } } },
+                      })
+                    : null;
+                if (!refreshed || refreshed.status !== "PROCESSING") break;
+                rec = refreshed;
+                continue;
+              } catch (err) {
+                console.error("[study.continue]", rec.id, err);
+              }
+            }
+          }
+
+          let markdown = accumulated;
+          if (status.truncated) {
+            markdown +=
+              "\n\n> ⚠ **تنبيه:** بلغ الملخّص الحدّ الأقصى للطول فاعتُمد عند هذا الحدّ. يمكنك تلخيص الجزء المتبقّي من المادّة على حدة.";
+          }
+          const context = await buildStudyContext(rec);
+          const verification = context
+            ? verifyQuotes(markdown, context)
+            : { total: 0, verified: 0, missing: [] };
+
+          const claimed = await db.studySummary.updateMany({
+            where: { id: rec.id, status: "PROCESSING" },
+            data: {
+              status: "COMPLETED",
+              markdown,
+              verification,
+              inputTokens: { increment: status.inputTokens },
+              outputTokens: { increment: status.outputTokens },
+              completedAt: new Date(),
+              errorMessage: null,
+            },
+          });
+          if (claimed.count === 0) break; // جهة أخرى أقفلته قبلنا
+
+          settled++;
+          await db.auditLog
+            .create({
+              data: {
+                userId: rec.userId,
+                action: "study.generate",
+                entity: "study_summary",
+                entityId: rec.id,
+                metadata: {
+                  sourcePages: rec.sourcePages,
+                  charged: rec.pagesCharged,
+                  model: rec.model,
+                  batch: true,
+                },
+              },
+            })
+            .catch(() => {});
+          if (rec.user?.email) {
+            queueEmail(
+              {
+                to: rec.user.email,
+                ...studyCompletedEmail(rec.user.name || "عزيزي الباحث", rec.title),
+              },
+              "study.completed",
+            );
+          }
+          break;
+        }
+
+        if (status.state === "refused" && rec.model === cfg.modelPremium) {
+          // رفضُ نموذج الفئة الأعلى → أعد الإرسال بالدقّة العالية وردّ الفرق
+          const context = await buildStudyContext(rec);
+          if (!context) {
+            await failRecord(rec.id, rec.userId, rec.pagesCharged, "المصدر لم يعد متاحاً");
+            settled++;
+            break;
+          }
+          const system = buildStudySystemPrompt(
+            rec.focus as StudyFocus[],
+            rec.depth as StudyDepth,
+          );
+          const newBatchId = await submitStudyBatch({
+            model: cfg.model,
+            system,
+            context,
+            maxTokens: maxTokensForBatch(rec.depth as StudyDepth, false),
+          });
+          const claimed = await db.studySummary.updateMany({
+            where: { id: rec.id, status: "PROCESSING" },
+            data: { model: cfg.model, verification: { batchId: newBatchId } },
+          });
+          if (claimed.count === 0) {
+            await cancelStudyBatch(newBatchId);
+            break;
+          }
+          const standardCost = calcStudyCost(rec.sourcePages, false, cfg);
+          const diff = rec.pagesCharged - standardCost;
+          if (diff > 0) await refund(rec.id, rec.userId, diff);
+          break;
+        }
+
+        // فشل نهائي (أو رفضٌ بالدقّة العالية نفسها)
+        const message =
+          status.state === "refused"
+            ? "اعتذر النموذج عن معالجة هذا المحتوى — راجع المادّة أو تواصل مع الدعم."
+            : status.message;
         const claimed = await db.studySummary.updateMany({
           where: { id: rec.id, status: "PROCESSING" },
-          data: {
-            status: "FAILED",
-            errorMessage: "انقطع إرسال المهمة — أعد المحاولة، لم يُخصم من رصيدك شيء.",
-          },
+          data: { status: "FAILED", errorMessage: message },
         });
         if (claimed.count > 0) {
           await refund(rec.id, rec.userId, rec.pagesCharged);
           settled++;
-        }
-        continue;
-      }
-
-      const status = await checkStudyBatch(batchId);
-      if (status.state === "processing") continue;
-
-      if (status.state === "succeeded") {
-        // المنجَز المتراكم = ما حُفظ من مقاطع سابقة + ناتج هذه الدفعة
-        const prior = rec.markdown ?? "";
-        const accumulated = prior + status.markdown;
-        const cont = continuationsOf(rec.verification);
-
-        // بلغ سقف الإخراج ولم يُنهِ → دفعة متابعة تُكمل من المنجَز،
-        // ضمن حدود أمان صارمة (عدد المتابعات + سقف الحجم الكلّي).
-        if (
-          status.truncated &&
-          cont < MAX_CONTINUATIONS &&
-          accumulated.length < HARD_TOTAL_CHARS
-        ) {
-          const context = await buildStudyContext(rec);
-          if (context) {
-            const system = buildStudySystemPrompt(
-              rec.focus as StudyFocus[],
-              rec.depth as StudyDepth,
-            );
-            // تعذُّر إرسال المتابعة لا يُعلّق السجلّ في PROCESSING إلى الأبد:
-            // نسقط إلى التسوية أدناه فيُسلَّم المنجَز مع تنبيه الاقتطاع — وهو
-            // عين ما يحدث عند بلوغ سقف المتابعات. (مثاله: نفاد نافذة النموذج
-            // بعد تراكم المنجَز، فإعادة المحاولة بنفس المُدخَل لن تنجح أبداً.)
-            try {
-              const newBatchId = await submitStudyBatch({
-                model: rec.model,
-                system,
-                context,
-                maxTokens: maxTokensForBatch(
-                  rec.depth as StudyDepth,
-                  rec.model === cfg.modelPremium,
-                ),
-                checkpoint: accumulated,
-              });
-              const claimed = await db.studySummary.updateMany({
-                where: { id: rec.id, status: "PROCESSING" },
-                data: {
-                  markdown: accumulated, // نقطة حفظ للمقطع التالي
-                  verification: { batchId: newBatchId, cont: cont + 1 },
-                  inputTokens: { increment: status.inputTokens },
-                  outputTokens: { increment: status.outputTokens },
-                },
-              });
-              if (claimed.count === 0) await cancelStudyBatch(newBatchId);
-              continue; // المتابعة قيد المعالجة الآن
-            } catch (err) {
-              console.error("[study.continue]", rec.id, err);
-            }
-          }
-        }
-
-        let markdown = accumulated;
-        if (status.truncated) {
-          markdown +=
-            "\n\n> ⚠ **تنبيه:** بلغ الملخّص الحدّ الأقصى للطول فاعتُمد عند هذا الحدّ. يمكنك تلخيص الجزء المتبقّي من المادّة على حدة.";
-        }
-        const context = await buildStudyContext(rec);
-        const verification = context
-          ? verifyQuotes(markdown, context)
-          : { total: 0, verified: 0, missing: [] };
-
-        const claimed = await db.studySummary.updateMany({
-          where: { id: rec.id, status: "PROCESSING" },
-          data: {
-            status: "COMPLETED",
-            markdown,
-            verification,
-            inputTokens: { increment: status.inputTokens },
-            outputTokens: { increment: status.outputTokens },
-            completedAt: new Date(),
-            errorMessage: null,
-          },
-        });
-        if (claimed.count === 0) continue; // جهة أخرى أقفلته قبلنا
-
-        settled++;
-        await db.auditLog
-          .create({
-            data: {
-              userId: rec.userId,
-              action: "study.generate",
-              entity: "study_summary",
-              entityId: rec.id,
-              metadata: {
-                sourcePages: rec.sourcePages,
-                charged: rec.pagesCharged,
-                model: rec.model,
-                batch: true,
+          await db.auditLog
+            .create({
+              data: {
+                userId: rec.userId,
+                action: "study.failed",
+                entity: "study_summary",
+                entityId: rec.id,
+                metadata: { refunded: rec.pagesCharged },
               },
-            },
-          })
-          .catch(() => {});
-        if (rec.user?.email) {
-          queueEmail(
-            {
-              to: rec.user.email,
-              ...studyCompletedEmail(rec.user.name || "عزيزي الباحث", rec.title),
-            },
-            "study.completed",
-          );
+            })
+            .catch(() => {});
         }
-        continue;
-      }
-
-      if (status.state === "refused" && rec.model === cfg.modelPremium) {
-        // رفضُ نموذج الفئة الأعلى → أعد الإرسال بالدقّة العالية وردّ الفرق
-        const context = await buildStudyContext(rec);
-        if (!context) {
-          await failRecord(rec.id, rec.userId, rec.pagesCharged, "المصدر لم يعد متاحاً");
-          settled++;
-          continue;
-        }
-        const system = buildStudySystemPrompt(
-          rec.focus as StudyFocus[],
-          rec.depth as StudyDepth,
-        );
-        const newBatchId = await submitStudyBatch({
-          model: cfg.model,
-          system,
-          context,
-          maxTokens: maxTokensForBatch(rec.depth as StudyDepth, false),
-        });
-        const claimed = await db.studySummary.updateMany({
-          where: { id: rec.id, status: "PROCESSING" },
-          data: { model: cfg.model, verification: { batchId: newBatchId } },
-        });
-        if (claimed.count === 0) {
-          await cancelStudyBatch(newBatchId);
-          continue;
-        }
-        const standardCost = calcStudyCost(rec.sourcePages, false, cfg);
-        const diff = rec.pagesCharged - standardCost;
-        if (diff > 0) await refund(rec.id, rec.userId, diff);
-        continue;
-      }
-
-      // فشل نهائي (أو رفضٌ بالدقّة العالية نفسها)
-      const message =
-        status.state === "refused"
-          ? "اعتذر النموذج عن معالجة هذا المحتوى — راجع المادّة أو تواصل مع الدعم."
-          : status.message;
-      const claimed = await db.studySummary.updateMany({
-        where: { id: rec.id, status: "PROCESSING" },
-        data: { status: "FAILED", errorMessage: message },
-      });
-      if (claimed.count > 0) {
-        await refund(rec.id, rec.userId, rec.pagesCharged);
-        settled++;
-        await db.auditLog
-          .create({
-            data: {
-              userId: rec.userId,
-              action: "study.failed",
-              entity: "study_summary",
-              entityId: rec.id,
-              metadata: { refunded: rec.pagesCharged },
-            },
-          })
-          .catch(() => {});
+        break; // انتهى هذا السجلّ — لا مقطع تالٍ
       }
     } catch (err) {
       // خطأ عابر في فحص دفعة واحدة لا يوقف البقيّة — تُفحص في الجولة التالية
