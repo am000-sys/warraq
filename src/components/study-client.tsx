@@ -169,9 +169,19 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
   const toggleFocus = (id: string) =>
     setFocus((f) => (f.includes(id) ? f.filter((x) => x !== id) : [...f, id]));
 
-  // ── إرسال المهمة (دفعة واحدة) ──
+  // ── إرسال المهمة ──
+  // انقطاعُ الطلب في المتصفّح (مهلة شبكة، إغلاق تبويب، تبديل شبكة) **ليس فشلاً**:
+  // السجلّ حُجز وخُصم على الخادم قبل النداء، والمعالجة تمضي هناك ويُسوّيها
+  // الاستطلاع. فإظهار خطأ عندها يدفع المستخدم إلى إعادة محاولة لا يحتاجها.
   async function submitRun(id: string) {
-    const res = await fetch(`/api/study/${id}/run`, { method: "POST" });
+    let res: Response;
+    try {
+      res = await fetch(`/api/study/${id}/run`, { method: "POST" });
+    } catch {
+      markQueued(id);
+      await refreshList();
+      return;
+    }
     const j = await res.json().catch(() => null);
     if (!res.ok) throw new Error(j?.error ?? "تعذّر إرسال المهمة");
     if (j?.completed) {
@@ -179,14 +189,18 @@ export function StudyClient({ jobs, initialSummaries, balance, isAdmin, pricing 
       await refreshList();
       return;
     }
+    markQueued(id);
+    await refreshList();
+    setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+
+  function markQueued(id: string) {
     setRunId(id);
     setQueued(true);
     setViewer(null);
     setNotice(
-      "أُرسلت المهمة وتُعالَج كاملةً على الخادم — تكتمل عادةً خلال دقائق. يمكنك إغلاق الصفحة بأمان: ستصلك رسالة بريديّة عند الاكتمال، وسيظهر الملخّص هنا تلقائياً.",
+      "المهمّة قيد المعالجة على الخادم، وتُبنى على مقاطع متتابعة. أبقِ هذه الصفحة مفتوحة حتى يكتمل الملخّص فيظهر هنا تلقائياً — وإن أغلقتها استُؤنف ما بقي عند فتحها من جديد، ولا يضيع المنجَز.",
     );
-    await refreshList();
-    setTimeout(() => resultRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
   }
 
   async function generate() {
