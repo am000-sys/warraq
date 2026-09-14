@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Tajawal, Inter } from "next/font/google";
 import { DirectionProvider } from "@base-ui-components/react/direction-provider";
 import "./globals.css";
+import { SITE_NAME, SITE_URL, SITE_TAGLINE, SITE_DESCRIPTION } from "@/lib/site";
 
 // خطوط مُحسَّنة (self-hosted) — أسرع من تحميل Google Fonts الخارجي
 const tajawal = Tajawal({
@@ -19,16 +20,32 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "وَرَّاق — تحويل الكتب العربية إلى نصوص",
-  description:
-    "منصّة احترافية لتحويل الكتب العربية المصوّرة إلى نصوص رقمية دقيقة بالذكاء الاصطناعي.",
-  metadataBase: new URL("https://warraq.sa"),
+  // القالب يجعل كلّ صفحة تحمل عنوانها متبوعاً باسم المنصّة، والجذر يحمل العنوان
+  // الكامل — فلا يتكرّر الاسم مرّتين في صفحةٍ واحدة.
+  title: {
+    default: `${SITE_NAME} — تحويل الكتب العربية إلى نصوص`,
+    template: `%s — ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  // العنوان من مصدر واحد (src/lib/site.ts) لا مكتوباً هنا: الروابط القانونيّة
+  // وصور المشاركة تُبنى عليه، وكتابته في موضعين تعني نطاقاً خاطئاً في أحدهما.
+  metadataBase: new URL(SITE_URL),
+  applicationName: SITE_NAME,
+  alternates: { canonical: "/" },
   openGraph: {
-    title: "وَرَّاق",
-    description: "التراث العربي، نصاً قابلاً للبحث.",
+    title: SITE_NAME,
+    description: SITE_TAGLINE,
+    url: SITE_URL,
+    siteName: SITE_NAME,
     type: "website",
     locale: "ar_SA",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_NAME,
+    description: SITE_TAGLINE,
+  },
+  robots: { index: true, follow: true },
 };
 
 export const viewport = {
