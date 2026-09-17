@@ -20,7 +20,7 @@ export const SITE_DESCRIPTION =
   "منصّة عربيّة لتحويل الكتب المصوّرة إلى نصّ رقميّ دقيق، تحفظ ترقيم الصفحات المطبوع — للمحقّقين والباحثين ودور النشر.";
 
 // الصفحات العامّة وحدها هي ما يُفهرَس. ما تحت (app) و(admin) و/api خاصّ.
-export const PUBLIC_ROUTES = ["/", "/pricing", "/try"] as const;
+export const PUBLIC_ROUTES = ["/", "/pricing", "/try", "/guides"] as const;
 
 // المسارات الخاصّة — تُمنع من الزحف صراحةً في robots.
 export const PRIVATE_PREFIXES = [
