@@ -12,6 +12,7 @@ const links = [
   { l: "المميزات", href: "/#features" },
   { l: "كيف يعمل", href: "/#how" },
   { l: "الأسعار", href: "/pricing" },
+  { l: "أدلّة", href: "/guides" },
 ];
 
 export function Nav() {
