@@ -184,6 +184,17 @@ export function EmailDiagnostics({ report }: { report: EmailDnsReport }) {
                   <code>p=none</code> يعني «راقِب ولا تحجب» — آمن للبدء، ويُشدَّد لاحقاً إلى{" "}
                   <code>quarantine</code> بعد أن تطمئنّ للتقارير. يسري التغيير خلال دقائق إلى ساعات.
                 </div>
+                {/* لماذا جاء الاقتراح بعنوان تقارير أو بدونه — وإلّا بدا النقص سهواً */}
+                <div
+                  style={{
+                    marginTop: 8,
+                    fontSize: 11.5,
+                    lineHeight: 1.9,
+                    color: "var(--stone)",
+                  }}
+                >
+                  {report.suggestedDmarcNote}
+                </div>
               </div>
             )
           )}

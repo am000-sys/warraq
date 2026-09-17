@@ -23,6 +23,7 @@ export type EmailDnsReport = {
   dmarc: RecordCheck;
   bounceMx: RecordCheck;
   suggestedDmarc: string; // السجلّ الجاهز للّصق عند نقصه
+  suggestedDmarcNote: string; // لماذا جاء الاقتراح بهذه الصيغة (بـ rua أو بدونه)
 };
 
 // نطاق المُرسِل من EMAIL_FROM بصيغتَيه: "الاسم <a@b.com>" أو "a@b.com"
@@ -55,11 +56,10 @@ function trim(v: string, n = 120): string {
   return v.length > n ? `${v.slice(0, n)}…` : v;
 }
 
+const DMARC_BASE = "v=DMARC1; p=none";
+
 export async function checkEmailDns(from: string | null | undefined): Promise<EmailDnsReport> {
   const domain = senderDomain(from);
-  const suggestedDmarc = domain
-    ? `v=DMARC1; p=none; rua=mailto:dmarc@${domain}; fo=1`
-    : "v=DMARC1; p=none";
 
   const empty: RecordCheck = { ok: false, name: "—", value: null };
   if (!domain) {
@@ -70,19 +70,21 @@ export async function checkEmailDns(from: string | null | undefined): Promise<Em
       dkim: empty,
       dmarc: empty,
       bounceMx: empty,
-      suggestedDmarc,
+      suggestedDmarc: DMARC_BASE,
+      suggestedDmarcNote: "لا نطاق مُرسِل بعد — اضبط EMAIL_FROM أوّلاً.",
     };
   }
 
   // Resend يوثّق النطاق بسجلّات على النطاق نفسه وعلى نطاق الإرسال الفرعيّ،
   // فنقبل أيّهما: SPF قد يكون على الجذر أو على send.<النطاق>.
   const sendSub = `send.${domain}`;
-  const [rootTxt, sendTxt, dmarcTxt, dkimTxt, sendMx] = await Promise.all([
+  const [rootTxt, sendTxt, dmarcTxt, dkimTxt, sendMx, rootMx] = await Promise.all([
     txt(domain),
     txt(sendSub),
     txt(`_dmarc.${domain}`),
     txt(`resend._domainkey.${domain}`),
     withTimeout(dns.resolveMx(sendSub)),
+    withTimeout(dns.resolveMx(domain)),
   ]);
 
   const spfRoot = rootTxt.find((v) => v.toLowerCase().startsWith("v=spf1"));
@@ -91,6 +93,20 @@ export async function checkEmailDns(from: string | null | undefined): Promise<Em
 
   const dmarcValue = dmarcTxt.find((v) => v.toLowerCase().startsWith("v=dmarc1")) ?? null;
   const dkimValue = dkimTxt.find((v) => v.includes("p=")) ?? null;
+
+  // `rua` عنوانُ بريدٍ تُسلَّم إليه تقارير DMARC — فلا يُقترح إلّا إن كان النطاق
+  // يستقبل بريداً أصلاً (أي له MX). ونطاقُ إرسالٍ محضٌ بلا MX يجعل
+  // `dmarc@<النطاق>` صندوقاً لا وجود له، فتُرفض التقارير أو تضيع صامتةً.
+  // ولا يصلح توجيهها إلى بريدٍ على نطاقٍ آخر (Gmail أو Outlook): المعيار يشترط
+  // حينئذٍ أن يَنشر ذلك النطاق سجلّ إذنٍ خاصّاً، ولا سبيل إليه في مزوّدٍ عامّ.
+  // والغرض الأوّل — أن ترى المرشِّحات سياسةً منشورة — يتحقّق بالأساس وحده.
+  const canReceiveReports = Boolean(rootMx?.length);
+  const suggestedDmarc = canReceiveReports
+    ? `${DMARC_BASE}; rua=mailto:dmarc@${domain}; fo=1`
+    : DMARC_BASE;
+  const suggestedDmarcNote = canReceiveReports
+    ? `نطاقك يستقبل البريد (MX موجود)، فأُضيف عنوان التقارير. أنشئ صندوق dmarc@${domain} أو حوّله إلى بريدك.`
+    : `نطاقك لا يستقبل بريداً (لا سجلّ MX)، فلا عنوان تقارير — صندوق dmarc@${domain} غير موجود وتقاريره تضيع. والسياسة وحدها هي المقصودة هنا.`;
 
   return {
     domain,
@@ -124,5 +140,6 @@ export async function checkEmailDns(from: string | null | undefined): Promise<Em
       note: sendMx?.length ? undefined : "لا سجلّ MX لاستقبال الارتدادات على نطاق الإرسال.",
     },
     suggestedDmarc,
+    suggestedDmarcNote,
   };
 }
