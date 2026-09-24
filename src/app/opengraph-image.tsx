@@ -4,9 +4,8 @@
 // داخل المستودع لا من الشبكة: صورة المشاركة تُطلب من روبوتات المنصّات الاجتماعيّة،
 // فاعتمادها على نداء خارجيّ يجعلها تفشل صامتةً وتظهر الروابط بلا صورة.
 import { ImageResponse } from "next/og";
-import { readFile } from "fs/promises";
-import path from "path";
 import { SITE_NAME, SITE_TAGLINE } from "@/lib/site";
+import { RtlLine, loadOgFont } from "@/lib/og";
 
 export const runtime = "nodejs";
 
@@ -16,49 +15,8 @@ export const contentType = "image/png";
 
 const SUBLINE = "تفريغ الكتب المصوّرة مع حفظ ترقيم الصفحات المطبوع";
 
-// مولّد الصور (Satori) لا يُطبّق خوارزميّة ثنائيّ الاتّجاه: يرصف كلمات السطر
-// يساراً-يميناً وإن صحّ رسمُ حروف كلّ كلمة، فتخرج الجملة العربيّة مقلوبةَ الترتيب.
-// و`direction: "rtl"` لا أثر له عنده (جُرّب في ثلاث بِنيات فخرج الناتج متطابقاً
-// بايتاً ببايت). فنرصف الكلمات بأنفسنا: كلّ كلمة عنصرٌ مستقلّ في صفٍّ
-// `row-reverse` فتقع أولاها في أقصى اليمين، و`gap` يقوم مقام المسافة بينها.
-// ولا يُغني عن التقسيم أن يوضع نصٌّ كاملٌ داخل صفٍّ `row-reverse`: Satori يقسّمه
-// كلماتٍ بنفسه لكنّه لا يعكس ترتيبها (جُرّب فخرج الناتج متطابقاً بايتاً ببايت مع
-// الترتيب المقلوب). وهذا يصحّ للنصّ العربيّ الخالص؛ فإن أُدخلت أرقامٌ أو كلماتٌ
-// لاتينيّة فراجِع الصورة بعينك قبل النشر.
-function RtlLine({
-  text,
-  fontSize,
-  color,
-  marginTop,
-}: {
-  text: string;
-  fontSize: number;
-  color: string;
-  marginTop?: number;
-}) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "row-reverse",
-        alignItems: "baseline",
-        gap: Math.round(fontSize * 0.28),
-        fontSize,
-        color,
-        marginTop,
-      }}
-    >
-      {text.trim().split(/\s+/).map((word, i) => (
-        <div key={i} style={{ display: "flex" }}>
-          {word}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default async function Image() {
-  const font = await readFile(path.join(process.cwd(), "public/fonts/Tajawal-Bold.ttf"));
+  const font = await loadOgFont();
 
   return new ImageResponse(
     (
