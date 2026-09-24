@@ -13,6 +13,7 @@ const cols = [
   { title: "الشركة", links: [
     { l: "من نحن", href: "#" },
     { l: "أدلّة وشروح", href: "/guides" },
+    { l: "فاحص PDF المجّانيّ", href: "/tools/pdf-check" },
     { l: "وظائف", href: "#" },
   ] },
   { title: "الدعم", links: [
