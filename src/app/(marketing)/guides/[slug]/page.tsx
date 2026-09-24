@@ -102,6 +102,29 @@ function Rendered({ block }: { block: Block }) {
           {block.text}
         </div>
       );
+    case "cta":
+      return (
+        <div
+          className="flex flex-wrap items-center justify-between"
+          style={{
+            gap: 14,
+            background: "var(--snow)",
+            border: "1px solid var(--border)",
+            borderRadius: 16,
+            padding: "16px 18px",
+            margin: "26px 0",
+          }}
+        >
+          <p style={{ ...TEXT, fontSize: 14.5, margin: 0, flex: "1 1 260px" }}>{block.text}</p>
+          <Link
+            href={block.href}
+            className="btn-primary no-underline flex-shrink-0"
+            style={{ fontSize: 13.5, padding: "10px 20px" }}
+          >
+            {block.label}
+          </Link>
+        </div>
+      );
     case "table":
       return (
         // الجداول وحدها يُسمح لها بالتمرير الأفقيّ على الشاشات الضيّقة
