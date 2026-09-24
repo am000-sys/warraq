@@ -168,7 +168,17 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
   return (
     <div style={{ minHeight: "100vh", background: "var(--fog)" }}>
       <JsonLd
-        data={{
+        data={[
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: SITE_NAME, item: SITE_URL },
+              { "@type": "ListItem", position: 2, name: "أدلّة وشروح", item: `${SITE_URL}/guides` },
+              { "@type": "ListItem", position: 3, name: guide.title, item: `${SITE_URL}/guides/${guide.slug}` },
+            ],
+          },
+          {
           "@context": "https://schema.org",
           "@type": "Article",
           headline: guide.title,
@@ -180,7 +190,8 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
           author: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
           publisher: { "@type": "Organization", name: SITE_NAME, url: SITE_URL },
           mainEntityOfPage: `${SITE_URL}/guides/${guide.slug}`,
-        }}
+          },
+        ]}
       />
       <Nav />
       <div style={{ paddingTop: 88 }}>
@@ -240,13 +251,22 @@ export default async function GuidePage({ params }: { params: Promise<{ slug: st
             >
               أصدق اختبارٍ صفحاتٌ من كتابك أنت.
             </p>
-            <Link
-              href="/try"
-              className="btn-primary no-underline"
-              style={{ fontSize: 14, padding: "11px 26px" }}
-            >
-              جرّب على كتابك
-            </Link>
+            <div className="flex flex-wrap justify-center" style={{ gap: 10 }}>
+              <Link
+                href="/try"
+                className="btn-primary no-underline"
+                style={{ fontSize: 14, padding: "11px 26px" }}
+              >
+                جرّب على كتابك
+              </Link>
+              <Link
+                href="/tools/pdf-check"
+                className="btn-ghost no-underline"
+                style={{ fontSize: 14, padding: "11px 26px" }}
+              >
+                افحص ملفّك مجّاناً
+              </Link>
+            </div>
           </div>
         </article>
 

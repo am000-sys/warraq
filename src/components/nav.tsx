@@ -13,6 +13,7 @@ const links = [
   { l: "كيف يعمل", href: "/#how" },
   { l: "الأسعار", href: "/pricing" },
   { l: "أدلّة", href: "/guides" },
+  { l: "فاحص PDF", href: "/tools/pdf-check" },
 ];
 
 export function Nav() {
