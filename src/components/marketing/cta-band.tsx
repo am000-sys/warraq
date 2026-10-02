@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Logo } from "@/components/logo";
 import { Reveal } from "@/components/reveal";
 import { AuthCta } from "@/components/marketing/auth-cta";
+import { FREE_INITIAL_PAGES } from "@/lib/packages";
+import { ar } from "@/lib/utils";
 
 export function CTABand() {
   return (
@@ -52,7 +54,7 @@ export function CTABand() {
             fontFamily: "Tajawal, sans-serif",
           }}
         >
-          خمسون صفحة مجانية عند التسجيل، بدون بطاقة ائتمانية.
+          {ar(FREE_INITIAL_PAGES)} صفحة مجانية عند التسجيل، بلا بطاقة ائتمانية ولا اشتراك.
         </p>
         <AuthCta style={{ fontSize: 16, padding: "15px 36px" }} />
       </Reveal>

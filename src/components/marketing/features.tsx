@@ -2,13 +2,14 @@
 // شبكة Bento بإيقاع متغيّر (4+2 / 2+4 / 3+3) بدل ثلاثة أعمدة متساوية،
 // مع تنويع خلفيّات الخلايا: تظليل برتقالي للميزة المميِّزة وخليّة داكنة للنماذج.
 // مكوّن خادم — الحركة عبر <Reveal /> وحالات hover عبر CSS فقط.
+import Link from "next/link";
 import {
   Hash,
   Feather,
   Zap,
   BookOpenCheck,
   FileDown,
-  Building2,
+  ScanSearch,
   Check,
 } from "lucide-react";
 import { Reveal } from "@/components/reveal";
@@ -98,10 +99,13 @@ export function Features() {
           >
             <IconTile icon={Feather} />
             <div className="mb-2" style={{ fontSize: 17, fontWeight: 500, color: "var(--carbon)" }}>
-              دعم كامل للخطوط العربية
+              قراءة دقيقة للنصّ العربي
             </div>
+            {/* لا وعد بـ«أصعب المخطوطات»: الجمهور محقّقون يختبرون الادّعاء على أوّل صفحة،
+                ودليل OCR العربيّ في الموقع نفسه يقول إنّ المخطوط تتفاوت نتيجته. */}
             <p className="font-light m-0" style={{ fontSize: 14, color: "var(--stone)", lineHeight: 1.7 }}>
-              نسخ، ثلث، ديواني، رقعة، كوفي، مع الشكل والتشديد. يتعامل مع أصعب المخطوطات.
+              الكتب المطبوعة وكتب التراث المصوّرة، مع الشكل والتشديد. والمخطوط بخطّ اليد
+              تتفاوت نتيجته بوضوح خطّه.
             </p>
           </Reveal>
 
@@ -115,7 +119,7 @@ export function Features() {
               معالجة سريعة قابلة للاستئناف
             </div>
             <p className="font-light m-0" style={{ fontSize: 14, color: "var(--stone)", lineHeight: 1.7 }}>
-              معالجة على دفعات في الخلفية، وأي انقطاع لا يُفقدك الصفحات المنجَزة.
+              معالجة على دفعات، وأيّ انقطاع لا يُفقدك الصفحات المنجَزة — تستأنف من حيث توقّفت.
             </p>
           </Reveal>
 
@@ -183,7 +187,7 @@ export function Features() {
               تصدير متعدد الصيغ
             </div>
             <p className="font-light mb-4" style={{ fontSize: 14, color: "var(--stone)", lineHeight: 1.7 }}>
-              نتائجك جاهزة في أداتك المفضلة، أو ادمجها مباشرة عبر API.
+              نتائجك جاهزة في أداتك المفضلة — وفي Excel تصير كلّ صفحة صفّاً برقمها المطبوع.
             </p>
             <div className="flex gap-2 flex-wrap" aria-hidden>
               {["TXT", "MD", "DOCX", "JSON", "XLSX"].map((f) => (
@@ -194,20 +198,29 @@ export function Features() {
             </div>
           </Reveal>
 
-          {/* ٦ — حسابات المؤسسات */}
+          {/* ٦ — جرّب قبل أن تدفع. كانت الخليّة تَعِد بـ«حسابات مؤسّسات بفوترة مركزيّة»،
+              وواجهة المؤسّسات تنادي مسارات /api/orgs غير الموجودة — فلا تُعرض حتى تعمل. */}
           <Reveal
             delay={0.08}
             className={`md:col-span-3 ${cellBase}`}
             style={{ background: "var(--snow)", borderColor: "var(--border-sub)", padding: 28, boxShadow: "var(--shadow-card)" }}
           >
-            <IconTile icon={Building2} />
+            <IconTile icon={ScanSearch} />
             <div className="mb-2" style={{ fontSize: 17, fontWeight: 500, color: "var(--carbon)" }}>
-              حسابات المؤسسات
+              جرّب قبل أن تدفع
             </div>
-            <p className="font-light m-0" style={{ fontSize: 14, color: "var(--stone)", lineHeight: 1.7 }}>
-              فريق كامل بأدوار متعددة وفوترة مركزية. مثالي للمكتبات ودور الأرشفة
-              ومشاريع الرقمنة الكبيرة.
+            <p className="font-light mb-4" style={{ fontSize: 14, color: "var(--stone)", lineHeight: 1.7 }}>
+              فرّغ صفحةً من كتابك بلا تسجيل، أو افحص ملفّك لتعرف هل يحتاج إلى تفريغٍ أصلاً
+              وكم يكلّف.
             </p>
+            <div className="flex gap-2 flex-wrap">
+              <Link href="/try" className="badge no-underline hover:border-orange">
+                جرّب صفحة
+              </Link>
+              <Link href="/tools/pdf-check" className="badge no-underline hover:border-orange">
+                فاحص PDF المجّانيّ
+              </Link>
+            </div>
           </Reveal>
         </div>
       </div>
