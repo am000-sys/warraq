@@ -14,6 +14,20 @@ import { ar } from "@/lib/utils";
 import { Field, FieldLabel, FieldControl } from "@/components/ui/field";
 import { CARD_PAYMENTS_OFF_MESSAGE } from "@/lib/payments-config";
 
+// الباقة المختارة سلفاً من رابط ?pkg= (بطاقات الأسعار وحاسبة الكلفة) — فلا يعيد
+// الزائر الاختيار الذي قرّره قبل لحظة. عددُ المرنة يُقرَّب إلى مضاعفات الوحدة.
+function initialSelection(
+  packages: TopUpPackage[],
+  id?: string,
+  pages?: number,
+): TopUpPackage | null {
+  if (id === "flex") {
+    const n = Math.round((pages ?? 0) / FLEX_STEP) * FLEX_STEP;
+    return buildFlexiblePackage(Math.min(FLEX_MAX, Math.max(FLEX_MIN, n)));
+  }
+  return packages.find((p) => p.id === id) ?? null;
+}
+
 type Bank = { bankName: string; iban: string };
 type Req = {
   id: string;
@@ -30,12 +44,18 @@ export function TopUpClient({
   packages,
   bank,
   cardPaymentsEnabled = false,
+  initialPackageId,
+  initialPages,
 }: {
   packages: TopUpPackage[];
   bank: Bank;
   cardPaymentsEnabled?: boolean;
+  initialPackageId?: string;
+  initialPages?: number;
 }) {
-  const [selected, setSelected] = useState<TopUpPackage | null>(null);
+  const [selected, setSelected] = useState<TopUpPackage | null>(() =>
+    initialSelection(packages, initialPackageId, initialPages),
+  );
   const [senderName, setSenderName] = useState("");
   const [receipt, setReceipt] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -43,7 +63,9 @@ export function TopUpClient({
   const [done, setDone] = useState(false);
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState<Req[]>([]);
-  const [flexPages, setFlexPages] = useState(FLEX_MIN);
+  const [flexPages, setFlexPages] = useState(() =>
+    selected?.id === "flex" ? selected.pages : FLEX_MIN,
+  );
   const [paying, setPaying] = useState<"tap" | "stripe" | null>(null);
 
   const flexActive = selected?.id === "flex";

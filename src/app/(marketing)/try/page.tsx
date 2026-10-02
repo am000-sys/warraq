@@ -4,7 +4,6 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Nav } from "@/components/nav";
-import { Footer } from "@/components/footer";
 import { Upload, Sparkles, Copy, Check } from "lucide-react";
 
 export default function TryPage() {
@@ -198,7 +197,6 @@ export default function TryPage() {
           )}
         </div>
       </div>
-      <Footer />
     </div>
   );
 }

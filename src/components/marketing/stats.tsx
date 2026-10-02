@@ -1,18 +1,22 @@
 // src/components/marketing/stats.tsx
-// إحصائيات صادقة عن قدرات المنصّة (لا أرقام استخدام مُختلَقة)
+// إحصائيات صادقة عن قدرات المنصّة (لا أرقام استخدام مُختلَقة)، وأرقام المنتج من
+// مصادرها لا مكتوبةً هنا. وكان فيها «∞ صفحات في الخطط المدفوعة» والخطط محدودة،
+// و«معالجة في الخلفية ٢٤/٧» والمعالجة تجري ما دامت صفحة الرفع مفتوحة.
 import { Reveal } from "@/components/reveal";
-import { TOPUP_PACKAGES } from "@/lib/packages";
-import { ar } from "@/lib/utils";
+import { TOPUP_PACKAGES, FREE_INITIAL_PAGES } from "@/lib/packages";
+import { ar, arGrouped } from "@/lib/utils";
 
-// أصغر باقة تُشترى فعلاً — من packages.ts مباشرةً فلا يفترق الرقم عن السعر الحقيقيّ.
-// (حلّت محلّ «∞ صفحات في الخطط المدفوعة»: الخطط محدودة الصفحات ولا تُشترى بعد.)
+// أصغر باقة تُشترى فعلاً — من packages.ts مباشرةً فلا يفترق الرقم عن السعر الحقيقيّ
 const entry = TOPUP_PACKAGES.reduce((a, b) => (b.amountSar < a.amountSar ? b : a));
 
 const items = [
-  { n: "٥٠", l: "صفحة مجانية عند التسجيل" },
+  { n: ar(FREE_INITIAL_PAGES), l: "صفحة مجانية عند التسجيل" },
   { n: "٥", l: "صيغ تصدير (TXT, MD, DOCX, JSON, XLSX)" },
-  { n: ar(entry.amountSar), l: `سعر أصغر باقة بالريال (${ar(entry.pages)} صفحة)` },
-  { n: "٢٤/٧", l: "معالجة تلقائية في الخلفية" },
+  // عدد آي المصحف (رواية حفص، العدّ الكوفيّ) — حقيقةٌ ثابتة لا إعداد، ومُولِّد
+  // src/data/quran-uthmani.json يرفض الكتابة ما لم يجده كاملاً. فلا يُستورد الملفّ
+  // (١٫٣ ميجابايت) إلى حزمة الصفحة لأجل عدّه.
+  { n: "٦٬٢٣٦", l: "آية مرجعيّة بالرسم العثماني لتصحيح الاقتباس" },
+  { n: ar(entry.amountSar), l: `سعر أصغر باقة بالريال (${arGrouped(entry.pages)} صفحة)` },
 ];
 
 export function Stats() {
