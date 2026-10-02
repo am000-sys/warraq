@@ -20,7 +20,7 @@ const steps = [
   },
   {
     t: "صدِّر النتائج",
-    d: "نص جاهز بصيغ TXT وMD وDOCX وJSON وXLSX، أو ادمجه عبر API.",
+    d: "نص جاهز بصيغ TXT وMD وDOCX وJSON وXLSX، وكلّ صفحةٍ فيه معلَّمةٌ برقمها.",
   },
 ];
 
@@ -290,7 +290,7 @@ function Step3() {
         className="text-center"
         style={{ marginTop: 12, fontSize: 12, color: "var(--pebble)", fontFamily: "Tajawal, sans-serif" }}
       >
-        وJSON للمطوّرين عبر الـ API
+        وJSON للمطوّرين وأدوات المعالجة
       </div>
     </div>
   );

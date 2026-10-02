@@ -3,23 +3,29 @@
 // مرجع: design-reference/warraq-v3.html (function Footer)
 import Link from "next/link";
 import { Logo } from "@/components/logo";
+import { CONTACT_EMAIL } from "@/lib/site";
+import { ar } from "@/lib/utils";
 
+// كلّ رابطٍ هنا يقود إلى صفحةٍ قائمة. وكانت خمسة روابط («من نحن» و«وظائف» و«مركز
+// المساعدة» و«تواصل معنا» و«حالة الخدمة») تقود إلى "#": نقرةٌ لا تفعل شيئاً تُضعف
+// الثقة عند زائرٍ يتحقّق من الجهة قبل أن يدفع، وتُهدر روابط داخليّة على لا شيء.
 const cols = [
   { title: "المنتج", links: [
     { l: "المميزات", href: "/#features" },
-    { l: "الأسعار", href: "/pricing" },
     { l: "كيف يعمل", href: "/#how" },
+    { l: "الأسعار", href: "/pricing" },
+    { l: "احسب كلفة كتابك", href: "/pricing#calc" },
   ] },
-  { title: "الشركة", links: [
-    { l: "من نحن", href: "#" },
-    { l: "أدلّة وشروح", href: "/guides" },
+  { title: "مجّاناً", links: [
+    { l: "جرّب بلا تسجيل", href: "/try" },
     { l: "فاحص PDF المجّانيّ", href: "/tools/pdf-check" },
-    { l: "وظائف", href: "#" },
+    { l: "أدلّة وشروح", href: "/guides" },
   ] },
-  { title: "الدعم", links: [
-    { l: "مركز المساعدة", href: "#" },
-    { l: "تواصل معنا", href: "#" },
-    { l: "حالة الخدمة", href: "#" },
+  { title: "الحساب", links: [
+    { l: "إنشاء حساب", href: "/signup" },
+    { l: "تسجيل الدخول", href: "/login" },
+    // يظهر متى ضُبط بريد ردٍّ حقيقيّ (EMAIL_REPLY_TO)
+    ...(CONTACT_EMAIL ? [{ l: "تواصل معنا", href: `mailto:${CONTACT_EMAIL}` }] : []),
   ] },
 ];
 
@@ -27,7 +33,7 @@ export function Footer() {
   return (
     <footer style={{ background: "var(--midnight)", padding: "64px 0 36px" }}>
       <div className="container-warraq">
-        <div className="grid gap-12 mb-12" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr" }}>
+        <div className="grid gap-12 mb-12 wq-grid-4" style={{ gridTemplateColumns: "2fr 1fr 1fr 1fr" }}>
           <div>
             <Logo size={0.88} inverted />
             <p
@@ -89,7 +95,7 @@ export function Footer() {
               fontFamily: "Tajawal, sans-serif",
             }}
           >
-            © ٢٠٢٦ وَرَّاق · جميع الحقوق محفوظة
+            © {ar(new Date().getFullYear())} وَرَّاق · جميع الحقوق محفوظة
           </span>
           <span
             style={{

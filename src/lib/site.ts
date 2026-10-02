@@ -38,3 +38,8 @@ export const PRIVATE_PREFIXES = [
   "/verify-email",
   "/reset-password",
 ] as const;
+
+// بريد التواصل العامّ: عنوان الردّ الحقيقيّ نفسه (EMAIL_REPLY_TO) لا متغيّراً جديداً.
+// فارغ ⇒ لا يُعرض رابط «تواصل معنا» أصلاً — رابطٌ إلى "#" أسوأ من غيابه.
+const contact = process.env.EMAIL_REPLY_TO?.trim() ?? "";
+export const CONTACT_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact) ? contact : "";
