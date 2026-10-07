@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import { Copy, Trash2, Key, ShieldCheck } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { Input } from "@/components/ui/input";
+import { CONTACT_EMAIL } from "@/lib/site";
 
 interface ApiKey {
   id: string;
@@ -126,7 +127,13 @@ export default function ApiKeysPage() {
               }}
             >
               مفاتيح API تُصدَر من إدارة وَرَّاق بعد الاشتراك في الباقة المناسبة.
-              تواصل معنا عبر البريد <strong>support@warraq.sa</strong> لطلب مفتاحك.
+              {CONTACT_EMAIL ? (
+                <>
+                  تواصل معنا عبر البريد <strong dir="ltr">{CONTACT_EMAIL}</strong> لطلب مفتاحك.
+                </>
+              ) : (
+                "تواصل مع إدارة وَرَّاق لطلب مفتاحك."
+              )}
             </p>
           </div>
         </div>

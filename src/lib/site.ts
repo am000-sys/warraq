@@ -19,6 +19,11 @@ export const SITE_TAGLINE = "التراث العربي، نصّاً قابلاً
 export const SITE_DESCRIPTION =
   "منصّة عربيّة لتحويل الكتب المصوّرة إلى نصّ رقميّ دقيق، تحفظ ترقيم الصفحات المطبوع — للمحقّقين والباحثين ودور النشر.";
 
+// بريد التواصل العامّ — يجب أن يكون على نطاق الموقع نفسه (برامج الشركاء
+// ومراجعو بوّابات الدفع يطابقون البريد بالنطاق). فارغ ⇒ لا يُعرض رابط تواصل
+// بدل رابطٍ إلى بريدٍ قد لا يوجد.
+export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || "";
+
 // الصفحات العامّة وحدها هي ما يُفهرَس. ما تحت (app) و(admin) و/api خاصّ.
 export const PUBLIC_ROUTES = ["/", "/pricing", "/try", "/guides", "/tools/pdf-check"] as const;
 
