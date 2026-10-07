@@ -42,6 +42,9 @@ export const googleIdLooksValid =
   !googleId || /^\d+-[a-z0-9]+\.apps\.googleusercontent\.com$/i.test(googleId);
 export const googleSecretLooksValid = !googleSecret || googleSecret.startsWith("GOCSPX-");
 
+// فاصل مراجعة جلسات كلمة المرور على بريد غير مُثبَت (انظر jwt)
+const UNVERIFIED_RECHECK_MS = 5 * 60 * 1000;
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: PrismaAdapter(db),
   session: { strategy: "jwt" },
@@ -76,9 +79,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const ok = await verifyPassword(password, user.passwordHash);
         if (!ok) return null;
 
-        // لا دخول قبل تفعيل البريد — الرمز أُرسل عند التسجيل، وصفحة /verify-email
-        // تتيح طلب رمز جديد. (نعيد null لئلّا نكشف حال الحساب لمن يجرّب العناوين.)
-        if (!user.emailVerified) return null;
+        // لا يُشترط تفعيل البريد للدخول (كان يُسرّب مستخدمين عند التسجيل).
+        // كلفة ذلك على ربط Google تُعالَج في events.signIn وفي jwt أدناه.
 
         // ترحيل شفّاف للتجزئات القديمة الأثقل (كلفة 12) إلى الكلفة الحاليّة —
         // مرّة واحدة لكلّ مستخدم، فيصير كلّ دخول لاحق أسرع بوضوح
@@ -112,12 +114,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     // رغم أنّ حارس signIn أدناه لا يقبل إلّا بريداً متحقَّقاً منه لدى Google.
     // نضبطه هنا لا في createUser وحده، فيُصحَّح كذلك لحسابات أُنشئت قبل هذا الإصلاح.
     // مشروط بـ emailVerified: null فلا يُعيد الكتابة في كلّ دخول.
+    //
+    // ومع التعليم تُمحى كلمة المرور: حساب كلمة مرور غير مفعَّل لم تُثبَت ملكيّة
+    // بريده، فقد يكون غيرُ صاحب البريد سجّله مسبقاً بكلمة مروره هو، ثمّ يأتي صاحب
+    // البريد بـ Google فيُربط بالحساب نفسه (allowDangerousEmailAccountLinking).
+    // محو كلمة المرور يُخرج ذلك الطرف — وجلساته القائمة تُبطَل في jwt أدناه.
+    // وصاحب الحساب الشرعيّ يستعيد كلمة مروره بـ«نسيت كلمة المرور» متى شاء.
     async signIn({ user, account }) {
       if (account?.provider !== "google" || !user.id) return;
       await db.user
         .updateMany({
           where: { id: user.id, emailVerified: null },
-          data: { emailVerified: new Date() },
+          data: { emailVerified: new Date(), passwordHash: null },
         })
         .catch(() => {});
     },
@@ -131,15 +139,35 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       }
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, account }) {
       // عند تسجيل الدخول فقط: نخزّن المعرّف والدور في الـ token (مرّة واحدة)
       if (user?.id) {
         token.id = user.id;
         const dbUser = await db.user.findUnique({
           where: { id: user.id },
-          select: { systemRole: true },
+          select: { systemRole: true, emailVerified: true },
         });
         token.systemRole = dbUser?.systemRole ?? "USER";
+        // جلسة كلمة مرور على بريد غير مُثبَت: تُراجَع دوريّاً (أدناه)
+        token.unverified = account?.provider === "credentials" && !dbUser?.emailVerified;
+        token.checkedAt = Date.now();
+        return token;
+      }
+
+      // جلسة كلمة مرور على حساب غير مفعَّل: إن رُبط بـ Google لاحقاً (فمُحيت
+      // كلمة مروره في events.signIn) فهي جلسةُ من لم يُثبت ملكيّة البريد — تُبطَل.
+      // المراجعة كلّ بضع دقائق لا كلّ طلب، ولهذه الجلسات وحدها.
+      if (token.unverified && token.id) {
+        const last = Number(token.checkedAt ?? 0);
+        if (Date.now() - last > UNVERIFIED_RECHECK_MS) {
+          const u = await db.user.findUnique({
+            where: { id: String(token.id) },
+            select: { emailVerified: true, passwordHash: true },
+          });
+          if (!u?.passwordHash) return null;
+          if (u.emailVerified) token.unverified = false;
+          token.checkedAt = Date.now();
+        }
       }
       return token;
     },

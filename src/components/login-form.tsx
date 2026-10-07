@@ -213,20 +213,6 @@ function LoginFormInner({ googleEnabled }: { googleEnabled: boolean }) {
           </button>
         </form>
 
-        <p
-          className="text-center"
-          style={{
-            marginTop: 16,
-            fontSize: 12.5,
-            color: "var(--pebble)",
-            fontFamily: "Tajawal, sans-serif",
-          }}
-        >
-          لم تُفعّل حسابك بعد؟{" "}
-          <Link href="/verify-email" style={{ color: "var(--orange)" }}>
-            أكمِل التفعيل برمز البريد
-          </Link>
-        </p>
       </div>
 
       <p

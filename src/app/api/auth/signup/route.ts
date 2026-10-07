@@ -1,7 +1,9 @@
 // src/app/api/auth/signup/route.ts
 // ─────────────────────────
-// تسجيل مستخدم جديد — يُنشأ الحساب **غير مفعَّل** ويُرسَل رمز تحقّق إلى بريده.
-// لا دخول قبل التفعيل: authorize في auth.ts يرفض الحساب غير المفعَّل.
+// تسجيل مستخدم جديد — يُنشأ الحساب ويدخل صاحبه فوراً بلا رمز تفعيل
+// (اشتراط الرمز كان يُسرّب مستخدمين عند هذه الخطوة).
+// يبقى emailVerified فارغاً لأنّ ملكيّة البريد لم تُثبَت — وعليه يقوم حارس
+// ربط Google في auth.ts (events.signIn).
 // ─────────────────────────
 
 import { NextRequest, NextResponse } from "next/server";
@@ -19,8 +21,7 @@ import {
   isTurnstileConfigured,
   TURNSTILE_FAILED_MESSAGE,
 } from "@/lib/turnstile";
-import { queueEmail, verificationCodeEmail } from "@/lib/email";
-import { issueCode, sendLimitReached, CODE_TTL_MINUTES } from "@/lib/verification";
+import { queueEmail, welcomeEmail } from "@/lib/email";
 import { FREE_INITIAL_PAGES } from "@/lib/billing";
 
 const signupSchema = z.object({
@@ -55,37 +56,19 @@ export async function POST(req: NextRequest) {
     const email = parsed.email.toLowerCase().trim();
     const { password, name } = parsed;
 
-    const existing = await db.user.findUnique({
-      where: { email },
-      select: { id: true, emailVerified: true },
-    });
-
-    // حساب قائم ومفعَّل: لا إنشاء ولا رمز — وجّهه للدخول
-    if (existing?.emailVerified) {
+    // أيّ حساب قائم — مفعَّلاً أو لا — يُرفض: الحساب غير المفعَّل صار حساباً
+    // مستعمَلاً يدخله صاحبه، فالكتابة فوق كلمة مروره استيلاءٌ عليه.
+    const existing = await db.user.findUnique({ where: { email }, select: { id: true } });
+    if (existing) {
       return NextResponse.json({ error: "البريد الإلكتروني مسجّل مسبقاً" }, { status: 409 });
-    }
-
-    if (await sendLimitReached(email)) {
-      return NextResponse.json(
-        { error: "أُرسلت رموز كثيرة لهذا البريد. انتظر قليلاً ثمّ أعد المحاولة." },
-        { status: 429 },
-      );
     }
 
     const passwordHash = await hashPassword(password);
 
-    // حساب قائم لكنّه غير مفعَّل (سجّل ولم يُكمل): نُحدّث بياناته بدل رفضه —
-    // فلا يعلق البريد محجوزاً بحساب لم يُستعمل قطّ.
-    const user = existing
-      ? await db.user.update({
-          where: { id: existing.id },
-          data: { name, passwordHash },
-          select: { id: true, email: true, name: true },
-        })
-      : await db.user.create({
-          data: { email, name, passwordHash, pagesBalance: FREE_INITIAL_PAGES },
-          select: { id: true, email: true, name: true },
-        });
+    const user = await db.user.create({
+      data: { email, name, passwordHash, pagesBalance: FREE_INITIAL_PAGES },
+      select: { id: true, email: true, name: true },
+    });
 
     await db.auditLog.create({
       data: {
@@ -97,20 +80,19 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    // رمز التفعيل (رسالة الترحيب تُرسَل بعد التفعيل، لا قبله)
-    const code = await issueCode(email, user.id);
-    queueEmail(
-      { to: email, ...verificationCodeEmail(user.name ?? "", code, CODE_TTL_MINUTES) },
-      "verify-code",
-    );
+    queueEmail({ to: email, ...welcomeEmail(user.name ?? "") }, "welcome");
 
-    return NextResponse.json({ verificationRequired: true, email });
+    return NextResponse.json({ ok: true, email });
   } catch (err: unknown) {
     if (err instanceof z.ZodError) {
       return NextResponse.json(
         { error: "بيانات غير صالحة", details: err.errors },
         { status: 400 },
       );
+    }
+    // طلبان متزامنان على البريد نفسه: الثاني يصطدم بالقيد الفريد
+    if ((err as { code?: string })?.code === "P2002") {
+      return NextResponse.json({ error: "البريد الإلكتروني مسجّل مسبقاً" }, { status: 409 });
     }
     console.error("[signup]", err);
     return NextResponse.json({ error: "خطأ داخلي" }, { status: 500 });

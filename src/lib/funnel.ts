@@ -34,7 +34,6 @@ export type FunnelUser = {
 function hintFor(u: Omit<FunnelUser, "hint">): FunnelUser["hint"] {
   if (u.topups.pending > 0) return { tone: "hot", text: "طلب شحنٍ بانتظار اعتمادك" };
   if (u.paid || u.topups.approved > 0) return { tone: "idle", text: "عميلٌ دافع" };
-  if (!u.verified) return { tone: "warn", text: "لم يفعّل بريده — لا يستطيع الدخول" };
   if (u.jobs === 0) return { tone: "warn", text: "لم يرفع ملفّاً بعد" };
   if (u.completedJobs === 0 && u.failedJobs > 0) return { tone: "hot", text: "فشلت معالجته — تواصل معه قبل أن يغادر" };
   if (u.balance <= LOW_BALANCE && u.billingViews > 0) return { tone: "hot", text: "نفد رصيده وفتح صفحة الشحن ولم يشترِ" };
@@ -101,7 +100,6 @@ export async function getFunnel() {
   const count = (f: (u: FunnelUser) => boolean) => rows.filter(f).length;
   const stages: FunnelStage[] = [
     { key: "signup", label: "سجّل", count: rows.length },
-    { key: "verified", label: "فعّل بريده", count: count((u) => u.verified) },
     { key: "uploaded", label: "رفع ملفّاً", count: count((u) => u.jobs > 0) },
     { key: "completed", label: "اكتمل له تفريغ", count: count((u) => u.completedJobs > 0) },
     { key: "low", label: `بقي له ≤ ${LOW_BALANCE} صفحات`, count: count((u) => u.balance <= LOW_BALANCE) },
