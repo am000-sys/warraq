@@ -1,4 +1,4 @@
-// src/components/signup-form.tsx — نموذج إنشاء حساب جديد (خطوتان: بيانات ثمّ رمز تحقّق)
+// src/components/signup-form.tsx — نموذج إنشاء حساب جديد (دخول فوريّ بلا رمز تفعيل)
 // مرجع: design-reference/warraq-v3.html (function AuthPage, mode='register')
 "use client";
 
@@ -14,7 +14,6 @@ import {
   FieldDescription,
 } from "@/components/ui/field";
 import { GoogleButton, AuthDivider } from "@/components/google-button";
-import { VerifyCodeForm } from "@/components/verify-code-form";
 import { TurnstileWidget } from "@/components/turnstile-widget";
 
 export function SignupForm({
@@ -31,9 +30,6 @@ export function SignupForm({
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  // خطوة التحقّق تبقى في نفس المكوّن، فكلمة المرور محفوظة في الحالة ويتمّ
-  // الدخول تلقائيّاً بعد التفعيل بلا مطالبة المستخدم بإدخالها ثانية.
-  const [step, setStep] = useState<"form" | "verify">("form");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -53,18 +49,15 @@ export function SignupForm({
     });
 
     const data = await res.json().catch(() => ({}));
-    setLoading(false);
     if (!res.ok) {
+      setLoading(false);
       setError(data?.error ?? "تعذّر إنشاء الحساب — جرّب بريداً آخر.");
       // رمز التحدّي يُستهلك مرّة واحدة لدى Cloudflare — نُبطله ليُعاد إصداره
       setTurnstileToken(null);
       return;
     }
-    setStep("verify");
-  }
 
-  // بعد نجاح التفعيل: دخول تلقائيّ بالبيانات المحفوظة في الحالة
-  async function handleVerified() {
+    // الحساب جاهز — دخول تلقائيّ بالبيانات نفسها
     const signRes = await signIn("credentials", { email, password, redirect: false });
     if (signRes?.error) router.push("/login");
     else router.push("/dashboard");
@@ -124,14 +117,6 @@ export function SignupForm({
           </button>
         </div>
 
-        {step === "verify" ? (
-          <VerifyCodeForm
-            email={email}
-            onVerified={handleVerified}
-            onChangeEmail={() => setStep("form")}
-          />
-        ) : (
-        <>
         {error && (
           <div
             className="mb-4"
@@ -212,8 +197,6 @@ export function SignupForm({
             {loading ? "..." : "إنشاء الحساب"}
           </button>
         </form>
-        </>
-        )}
       </div>
 
       <p

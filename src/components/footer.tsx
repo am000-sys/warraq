@@ -3,7 +3,9 @@
 // مرجع: design-reference/warraq-v3.html (function Footer)
 import Link from "next/link";
 import { Logo } from "@/components/logo";
+import { CONTACT_EMAIL } from "@/lib/site";
 
+// لا روابط إلى «#»: رابطٌ لا يؤدّي إلى شيء يُضعف ثقة الزائر والمراجِع معاً
 const cols = [
   { title: "المنتج", links: [
     { l: "المميزات", href: "/#features" },
@@ -11,15 +13,12 @@ const cols = [
     { l: "كيف يعمل", href: "/#how" },
   ] },
   { title: "الشركة", links: [
-    { l: "من نحن", href: "#" },
     { l: "أدلّة وشروح", href: "/guides" },
     { l: "فاحص PDF المجّانيّ", href: "/tools/pdf-check" },
-    { l: "وظائف", href: "#" },
   ] },
   { title: "الدعم", links: [
-    { l: "مركز المساعدة", href: "#" },
-    { l: "تواصل معنا", href: "#" },
-    { l: "حالة الخدمة", href: "#" },
+    { l: "أدلّة الاستخدام", href: "/guides" },
+    ...(CONTACT_EMAIL ? [{ l: "تواصل معنا", href: `mailto:${CONTACT_EMAIL}` }] : []),
   ] },
 ];
 
