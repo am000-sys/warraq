@@ -42,3 +42,7 @@ next-env.d.ts
 # IDE
 .vscode/
 .idea/
+
+# Claude Code: ملاحظات خاصّة وإعدادات محلّيّة
+CLAUDE.local.md
+.claude/settings.local.json
