@@ -7,6 +7,7 @@
 
 import { useRef, useState } from "react";
 import Link from "next/link";
+import { ar } from "@/lib/utils";
 import { FileSearch, Check, AlertTriangle, ImageOff, Upload } from "lucide-react";
 import {
   classifyPage,
@@ -256,6 +257,17 @@ export default function PdfChecker() {
                   {c.cta && (
                     <Link href="/try" className="btn-primary no-underline" style={{ fontSize: 14, padding: "11px 24px" }}>
                       فرّغه في وَرَّاق
+                    </Link>
+                  )}
+                  {/* الفاحص يعرف عدد صفحات الملفّ، فيحمله إلى حاسبة الكلفة: السؤال التالي
+                      لمن عرف أنّ ملفّه يحتاج تفريغاً هو «كم يكلّفني؟» */}
+                  {c.cta && (
+                    <Link
+                      href={`/pricing?pages=${state.r.pages}#calc`}
+                      className="btn-ghost no-underline"
+                      style={{ fontSize: 14, padding: "11px 24px" }}
+                    >
+                      كم يكلّف تفريغ {ar(state.r.pages)} صفحة؟
                     </Link>
                   )}
                   <button

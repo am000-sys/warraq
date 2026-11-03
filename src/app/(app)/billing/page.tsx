@@ -9,7 +9,13 @@ import { trackBillingView } from "@/lib/funnel";
 
 export const metadata = { title: "شحن الرصيد — ورّاق" };
 
-export default async function BillingPage() {
+export default async function BillingPage({
+  searchParams,
+}: {
+  // ?pkg=medium أو ?pkg=flex&pages=350 — من بطاقات الأسعار وحاسبة الكلفة
+  searchParams: Promise<{ pkg?: string; pages?: string }>;
+}) {
+  const { pkg, pages } = await searchParams;
   // مرحلة «فتح صفحة الشحن» في مسار التحويل (لوحة المالك)
   const session = await auth();
   if (session?.user?.id) await trackBillingView(session.user.id);
@@ -24,6 +30,8 @@ export default async function BillingPage() {
           iban: formatIban(BANK.iban),
         }}
         cardPaymentsEnabled={CARD_PAYMENTS_ENABLED}
+        initialPackageId={pkg}
+        initialPages={pages ? Number(pages) || undefined : undefined}
       />
     </div>
   );

@@ -26,3 +26,23 @@ export function ar(n: number | string): string {
   };
   return String(n).replace(/\d/g, (d) => map[d] || d);
 }
+
+// ── أرقام عربيّة حتميّة للأسعار ──
+// لا تعتمد على بيانات اللغة في المتصفّح (toLocaleString)، فيطابق ما يُصيَّر على
+// الخادم ما يُصيَّر في العميل حرفاً بحرف، ولا يقع اختلافٌ عند الإماهة.
+export function arGrouped(n: number): string {
+  return ar(Math.trunc(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "٬"));
+}
+
+// مبلغٌ بالهللات ⇒ ريالات: ٢٣ أو ٢١٫٥
+export function arSar(halalas: number): string {
+  const whole = Math.floor(halalas / 100);
+  const frac = Math.round(halalas % 100);
+  if (!frac) return arGrouped(whole);
+  return `${arGrouped(whole)}٫${ar(String(frac).padStart(2, "0").replace(/0$/, ""))}`;
+}
+
+// كسرٌ عشريّ صغير (سعر الصفحة): ٠٫٠٤٦
+export function arDecimal(n: number, digits = 3): string {
+  return ar(String(Number(n.toFixed(digits)))).replace(".", "٫");
+}
