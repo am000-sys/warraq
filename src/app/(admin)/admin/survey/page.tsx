@@ -51,6 +51,21 @@ export default async function SurveyAdminPage() {
             <Stat n={results.responded} l="أجابوا" />
             <Stat n={rate} l="نسبة الإجابة ٪" />
           </div>
+          {results.failed.length > 0 && (
+            <details style={{ marginTop: 16, fontSize: 12.5, color: "var(--stone)" }}>
+              <summary className="cursor-pointer" style={{ color: "var(--orange)" }}>
+                تعذّر الإرسال إلى {ar(results.failed.length)} عنوان
+              </summary>
+              <ul className="list-none flex flex-col" style={{ gap: 6, marginTop: 10 }}>
+                {results.failed.map((f, i) => (
+                  <li key={i}>
+                    <span style={{ direction: "ltr", unicodeBidi: "isolate", color: "var(--carbon)" }}>{f.email}</span>
+                    {f.error && <span style={{ color: "var(--pebble)" }}> — {f.error}</span>}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </div>
       </div>
 

@@ -12,6 +12,8 @@ import { db } from "@/lib/db";
 export const SURVEY_ID = "2026-11";
 export const SURVEY_SENT_ACTION = "survey.sent";
 export const SURVEY_RESPONSE_ACTION = "survey.response";
+// عنوانٌ رفضه مزوّد البريد (غير صالح مثلاً): يُسجَّل بسببه فلا يُعاد إليه في كلّ نقرة
+export const SURVEY_FAILED_ACTION = "survey.failed";
 
 export type SurveyOption = { v: string; l: string };
 export type SurveyQuestion =
@@ -203,7 +205,7 @@ export const SURVEY_SEGMENTS: { v: SurveySegment; l: string }[] = [
 export type SurveyRecipient = { id: string; name: string | null; email: string };
 
 // من تصله الرسالة في الشريحة: المستخدمون وحدهم (لا المالك)، بلا من أُرسل إليه في
-// هذه الجولة أو أجاب عنها — فلا تصل الرسالة أحداً مرّتين.
+// هذه الجولة أو أجاب عنها أو رُفض عنوانه — فلا تصل الرسالة أحداً مرّتين.
 export async function getSurveyAudience(segment: SurveySegment): Promise<SurveyRecipient[]> {
   const users = await db.user.findMany({
     where: { systemRole: "USER" },
@@ -215,7 +217,7 @@ export async function getSurveyAudience(segment: SurveySegment): Promise<SurveyR
 
   const reached = await db.auditLog.findMany({
     where: {
-      action: { in: [SURVEY_SENT_ACTION, SURVEY_RESPONSE_ACTION] },
+      action: { in: [SURVEY_SENT_ACTION, SURVEY_RESPONSE_ACTION, SURVEY_FAILED_ACTION] },
       entityId: SURVEY_ID,
       userId: { in: ids },
     },
@@ -256,17 +258,27 @@ export type SurveyResults = {
   responded: number;
   counts: Record<string, Record<string, number>>;
   comments: { name: string | null; email: string; text: string; at: Date }[];
+  failed: { email: string; error: string }[];
 };
 
 export async function getSurveyResults(): Promise<SurveyResults> {
-  const [sent, rows] = await Promise.all([
+  const [sent, rows, failedRows] = await Promise.all([
     db.auditLog.count({ where: { action: SURVEY_SENT_ACTION, entityId: SURVEY_ID } }),
     db.auditLog.findMany({
       where: { action: SURVEY_RESPONSE_ACTION, entityId: SURVEY_ID },
       orderBy: { createdAt: "desc" },
       select: { userId: true, metadata: true, createdAt: true },
     }),
+    db.auditLog.findMany({
+      where: { action: SURVEY_FAILED_ACTION, entityId: SURVEY_ID },
+      orderBy: { createdAt: "desc" },
+      select: { metadata: true },
+    }),
   ]);
+  const failed = failedRows.map((r) => {
+    const m = (r.metadata ?? {}) as { email?: unknown; error?: unknown };
+    return { email: String(m.email ?? "—"), error: String(m.error ?? "") };
+  });
 
   const userIds = rows.map((r) => r.userId).filter((id): id is string => !!id);
   const users = await db.user.findMany({
@@ -299,5 +311,5 @@ export async function getSurveyResults(): Promise<SurveyResults> {
     }
   }
 
-  return { sent, responded, counts, comments };
+  return { sent, responded, counts, comments, failed };
 }

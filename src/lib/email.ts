@@ -174,43 +174,6 @@ export function queueEmail(
   }
 }
 
-// دفعة واحدة حتى ١٠٠ رسالة في طلبٍ واحد (Resend batch) — لرسائل المالك إلى شريحة من
-// المستخدمين كالاستبيان: نداءٌ واحد بدل عشرات النداءات المتتابعة التي قد تتجاوز مهلة
-// الدالّة. يرمي عند الرفض فلا يُسجَّل إرسالٌ لم يقع.
-export const BATCH_LIMIT = 100;
-
-export async function sendEmailBatch(
-  messages: { to: string; subject: string; html: string }[],
-): Promise<void> {
-  if (!RESEND_API_KEY) throw new Error("البريد غير مهيّأ (RESEND_API_KEY)");
-  if (messages.length === 0) return;
-  if (messages.length > BATCH_LIMIT) throw new Error(`الدفعة أكبر من ${BATCH_LIMIT} رسالة`);
-
-  const res = await fetch("https://api.resend.com/emails/batch", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(
-      messages.map((m) => ({
-        from: FROM,
-        to: m.to,
-        subject: m.subject,
-        html: m.html,
-        text: htmlToText(m.html),
-        ...(REPLY_TO ? { reply_to: REPLY_TO } : {}),
-      })),
-    ),
-    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    console.error("[email] Resend rejected the batch:", detail);
-    throw new Error(`Resend: HTTP ${res.status}`);
-  }
-}
-
 // ترويسات «عاجل» — تُبرز الرسالة في Outlook وغيره
 export const URGENT_HEADERS: Record<string, string> = {
   "X-Priority": "1",
