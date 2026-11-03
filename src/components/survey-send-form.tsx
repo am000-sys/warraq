@@ -29,9 +29,16 @@ export function SurveySendForm({ segments }: { segments: Segment[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ segment }),
       });
-      const body = (await res.json().catch(() => ({}))) as { data?: { sent: number }; error?: string };
+      const body = (await res.json().catch(() => ({}))) as {
+        data?: { sent: number; failed: number; remaining: number };
+        error?: string;
+      };
       if (!res.ok || !body.data) throw new Error(body.error || "تعذّر الإرسال");
-      setMsg({ ok: true, text: `أُرسل الاستبيان إلى ${ar(body.data.sent)} مستخدماً.` });
+      const { sent, failed, remaining } = body.data;
+      const parts = [`أُرسل الاستبيان إلى ${ar(sent)} مستخدماً.`];
+      if (failed) parts.push(`وتعذّر الإرسال إلى ${ar(failed)} (تجد عناوينهم وسببه في الحصيلة).`);
+      if (remaining) parts.push(`بقي ${ar(remaining)}: اضغط «أرسل الاستبيان» مرّة أخرى لإكمالهم.`);
+      setMsg({ ok: true, text: parts.join(" ") });
       router.refresh();
     } catch (err) {
       setMsg({ ok: false, text: (err as Error).message });
