@@ -3,6 +3,7 @@
 import type { Metadata } from "next";
 import { JsonLd } from "@/components/json-ld";
 import { SITE_NAME, SITE_URL, SITE_DESCRIPTION } from "@/lib/site";
+import { TOPUP_PACKAGES } from "@/lib/packages";
 import { Nav } from "@/components/nav";
 import { Footer } from "@/components/footer";
 import { Pricing } from "@/components/marketing/pricing";
@@ -15,8 +16,8 @@ import {
 
 const faqs = [
   {
-    q: "هل يمكنني ترقية خطتي لاحقاً؟",
-    a: "نعم، يمكنك الترقية أو التخفيض في أي وقت. الفرق يُحتسب تلقائياً.",
+    q: "هل الاشتراك الشهريّ متاح؟",
+    a: "ليس بعد؛ نعمل عليه. وحتى يُتاح تشتري باقة صفحات بقدر حاجتك، ويبقى رصيدك في حسابك.",
   },
   {
     q: "ما صيغ الدفع المقبولة؟",
@@ -27,8 +28,8 @@ const faqs = [
     a: "نعم. ملفاتك مشفرة أثناء النقل والتخزين. لا نشارك بياناتك مع أي طرف ثالث.",
   },
   {
-    q: "ماذا يحدث عند تجاوز حصة الصفحات؟",
-    a: "يمكنك شراء صفحات إضافية (PAYG) دون الترقية للخطة التالية.",
+    q: "ماذا يحدث إذا نفد رصيدي؟",
+    a: "تشحن باقةً أو عدد الصفحات الذي تحتاجه. ولا نبدأ مستنداً لا يكفيه رصيدك: نخبرك بالمطلوب قبل البدء، فلا يُخصم شيء.",
   },
   {
     q: "هل تدعم المخطوطات اليدوية؟",
@@ -39,16 +40,15 @@ const faqs = [
 export const metadata: Metadata = {
   title: "الأسعار",
   description:
-    "خطط وَرَّاق وأسعارها: مجانيّ بخمسين صفحة، واحترافيّ ٣١ ريالاً شهريّاً بخمسمئة صفحة، ومؤسسيّ ١٤٠ ريالاً بألفين وخمسمئة صفحة.",
+    "أسعار وَرَّاق: خمسون صفحة مجّاناً عند التسجيل، ثمّ باقات صفحات تُدفع مرّة واحدة، تبدأ من ستّة ريالات لمئة صفحة.",
   alternates: { canonical: "/pricing" },
 };
 
-// الأسعار من نفس المصدر المعروض في الصفحة (components/marketing/pricing.tsx)
-// — فلا يفترق ما تقرؤه محرّكات البحث عمّا يراه الزائر.
+// العروض من نفس مصدر الصفحة (src/lib/packages.ts) — فلا يفترق ما تقرؤه محرّكات
+// البحث عمّا يراه الزائر. والاشتراك الشهريّ لا يُعلَن عرضاً حتى يُبنى.
 const OFFERS = [
   { name: "مجاني", price: 0, pages: 50 },
-  { name: "احترافي", price: 31, pages: 500 },
-  { name: "مؤسسي", price: 140, pages: 2500 },
+  ...TOPUP_PACKAGES.map((p) => ({ name: p.nameAr, price: p.amountSar, pages: p.pages })),
 ];
 
 export default function PricingPage() {
@@ -69,7 +69,7 @@ export default function PricingPage() {
             name: o.name,
             price: o.price,
             priceCurrency: "SAR",
-            description: `${o.pages} صفحة شهريّاً`,
+            description: `${o.pages} صفحة`,
             url: `${SITE_URL}/pricing`,
           })),
         }}

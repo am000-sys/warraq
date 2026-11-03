@@ -1,47 +1,67 @@
 // src/components/marketing/pricing.tsx
+// ما يُشترى اليوم: باقات صفحات مسبقة الدفع، وأسعارها من src/lib/packages.ts (المصدر الوحيد).
+// الاشتراك الشهريّ قرارٌ قائم لم يُبنَ بعد، فيُعرض «قريباً» بلا زرّ شراء
+// (decisions.md، 2026-11-04): لا تُعرض خطّة لا تُشترى كأنّها متاحة.
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import {
+  TOPUP_PACKAGES,
+  FLEX_MIN,
+  FLEX_MAX,
+  FLEX_STEP,
+  FLEX_PER_PAGE,
+} from "@/lib/packages";
+import { CONTACT_WHATSAPP_URL } from "@/lib/site";
+import { useAuthState } from "@/lib/use-auth-state";
+import { ar, arNum } from "@/lib/utils";
 
-// التسعير بعد رفع ٢٥٪ (سعر الصفحة ~٠٫٠٦ ريال)
-const plans = [
-  {
-    tier: "مجاني",
-    price: { monthly: 0, yearly: 0 },
-    feats: ["٥٠ صفحة مجاناً", "تفريغ عالي الدقّة", "تصدير TXT و MD", "دعم بالبريد"],
-    cta: "ابدأ مجاناً",
-  },
-  {
-    tier: "احترافي",
-    price: { monthly: 31, yearly: 25 },
-    badge: "الأكثر شيوعاً",
-    feats: [
-      "٥٠٠ صفحة / شهر",
-      "جميع صيغ التصدير",
-      "أولوية المعالجة",
-      "دعم ذو أولوية",
-      "كل مزايا المجاني",
-    ],
-    cta: "اشترك الآن",
-    featured: true,
-  },
-  {
-    tier: "مؤسسي",
-    price: { monthly: 140, yearly: 112 },
-    feats: [
-      "٢٥٠٠ صفحة / شهر",
-      "إدارة فريق وأدوار",
-      "وصول API للمطوّرين",
-      "مدير حساب مخصص",
-      "كل مزايا الاحترافي",
-    ],
-    cta: "تواصل معنا",
-  },
+// سعر الصفحة بكسوره كاملة (٠٫٠٣٧٦ لا ٠٫٠٣٨)
+const perPage = (n: number) => n.toLocaleString("ar-SA", { maximumFractionDigits: 4 });
+
+// الاشتراك الشهريّ — يُعرض «قريباً» حتى يُبنى (الأسعار كما في prisma/seed.ts)
+const SUBSCRIPTIONS = [
+  { tier: "احترافي", monthly: 31, pages: 500 },
+  { tier: "مؤسسي", monthly: 140, pages: 2500 },
 ];
 
+type Card = {
+  tier: string;
+  price: number;
+  unit: string;
+  feats: string[];
+  cta: string;
+  href: string;
+  featured?: boolean;
+};
+
 export function Pricing({ standalone = false }: { standalone?: boolean }) {
-  const [billing, setBilling] = useState<"monthly" | "yearly">("monthly");
+  // الشراء يحتاج حساباً، والتسجيل يُدخل المستخدم إلى لوحته ومعه الرصيد المجّانيّ
+  const authed = useAuthState() === "in";
+
+  const cards: Card[] = [
+    {
+      tier: "مجاني",
+      price: 0,
+      unit: "ريال · عند التسجيل",
+      feats: ["٥٠ صفحة مجاناً", "تفريغ عالي الدقّة", "تصدير TXT و MD", "بلا بطاقة ائتمانية"],
+      cta: "ابدأ مجاناً",
+      href: authed ? "/upload" : "/signup",
+    },
+    ...TOPUP_PACKAGES.map((p) => ({
+      tier: p.nameAr,
+      price: p.amountSar,
+      unit: "ريال · دفعة واحدة",
+      feats: [
+        `${arNum(p.pages)} صفحة`,
+        `${perPage(p.perPage)} ريال للصفحة`,
+        ...(p.savePct ? [`وفّر ${ar(p.savePct)}٪`] : []),
+      ],
+      cta: authed ? "اشترِ الباقة" : "سجّل واشترِ",
+      href: authed ? "/billing" : "/signup",
+      featured: p.featured,
+    })),
+  ];
 
   return (
     <section
@@ -70,130 +90,77 @@ export function Pricing({ standalone = false }: { standalone?: boolean }) {
               fontSize: 16,
               color: "var(--stone)",
               fontFamily: "Tajawal, sans-serif",
-              marginBottom: 28,
             }}
           >
-            بدون بطاقة ائتمانية · ترقية في أي وقت
+            بدون بطاقة ائتمانية · اشحن رصيدك متى احتجت
           </p>
-          <div
-            className="inline-flex"
-            style={{
-              background: "var(--fog)",
-              border: "1px solid var(--border)",
-              borderRadius: "var(--r-btn)",
-              padding: 4,
-            }}
-          >
-            {[
-              { k: "monthly" as const, l: "شهري" },
-              { k: "yearly" as const, l: "سنوي · وفّر ٢٠٪" },
-            ].map((b) => (
-              <button
-                key={b.k}
-                onClick={() => setBilling(b.k)}
-                className="cursor-pointer transition-all"
-                style={{
-                  padding: "9px 22px",
-                  border: "none",
-                  borderRadius: 24,
-                  background: billing === b.k ? "var(--snow)" : "transparent",
-                  color: billing === b.k ? "var(--carbon)" : "var(--stone)",
-                  fontSize: 13,
-                  fontWeight: billing === b.k ? 500 : 400,
-                  fontFamily: "Tajawal, sans-serif",
-                  boxShadow: billing === b.k ? "var(--shadow-card)" : "none",
-                }}
-              >
-                {b.l}
-              </button>
-            ))}
-          </div>
         </div>
 
         <div
           className="grid mx-auto wq-grid-3"
-          style={{ gridTemplateColumns: "repeat(3,1fr)", gap: 18, maxWidth: 900 }}
+          style={{ gridTemplateColumns: "repeat(4,1fr)", gap: 18, maxWidth: 1080 }}
         >
-          {plans.map((plan, i) => (
+          {cards.map((card) => (
             <div
-              key={i}
-              className="relative"
+              key={card.tier}
               style={{
-                background: plan.featured ? "var(--slate)" : "var(--snow)",
+                background: card.featured ? "var(--slate)" : "var(--snow)",
                 borderRadius: "var(--r-card)",
                 padding: 28,
-                border: plan.featured
+                border: card.featured
                   ? "1px solid rgba(246,146,81,0.25)"
                   : "1px solid var(--border-sub)",
-                boxShadow: plan.featured
+                boxShadow: card.featured
                   ? "0 8px 32px rgba(36,36,51,0.18)"
                   : "var(--shadow-card)",
                 textAlign: "right",
               }}
             >
-              {plan.badge && (
-                <div
-                  className="absolute"
-                  style={{
-                    top: -11,
-                    right: 24,
-                    background: "var(--orange)",
-                    color: "#fff",
-                    fontSize: 11,
-                    fontWeight: 500,
-                    padding: "3px 12px",
-                    borderRadius: "var(--r-badge)",
-                    fontFamily: "Tajawal, sans-serif",
-                  }}
-                >
-                  {plan.badge}
-                </div>
-              )}
               <div
                 style={{
                   fontSize: 12,
-                  color: plan.featured ? "rgba(255,255,255,0.4)" : "var(--stone)",
+                  color: card.featured ? "rgba(255,255,255,0.4)" : "var(--stone)",
                   fontFamily: "Tajawal, sans-serif",
                   marginBottom: 14,
                   letterSpacing: "0.04em",
                 }}
               >
-                {plan.tier}
+                {card.tier}
               </div>
               <div
                 style={{
                   fontFamily: "Tajawal, sans-serif",
                   fontSize: 48,
                   fontWeight: 300,
-                  color: plan.featured ? "#fff" : "var(--carbon)",
+                  color: card.featured ? "#fff" : "var(--carbon)",
                   letterSpacing: "-0.03em",
                   lineHeight: 1,
                   marginBottom: 4,
                 }}
               >
-                {plan.price[billing] === 0 ? "٠" : plan.price[billing]}
+                {ar(card.price)}
               </div>
               <div
                 style={{
                   fontSize: 13,
-                  color: plan.featured ? "rgba(255,255,255,0.4)" : "var(--stone)",
+                  color: card.featured ? "rgba(255,255,255,0.4)" : "var(--stone)",
                   fontFamily: "Tajawal, sans-serif",
                   marginBottom: 24,
                 }}
               >
-                ريال / شهر
+                {card.unit}
               </div>
               <ul
                 className="list-none flex flex-col"
                 style={{ gap: 10, marginBottom: 24 }}
               >
-                {plan.feats.map((f, j) => (
+                {card.feats.map((f) => (
                   <li
-                    key={j}
+                    key={f}
                     className="flex items-center gap-2"
                     style={{
                       fontSize: 13,
-                      color: plan.featured
+                      color: card.featured
                         ? "rgba(255,255,255,0.65)"
                         : "var(--stone)",
                       fontFamily: "Tajawal, sans-serif",
@@ -207,19 +174,86 @@ export function Pricing({ standalone = false }: { standalone?: boolean }) {
                 ))}
               </ul>
               <Link
-                href="/signup"
+                href={card.href}
                 className={
-                  plan.featured
+                  card.featured
                     ? "btn-primary w-full justify-center no-underline"
                     : "btn-ghost w-full justify-center no-underline"
                 }
                 style={{ fontSize: 14, padding: 12 }}
               >
-                {plan.cta}
+                {card.cta}
               </Link>
             </div>
           ))}
         </div>
+
+        <p
+          className="text-center"
+          style={{
+            marginTop: 20,
+            fontSize: 13,
+            color: "var(--stone)",
+            fontFamily: "Tajawal, sans-serif",
+          }}
+        >
+          أو اشحن أيّ عدد من الصفحات بين {arNum(FLEX_MIN)} و{arNum(FLEX_MAX)} (بمضاعفات{" "}
+          {ar(FLEX_STEP)}) بسعر {perPage(FLEX_PER_PAGE)} ريال للصفحة.
+        </p>
+
+        {/* الاشتراك الشهريّ: قرارٌ قائم لم يُبنَ بعد — بلا زرّ شراء */}
+        <div
+          className="mx-auto"
+          style={{
+            maxWidth: 1080,
+            marginTop: 36,
+            background: "var(--snow)",
+            border: "1px dashed var(--border)",
+            borderRadius: "var(--r-card)",
+            padding: 28,
+            textAlign: "right",
+          }}
+        >
+          <div className="flex items-center gap-2" style={{ marginBottom: 14 }}>
+            <span
+              style={{
+                fontSize: 15,
+                fontWeight: 500,
+                color: "var(--carbon)",
+                fontFamily: "Tajawal, sans-serif",
+              }}
+            >
+              الاشتراك الشهريّ
+            </span>
+            <span className="badge">قريباً</span>
+          </div>
+          <ul
+            className="list-none flex flex-col"
+            style={{ gap: 8, marginBottom: CONTACT_WHATSAPP_URL ? 20 : 0 }}
+          >
+            {SUBSCRIPTIONS.map((s) => (
+              <li
+                key={s.tier}
+                style={{ fontSize: 14, color: "var(--stone)", fontFamily: "Tajawal, sans-serif" }}
+              >
+                <strong style={{ fontWeight: 500, color: "var(--carbon)" }}>{s.tier}</strong>:{" "}
+                {ar(s.monthly)} ريالاً شهرياً، تشمل {arNum(s.pages)} صفحة كلّ شهر
+              </li>
+            ))}
+          </ul>
+          {CONTACT_WHATSAPP_URL && (
+            <a
+              href={CONTACT_WHATSAPP_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-ghost no-underline"
+              style={{ fontSize: 14, padding: "10px 20px" }}
+            >
+              للجهات والطلبات الكبيرة: تواصل معنا عبر واتساب
+            </a>
+          )}
+        </div>
+
         <p
           className="text-center"
           style={{

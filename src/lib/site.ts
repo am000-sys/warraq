@@ -24,6 +24,13 @@ export const SITE_DESCRIPTION =
 // بدل رابطٍ إلى بريدٍ قد لا يوجد.
 export const CONTACT_EMAIL = process.env.NEXT_PUBLIC_CONTACT_EMAIL?.trim() || "";
 
+// واتساب التواصل (للجهات والاستفسارات) — رقم المالك بالصيغة الدوليّة بلا «+» ولا صفر
+// بادئ، ويُبدَّل بـ NEXT_PUBLIC_CONTACT_WHATSAPP. فارغ ⇒ لا يُعرض رابط واتساب.
+export const CONTACT_WHATSAPP = (
+  process.env.NEXT_PUBLIC_CONTACT_WHATSAPP?.trim() ?? "966557119571"
+).replace(/\D/g, "");
+export const CONTACT_WHATSAPP_URL = CONTACT_WHATSAPP ? `https://wa.me/${CONTACT_WHATSAPP}` : "";
+
 // الصفحات العامّة وحدها هي ما يُفهرَس. ما تحت (app) و(admin) و/api خاصّ.
 export const PUBLIC_ROUTES = ["/", "/pricing", "/try", "/guides", "/tools/pdf-check"] as const;
 

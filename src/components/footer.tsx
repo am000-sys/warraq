@@ -3,7 +3,7 @@
 // مرجع: design-reference/warraq-v3.html (function Footer)
 import Link from "next/link";
 import { Logo } from "@/components/logo";
-import { CONTACT_EMAIL } from "@/lib/site";
+import { CONTACT_EMAIL, CONTACT_WHATSAPP_URL } from "@/lib/site";
 
 // لا روابط إلى «#»: رابطٌ لا يؤدّي إلى شيء يُضعف ثقة الزائر والمراجِع معاً
 const cols = [
@@ -18,6 +18,7 @@ const cols = [
   ] },
   { title: "الدعم", links: [
     { l: "أدلّة الاستخدام", href: "/guides" },
+    ...(CONTACT_WHATSAPP_URL ? [{ l: "تواصل عبر واتساب", href: CONTACT_WHATSAPP_URL }] : []),
     ...(CONTACT_EMAIL ? [{ l: "تواصل معنا", href: `mailto:${CONTACT_EMAIL}` }] : []),
   ] },
 ];

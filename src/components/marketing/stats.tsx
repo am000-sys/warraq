@@ -1,11 +1,17 @@
 // src/components/marketing/stats.tsx
 // إحصائيات صادقة عن قدرات المنصّة (لا أرقام استخدام مُختلَقة)
 import { Reveal } from "@/components/reveal";
+import { TOPUP_PACKAGES } from "@/lib/packages";
+import { ar } from "@/lib/utils";
+
+// أصغر باقة تُشترى فعلاً — من packages.ts مباشرةً فلا يفترق الرقم عن السعر الحقيقيّ.
+// (حلّت محلّ «∞ صفحات في الخطط المدفوعة»: الخطط محدودة الصفحات ولا تُشترى بعد.)
+const entry = TOPUP_PACKAGES.reduce((a, b) => (b.amountSar < a.amountSar ? b : a));
 
 const items = [
   { n: "٥٠", l: "صفحة مجانية عند التسجيل" },
   { n: "٥", l: "صيغ تصدير (TXT, MD, DOCX, JSON, XLSX)" },
-  { n: "∞", l: "صفحات في الخطط المدفوعة" },
+  { n: ar(entry.amountSar), l: `سعر أصغر باقة بالريال (${ar(entry.pages)} صفحة)` },
   { n: "٢٤/٧", l: "معالجة تلقائية في الخلفية" },
 ];
 

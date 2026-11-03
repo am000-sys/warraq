@@ -82,7 +82,7 @@ export default async function DashboardPage() {
           <span style={{ color: "var(--orange)", fontWeight: 500 }}>
             {arNum(user.pagesBalance)}
           </span>{" "}
-          صفحة متبقية هذا الشهر
+          صفحة متبقية في رصيدك
         </p>
       </div>
 
