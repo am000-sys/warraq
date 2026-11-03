@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Logo } from "@/components/logo";
-import { Activity, Users, Briefcase, DollarSign, Server, Menu, X, Wallet, LayoutDashboard, Crown, LogOut, ChevronsUpDown, Filter } from "lucide-react";
+import { Activity, Users, Briefcase, DollarSign, Server, Menu, X, Wallet, LayoutDashboard, Crown, LogOut, ChevronsUpDown, Filter, ClipboardList } from "lucide-react";
 import { signOut } from "next-auth/react";
 import {
   DropdownMenu,
@@ -20,6 +20,7 @@ const items = [
   { k: "/admin", l: "النظرة العامة", icon: Activity },
   { k: "/admin/topups", l: "طلبات الشحن", icon: Wallet },
   { k: "/admin/funnel", l: "مسار التحويل", icon: Filter },
+  { k: "/admin/survey", l: "الاستبيان", icon: ClipboardList },
   { k: "/admin/users", l: "المستخدمون", icon: Users },
   { k: "/admin/jobs", l: "الوظائف", icon: Briefcase },
   { k: "/admin/revenue", l: "الإيرادات", icon: DollarSign },

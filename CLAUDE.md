@@ -21,13 +21,14 @@
 - `src/app/(marketing)/`: الرئيسيّة، والأسعار، والأدلّة `guides/`، والأداة المجّانيّة `tools/pdf-check`، والتجربة بلا حساب `try`.
 - `src/app/(auth)/`: الدخول والتسجيل والتفعيل.
 - `src/app/(app)/`: لوحة المستخدم: الرفع، والمستندات `jobs/`، والملخّص `study/`، والشحن `billing/`، والمؤسّسات، والإعدادات.
-- `src/app/(admin)/admin/`: لوحة المالك: مسار التحويل `funnel/`، والإيرادات `revenue/`، وطلبات الشحن `topups/`، والمستخدمون، والنظام.
+- `src/app/(admin)/admin/`: لوحة المالك: مسار التحويل `funnel/`، والاستبيان `survey/`، والإيرادات `revenue/`، وطلبات الشحن `topups/`، والمستخدمون، والنظام.
+- `src/app/survey/`: صفحة الاستبيان، تُفتح برابطٍ شخصيّ يصل بالبريد.
 - `src/app/api/`: المسارات (auth وjobs وstudy وtopup وtap وstripe وtry وadmin وغيرها).
 - `src/lib/`: المنطق. الرصيد `billing.ts`، والباقات `packages.ts`، والدفع `payments*.ts` و`tap.ts` و`stripe.ts` و`bank.ts`، والتفريغ `mistral.ts` و`ocr*.ts`، والملخّص `study*.ts`، ومسار التحويل `funnel.ts`.
 - `src/content/guides.ts`: نصوص الأدلّة. `prisma/schema.prisma`: الجداول. `design-reference/`: التصميم المرجعيّ.
 - `docs/growth/`: معرفة البيع، موضوع لكلّ ملفّ: `funnel.md` و`pricing.md` و`payments.md` و`audience.md`.
 - `decisions.md`: كلّ قرار بتاريخه وسببه.
-- `.claude/rules/`: أحكام تُحمَّل عند العمل على ملفّاتها: الواجهة، والكود، والـ API، والمعالجة والرصيد، والملخّص، والمصادقة، والبريد، والآيات، وأدوات المستند، والدفع، وصفحات التسويق.
+- `.claude/rules/`: أحكام تُحمَّل عند العمل على ملفّاتها: الواجهة، والكود، والـ API، والمعالجة والرصيد، والملخّص، والمصادقة، والبريد، والآيات، وأدوات المستند، والدفع، وصفحات التسويق، والاستبيان.
 - `.claude/skills/`: `funnel-review` (مراجعة مسار التحويل) و`ship-change` (نشر تعديل). ومهارة التصميم `design-taste-frontend` في `.agents/skills/`.
 - التشغيل المحلّيّ وإعداد الحسابات: `SETUP_GUIDE_AR.md`.
 
