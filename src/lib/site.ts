@@ -49,4 +49,5 @@ export const PRIVATE_PREFIXES = [
   "/invitations",
   "/verify-email",
   "/reset-password",
+  "/survey",
 ] as const;

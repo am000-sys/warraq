@@ -174,6 +174,43 @@ export function queueEmail(
   }
 }
 
+// دفعة واحدة حتى ١٠٠ رسالة في طلبٍ واحد (Resend batch) — لرسائل المالك إلى شريحة من
+// المستخدمين كالاستبيان: نداءٌ واحد بدل عشرات النداءات المتتابعة التي قد تتجاوز مهلة
+// الدالّة. يرمي عند الرفض فلا يُسجَّل إرسالٌ لم يقع.
+export const BATCH_LIMIT = 100;
+
+export async function sendEmailBatch(
+  messages: { to: string; subject: string; html: string }[],
+): Promise<void> {
+  if (!RESEND_API_KEY) throw new Error("البريد غير مهيّأ (RESEND_API_KEY)");
+  if (messages.length === 0) return;
+  if (messages.length > BATCH_LIMIT) throw new Error(`الدفعة أكبر من ${BATCH_LIMIT} رسالة`);
+
+  const res = await fetch("https://api.resend.com/emails/batch", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(
+      messages.map((m) => ({
+        from: FROM,
+        to: m.to,
+        subject: m.subject,
+        html: m.html,
+        text: htmlToText(m.html),
+        ...(REPLY_TO ? { reply_to: REPLY_TO } : {}),
+      })),
+    ),
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    console.error("[email] Resend rejected the batch:", detail);
+    throw new Error(`Resend: HTTP ${res.status}`);
+  }
+}
+
 // ترويسات «عاجل» — تُبرز الرسالة في Outlook وغيره
 export const URGENT_HEADERS: Record<string, string> = {
   "X-Priority": "1",
@@ -304,6 +341,32 @@ export function welcomeEmail(name: string) {
         </p>
         <p style="color: #484758; line-height: 1.7;">
           لديك ${FREE_INITIAL_PAGES.toLocaleString("ar-SA")} صفحة مجانية لتجرّب المنصّة. ابدأ من الآن.
+        </p>
+      </div>
+    `,
+  };
+}
+
+// دعوة الاستبيان — تبيّن أهمّيته ولا تذكر أنّ المستخدم لم يرفع أو لم يشترِ (طلب المالك)
+export function surveyInviteEmail(name: string | null, url: string) {
+  // الاسم من إدخال المستخدم: يُهرَّب قبل وضعه في HTML
+  const safeName = (name ?? "").trim().replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+  return {
+    subject: "رأيك يهمّنا — استبيان من دقيقة واحدة",
+    html: `
+      <div style="font-family: 'Tajawal', sans-serif; direction: rtl; max-width: 480px; margin: 0 auto; padding: 32px;">
+        <h2 style="font-weight: 500; color: #181825;">السلام عليكم${safeName ? ` ${safeName}` : ""}،</h2>
+        <p style="color: #484758; line-height: 1.7;">
+          نطوّر وَرَّاق ليخدم الباحثين والمحقّقين على أحسن وجه، ورأيك يحدّد ما نعمل عليه بعد ذلك.
+        </p>
+        <p style="color: #484758; line-height: 1.7;">
+          خصّص دقيقة واحدة لاستبيانٍ قصير:
+        </p>
+        <a href="${url}" style="display: inline-block; background: #f69251; color: #000; padding: 12px 28px; border-radius: 28px; text-decoration: none; font-weight: 500; margin: 16px 0;">
+          شارك برأيك
+        </a>
+        <p style="color: #484758; line-height: 1.7;">
+          شكراً لك،<br>فريق وَرَّاق
         </p>
       </div>
     `,
